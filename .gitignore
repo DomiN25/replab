@@ -9,3 +9,7 @@ test-results/
 playwright-report/
 RepLab-Uebergabe/
 public/engine/
+
+# Privat: nicht veroeffentlichen (Repertoire)
+public/seed/
+PFLICHTENHEFT.md
