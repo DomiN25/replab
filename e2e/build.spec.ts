@@ -1,0 +1,56 @@
+// E2E (1): Repertoire bauen – Zug festlegen → Lücke verschwindet, neue Lücken erscheinen.
+import { test, expect } from '@playwright/test';
+import { mockExplorer, move } from './helpers';
+
+const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
+const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b';
+const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b';
+
+test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
+  await mockExplorer(page, {
+    [START]: [
+      ['e2e4', 'e4', 5000],
+      ['d2d4', 'd4', 4000],
+    ],
+    [AFTER_E4]: [
+      ['e7e5', 'e5', 600],
+      ['c7c5', 'c5', 400],
+    ],
+    [AFTER_NF3]: [
+      ['b8c6', 'Nc6', 700],
+      ['g8f6', 'Nf6', 300],
+    ],
+  });
+  await page.goto('/#/settings');
+  await page.getByPlaceholder('Name, z. B. Zweitwaffe 1.d4').fill('Test Weiß');
+  await page.getByRole('button', { name: 'Anlegen' }).click();
+  // Test-Token (kein echter Token; Anfragen gehen an den Mock)
+  const token = page.getByPlaceholder('lip_…');
+  await token.fill('lip_e2e_test');
+  await token.blur();
+
+  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  // Engine aus, damit die Engine-Regel das Ergebnis nicht verändert
+  await page.getByRole('button', { name: /Stockfish an/ }).click();
+
+  await move(page, 'e2e4');
+  const dlg = page.getByRole('dialog');
+  await expect(dlg).toContainText('Als Repertoirezug festlegen?');
+  await dlg.getByRole('button', { name: 'Festlegen' }).click();
+  await expect(page.getByTestId('gap-count')).toHaveText('2');
+
+  // 1…e5 ansehen, 2.Sf3 festlegen
+  await page.locator('.mvbtn.opp', { hasText: 'e5' }).click();
+  await move(page, 'g1f3');
+  await dlg.getByRole('button', { name: 'Festlegen' }).click();
+
+  // Lücke „1.e4 e5“ weg; neue Lücken nach 2.Sf3 (Sc6, Sf6) + weiterhin 1…c5
+  await expect(page.getByTestId('gap-count')).toHaveText('3');
+  await page.locator('.nav-top').getByRole('button', { name: 'Lücken' }).click();
+  const lines = await page.locator('.gapfam .line').allInnerTexts();
+  expect(lines.sort()).toEqual(['1.e4 c5', '1.e4 e5 2.Sf3 Sc6', '1.e4 e5 2.Sf3 Sf6']);
+
+  // Nach Neuladen ist alles noch da (M1)
+  await page.reload();
+  await expect(page.getByTestId('gap-count')).toHaveText('3');
+});
