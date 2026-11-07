@@ -42,5 +42,10 @@
     "vite": "^6.4.5",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^3.2.7"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DomiN25/replab.git"
+  },
+  "homepage": "https://domin25.github.io/replab/"
 }
