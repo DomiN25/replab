@@ -13,12 +13,19 @@ Web-App (PWA), mit der Dominik sein Schach-Eröffnungsrepertoire baut (pro eigen
 ## Stack
 TypeScript (strict) · Vite · React 18 · Zustand · Dexie (IndexedDB) · chessground + chessops · Stockfish WASM (Lite, Single-Thread, Web Worker) · ts-fsrs · D3 · Vitest · Playwright · vite-plugin-pwa. Lizenz der App: GPL-3 (wegen Stockfish/chessground/chessops).
 
-## Befehle (nach Setup anpassen)
-- `npm run dev` – Entwicklungsserver
-- `npm run build` – Produktions-Build
-- `npm test` – Vitest
-- `npm run e2e` – Playwright
-- `npm run lint` / `npm run typecheck`
+## Befehle
+- `npm run dev` – Entwicklungsserver (Port 5173, auch im WLAN erreichbar; kopiert vorher Stockfish nach `public/engine/`)
+- `npm run build` – Typecheck + Produktions-Build inkl. Service Worker (`dist/`)
+- `npm run preview` – Build lokal ansehen (PWA/Offline nur hier bzw. auf https)
+- `npm test` – Vitest (Unit + Integration, `tests/`)
+- `npm run e2e` – Playwright mit installiertem Edge (`e2e/`, startet eigenen Dev-Server auf 5180)
+- `npm run lint` / `npm run typecheck` – beides `tsc --noEmit` (kein ESLint eingerichtet)
+- `node scripts/build-openings.mjs [ordner]` – Eröffnungsnamen neu bauen (`src/data/openings.json`)
+- `node scripts/make-icons.mjs` – PWA-Icons neu erzeugen
+- Lichess-Token für die Entwicklung: `.env.local` mit `LICHESS_TOKEN=lip_…` (nie committen; im Build immer leer)
+
+## Stand & Status
+- Kurzstand, Entscheidungen, Ungetestetes: `STATUS.md` (zuerst lesen).
 
 ## Architektur-Regeln
 - `src/core/` enthält reine, UI-freie Logik (posKey, Graph, Lücken, Erreichwahrscheinlichkeit, Strukturen, SRS-Mapping, PGN). Alles dort hat Unit-Tests.
