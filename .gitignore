@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dev-dist/
+.env
+.env.*
+*.local
+coverage/
+test-results/
+playwright-report/
+RepLab-Uebergabe/
+public/engine/
