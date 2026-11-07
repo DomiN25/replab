@@ -123,6 +123,27 @@ describe('ExplorerService', () => {
     expect(order[1]).toBe(fenAfter(['h3']).split(' ')[0]);
   });
 
+  it('Hintergrund-Scan wird gedrosselt, dringende Anfragen nicht', async () => {
+    const sleeps: number[] = [];
+    const fetchMock = vi.fn(async () => jsonResponse(200, body([])));
+    const s = new ExplorerService({
+      cache: memCache(),
+      getToken: () => 't',
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: async (ms) => void sleeps.push(ms),
+      minIntervalMs: 250,
+      backgroundIntervalMs: 2000,
+      urgentPriority: 10,
+    });
+    // drei Hintergrund-Anfragen: zwischen ihnen je 2 s (250 + 7×250)
+    await Promise.all([fenAfter(['a3']), fenAfter(['b3']), fenAfter(['c3'])].map((f) => s.get(f, P, { priority: 0 })));
+    expect(sleeps.reduce((a, b) => a + b, 0)).toBe(2 * 2000);
+    sleeps.length = 0;
+    // dringende Anfragen hintereinander: nur 250 ms Abstand
+    await Promise.all([fenAfter(['d3']), fenAfter(['e3'])].map((f) => s.get(f, P, { priority: 10 })));
+    expect(sleeps).toEqual([250]);
+  });
+
   it('Rochade aus dem Explorer wird auf e1g1 normalisiert', async () => {
     const fen = fenAfter(['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5']);
     const fetchMock = vi.fn(async () => jsonResponse(200, body([['e1h1', 'O-O', 50]])));

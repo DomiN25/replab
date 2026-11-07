@@ -81,6 +81,8 @@ export const explorer = new ExplorerService({
   cache: { get: (k) => repo.getExplorer(k), put: (d) => repo.putExplorer(d) },
   getToken: lichessToken,
   minIntervalMs: 250,
+  backgroundIntervalMs: 2000,
+  urgentPriority: 10,
 });
 explorer.subscribe((s) => set({ explorerStatus: s }));
 

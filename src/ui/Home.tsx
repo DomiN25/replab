@@ -6,10 +6,11 @@ import { knowledgeOf, Scheduler, trainingStats } from '../core/srs';
 import { buildPool, dueItems, newItems } from './training';
 import { KNOWLEDGE_COLORS } from './knowledge';
 import { displaySan } from '../core/chess';
-import { loadSeedRepertoires, fetchSeed } from './seed';
+import { loadSeedRepertoires, fetchSeed, seedAvailable } from './seed';
 import { ImportDialog, type ImportPreset } from './ImportDialog';
 import { downloadBackup, lastBackupAt } from './backup';
 import type { ReviewLog } from '../core/types';
+import type { BackupFile } from '../data/repo';
 
 export function Home() {
   const rep = currentRep();
@@ -21,6 +22,26 @@ export function Home() {
   const [logs, setLogs] = useState<ReviewLog[]>([]);
   const [importPreset, setImportPreset] = useState<ImportPreset | undefined>();
   const [seeding, setSeeding] = useState(false);
+  const [hasSeed, setHasSeed] = useState<boolean | undefined>();
+
+  useEffect(() => {
+    if (!repertoires.length) void seedAvailable().then(setHasSeed);
+  }, [repertoires.length]);
+
+  const importBackupFile = async (f?: File) => {
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text()) as BackupFile;
+      await repo.importAll(data);
+      await reloadRepertoires();
+      const reps = useApp.getState().repertoires;
+      const first = reps.find((r) => r.isMain && r.color === 'white') ?? reps[0];
+      if (first) await selectRepertoire(first.id);
+      toast(`Sicherung eingespielt: ${data.moves.length} Einträge`, 'ok');
+    } catch (e) {
+      toast(`Sicherung konnte nicht gelesen werden: ${String(e)}`, 'err');
+    }
+  };
 
   useEffect(() => {
     void repo.reviewsSince(Date.now() - 400 * 86400_000).then(setLogs);
@@ -82,10 +103,23 @@ export function Home() {
           <h1>Willkommen bei Rep<span>Lab</span></h1>
           <p>Baue dein Eröffnungsrepertoire Zug für Zug, finde Lücken und lerne es mit verteilter Wiederholung.</p>
           <div className="row-actions">
-            <button className="btn primary big" disabled={seeding} onClick={() => void seed()}>{seeding ? 'Lade …' : 'Startrepertoire laden'}</button>
+            {hasSeed && (
+              <button className="btn primary big" disabled={seeding} onClick={() => void seed()}>{seeding ? 'Lade …' : 'Startrepertoire laden'}</button>
+            )}
+            <label className={`btn big file ${hasSeed ? '' : 'primary'}`}>
+              Sicherung einspielen (JSON)
+              <input type="file" accept="application/json,.json" hidden onChange={(e) => void importBackupFile(e.target.files?.[0])} />
+            </label>
             <button className="btn big" onClick={() => setView('settings')}>Leeres Repertoire anlegen</button>
           </div>
-          <p className="hint">Startrepertoire: deine Repertoire-Karte Weiß und Schwarz; danach wird die Studie „Spanisch“ mit Konfliktabfrage angeboten.</p>
+          {hasSeed ? (
+            <p className="hint">Startrepertoire: deine Repertoire-Karte Weiß und Schwarz; danach wird die Studie „Spanisch“ mit Konfliktabfrage angeboten.</p>
+          ) : (
+            <p className="hint">
+              Daten vom PC übernehmen: dort Einstellungen → „JSON-Sicherung exportieren“, Datei z. B. in Google Drive legen und hier einspielen. Bis zum Sync (M7) sind die Daten
+              je Gerät getrennt.
+            </p>
+          )}
         </section>
         {importPreset && <ImportDialog preset={importPreset} onClose={() => setImportPreset(undefined)} />}
       </div>

@@ -4,8 +4,22 @@ import { planImport } from '../core/pgn';
 
 export async function fetchSeed(name: string): Promise<string> {
   const r = await fetch(new URL(`seed/${name}`, document.baseURI).href);
-  if (!r.ok) throw new Error(`Seed ${name}: HTTP ${r.status}`);
-  return r.text();
+  const text = r.ok ? await r.text() : '';
+  // Fehlt die Datei, liefert der Dev-Server index.html (200) bzw. Pages 404
+  if (!r.ok || !text.trimStart().startsWith('[')) {
+    throw new Error('Startrepertoire ist in dieser Version nicht enthalten (nur in der lokalen Entwicklungsversion).');
+  }
+  return text;
+}
+
+/** Sind die Seed-PGNs in dieser Version vorhanden? (In der veröffentlichten Version bewusst nicht.) */
+export async function seedAvailable(): Promise<boolean> {
+  try {
+    await fetchSeed('repertoire_weiss.pgn');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Legt „Hauptrepertoire Weiß/Schwarz“ an und importiert die beiden Repertoire-PGNs. */

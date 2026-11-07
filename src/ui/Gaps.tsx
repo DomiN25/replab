@@ -15,6 +15,13 @@ export function Gaps() {
   const status = useApp((s) => s.explorerStatus);
   const [sort, setSort] = useState<GapSort>('depth');
   const [onlyTraps, setOnlyTraps] = useState(false);
+  const [minReach, setMinReach] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('replab.gapMinReach') ?? 0);
+    } catch {
+      return 0;
+    }
+  });
   const [askOrphans, setAskOrphans] = useState(false);
   const [engineScan, setEngineScan] = useState<{ done: number; total: number } | undefined>();
   const notation = settings.ui.notation;
@@ -23,8 +30,10 @@ export function Gaps() {
     if (!graph) return [];
     let list = gapList(graph, sort);
     if (onlyTraps) list = list.filter((g) => g.viaTrap);
+    if (minReach > 0) list = list.filter((g) => g.reach >= minReach);
     return groupGaps(list);
-  }, [graph, sort, onlyTraps]);
+  }, [graph, sort, onlyTraps, minReach]);
+  const shown = groups.reduce((s, g) => s + g.gaps.length, 0);
 
   if (!graph) return <p className="hint pad">Repertoire wird berechnet …</p>;
 
@@ -56,6 +65,7 @@ export function Gaps() {
       <header className="page-head">
         <h1>
           Baustellen <span className="count gap">{total}</span>
+          {shown !== total && <small className="shown"> {shown} angezeigt</small>}
         </h1>
         <div className="tools">
           <label className="field inline">
@@ -64,6 +74,27 @@ export function Gaps() {
               <option value="depth">nach Tiefe</option>
               <option value="reach">nach Erreichwahrscheinlichkeit</option>
               <option value="name">nach Name</option>
+            </select>
+          </label>
+          <label className="field inline">
+            <span>Mind. erreicht</span>
+            <select
+              value={minReach}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setMinReach(v);
+                try {
+                  localStorage.setItem('replab.gapMinReach', String(v));
+                } catch {
+                  /* egal */
+                }
+              }}
+            >
+              <option value={0}>alle</option>
+              <option value={0.001}>≥ 0,1 %</option>
+              <option value={0.005}>≥ 0,5 %</option>
+              <option value={0.01}>≥ 1 %</option>
+              <option value={0.02}>≥ 2 %</option>
             </select>
           </label>
           {settings.ui.showTraps && (

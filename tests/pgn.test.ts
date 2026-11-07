@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { analyzePgn, planImport, parseRepComment, exportPgn, readPgn, type ExistingEntry } from '../src/core/pgn';
 import { buildGraph } from '../src/core/graph';
 import { keyAfter, SETTINGS } from './helpers';
 
-const seed = (f: string) => readFileSync(join(__dirname, '..', 'public', 'seed', f), 'utf8');
+const seedPath = (f: string) => join(__dirname, '..', 'public', 'seed', f);
+const seed = (f: string) => readFileSync(seedPath(f), 'utf8');
+// Die Seed-PGNs sind privat (nicht im öffentlichen Repo) → Tests nur lokal, in CI übersprungen
+const hasSeeds = existsSync(seedPath('repertoire_weiss.pgn'));
+const itSeed = hasSeeds ? it : it.skip;
 
 describe('Kommentar-Parser', () => {
   it('Name | Tiefe | Status | Plan', () => {
@@ -34,7 +38,7 @@ describe('Kommentar-Parser', () => {
 });
 
 describe('PGN-Import', () => {
-  it('Seed Weiß: fehlerfrei, eigene Züge als Einträge, Gegnerzüge als extraOppMoves', () => {
+  itSeed('Seed Weiß: fehlerfrei, eigene Züge als Einträge, Gegnerzüge als extraOppMoves', () => {
     const text = seed('repertoire_weiss.pgn');
     const a = analyzePgn(text, 'white', new Map());
     expect(a.errors).toEqual([]);
@@ -56,7 +60,7 @@ describe('PGN-Import', () => {
     expect(afterE4.extraOppMoves.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('Seed Schwarz: fehlerfrei, LÜCKE-Stellungen ohne Eintrag', () => {
+  itSeed('Seed Schwarz: fehlerfrei, LÜCKE-Stellungen ohne Eintrag', () => {
     const text = seed('repertoire_schwarz.pgn');
     const p = planImport(text, 'black', new Map());
     expect(p.errors).toEqual([]);
@@ -69,7 +73,7 @@ describe('PGN-Import', () => {
     expect(p.entries.every((e) => !(e.note ?? '').includes('LÜCKE'))).toBe(true);
   });
 
-  it('Studie Spanisch nach Seed Weiß: Konflikt 5.O-O vs 5.d3 wird erkannt', () => {
+  itSeed('Studie Spanisch nach Seed Weiß: Konflikt 5.O-O vs 5.d3 wird erkannt', () => {
     const base = planImport(seed('repertoire_weiss.pgn'), 'white', new Map());
     const existing = new Map<string, ExistingEntry>(base.entries.map((e) => [e.posKey, { uci: e.uci, san: e.san, note: e.note, tags: e.tags }]));
     const text = seed('studie_spanisch.pgn');
@@ -120,13 +124,13 @@ describe('PGN-Import', () => {
     expect(p.entries.map((e) => e.san)).toEqual(['e4']);
   });
 
-  it('Studie Strukturen lässt sich parsen (8 Kapitel)', () => {
+  itSeed('Studie Strukturen lässt sich parsen (8 Kapitel)', () => {
     expect(readPgn(seed('studie_strukturen.pgn')).length).toBe(8);
   });
 });
 
 describe('PGN-Export', () => {
-  it('Rundreise: Export → Import ergibt dieselben Einträge', () => {
+  itSeed('Rundreise: Export → Import ergibt dieselben Einträge', () => {
     const text = seed('repertoire_weiss.pgn');
     const plan = planImport(text, 'white', new Map());
     const entries = new Map(plan.entries.map((e) => [e.posKey, { uci: e.uci, san: e.san }]));

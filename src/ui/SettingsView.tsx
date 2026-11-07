@@ -158,7 +158,16 @@ export function SettingsView() {
           >
             Startrepertoire laden
           </button>
-          <button className="btn ghost" onClick={async () => setImportPreset({ text: await fetchSeed('studie_spanisch.pgn'), name: 'studie_spanisch.pgn', source: 'seed', repId: repertoires.find((r) => r.color === 'white' && r.isMain)?.id })}>
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              try {
+                setImportPreset({ text: await fetchSeed('studie_spanisch.pgn'), name: 'studie_spanisch.pgn', source: 'seed', repId: repertoires.find((r) => r.color === 'white' && r.isMain)?.id });
+              } catch (e) {
+                toast(e instanceof Error ? e.message : String(e), 'err');
+              }
+            }}
+          >
             Studie „Spanisch“ importieren
           </button>
         </div>

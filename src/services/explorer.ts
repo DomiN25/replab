@@ -75,7 +75,14 @@ export interface ExplorerServiceOptions {
   fetch?: typeof fetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** Pause nach einer Anfrage, wenn als Nächstes eine dringende Anfrage (Priorität ≥ urgentPriority) wartet. */
   minIntervalMs?: number;
+  /**
+   * Pause vor Hintergrund-Anfragen (Lückenscan). Gemessen 08.11.2026: Lichess lässt ~25–30 Anfragen
+   * am Stück zu, danach 429. Mit 2 s Abstand bleibt der Scan unter dem Limit.
+   */
+  backgroundIntervalMs?: number;
+  urgentPriority?: number;
 }
 
 export class ExplorerService {
@@ -196,11 +203,29 @@ export class ExplorerService {
         } finally {
           this.inflight.delete(job.key);
         }
-        if (this.queue.length && this.o.minIntervalMs) await this.sleep(this.o.minIntervalMs);
+        if (this.queue.length) await this.pace();
       }
     } finally {
       this.running = false;
       if (this.status.state === 'busy') this.setStatus({ state: 'idle' });
+    }
+  }
+
+  /**
+   * Abstand zwischen Anfragen: kurz, wenn eine dringende Anfrage wartet (aktuelle Stellung),
+   * sonst backgroundIntervalMs – in kleinen Schritten, damit eine neue dringende Anfrage vordrängeln kann.
+   */
+  private async pace() {
+    const urgent = this.o.urgentPriority ?? 10;
+    const short = this.o.minIntervalMs ?? 0;
+    const long = this.o.backgroundIntervalMs ?? short;
+    const isUrgent = () => (this.queue[0]?.priority ?? 0) >= urgent;
+    if (short) await this.sleep(short);
+    let waited = short;
+    while (waited < long && this.queue.length && !isUrgent()) {
+      const step = Math.min(250, long - waited);
+      await this.sleep(step);
+      waited += step;
     }
   }
 
