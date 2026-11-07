@@ -1,0 +1,320 @@
+// Einstellungen (F10), Repertoire-Verwaltung, Import/Export.
+import { useState } from 'react';
+import { repo, type BackupFile } from '../data/repo';
+import { currentRep, loadRepData, reloadRepertoires, saveSettings, selectRepertoire, toast, useApp } from './store';
+import { ImportDialog, type ImportPreset } from './ImportDialog';
+import { Modal } from './Modal';
+import { downloadBackup, downloadPgn } from './backup';
+import { fetchSeed, loadSeedRepertoires } from './seed';
+import type { Color, Settings } from '../core/types';
+
+const SPEEDS = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence'];
+const RATINGS = [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500];
+
+export function SettingsView() {
+  const settings = useApp((s) => s.settings);
+  const repertoires = useApp((s) => s.repertoires);
+  const graph = useApp((s) => s.graph);
+  const moves = useApp((s) => s.moves);
+  const marks = useApp((s) => s.marks);
+  const [showToken, setShowToken] = useState(false);
+  const [importPreset, setImportPreset] = useState<ImportPreset | undefined>();
+  const [confirm, setConfirm] = useState<{ title: string; text: string; action: () => Promise<void>; label: string } | undefined>();
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState<Color>('white');
+  const rep = currentRep();
+
+  const upd = (fn: (s: Settings) => void) => {
+    const s = structuredClone(settings);
+    fn(s);
+    void saveSettings(s);
+  };
+  const num = (v: string, min: number, max: number) => Math.min(max, Math.max(min, Number(v) || min));
+
+  const create = async () => {
+    if (!newName.trim()) return;
+    const r = await repo.createRepertoire(newName.trim(), newColor);
+    await reloadRepertoires();
+    await selectRepertoire(r.id);
+    setNewName('');
+    toast('Repertoire angelegt', 'ok');
+  };
+
+  const importBackup = async (f?: File) => {
+    if (!f) return;
+    let data: BackupFile;
+    try {
+      data = JSON.parse(await f.text());
+    } catch {
+      toast('Datei ist kein gültiges JSON', 'err');
+      return;
+    }
+    setConfirm({
+      title: 'Sicherung einspielen?',
+      text: `Alle Repertoires, Karten und Lernhistorie in diesem Browser werden durch die Sicherung vom ${new Date(data.exportedAt).toLocaleString('de-DE')} ersetzt. Token und Caches bleiben.`,
+      label: 'Ersetzen',
+      action: async () => {
+        await repo.importAll(data);
+        await reloadRepertoires();
+        const s = useApp.getState();
+        if (s.repId) await loadRepData();
+        toast('Sicherung eingespielt', 'ok');
+      },
+    });
+  };
+
+  return (
+    <div className="page settings">
+      <h1>Einstellungen</h1>
+
+      <section className="card">
+        <h2>Repertoires</h2>
+        <ul className="rep-list">
+          {repertoires.map((r) => (
+            <li key={r.id} className={r.id === rep?.id ? 'current' : ''}>
+              <span className={`kdot ${r.color}`} aria-hidden />
+              <input
+                className="rep-name"
+                defaultValue={r.name}
+                aria-label="Name"
+                onBlur={(e) => e.target.value.trim() && e.target.value !== r.name && void repo.renameRepertoire(r.id, e.target.value.trim()).then(reloadRepertoires)}
+              />
+              {r.isMain ? <span className="badge tief">Haupt</span> : <button className="btn small ghost" onClick={() => void repo.setMain(r.id).then(reloadRepertoires)}>als Haupt</button>}
+              <button className="btn small ghost" onClick={() => void selectRepertoire(r.id)} disabled={r.id === rep?.id}>öffnen</button>
+              <button
+                className="btn small ghost"
+                onClick={() =>
+                  setConfirm({
+                    title: `„${r.name}“ leeren?`,
+                    text: 'Alle Einträge, Markierungen, Karten und die Lernhistorie dieses Repertoires werden gelöscht. Das Repertoire selbst bleibt (zum Neu-Festlegen).',
+                    label: 'Leeren',
+                    action: async () => {
+                      await repo.clearRepertoire(r.id);
+                      await loadRepData();
+                      toast('Repertoire geleert', 'ok');
+                    },
+                  })
+                }
+              >
+                leeren
+              </button>
+              <button
+                className="btn small danger ghost"
+                onClick={() =>
+                  setConfirm({
+                    title: `„${r.name}“ löschen?`,
+                    text: 'Repertoire inkl. aller Einträge, Karten und Lernhistorie wird endgültig gelöscht. Tipp: vorher eine JSON-Sicherung machen.',
+                    label: 'Löschen',
+                    action: async () => {
+                      await repo.deleteRepertoire(r.id);
+                      await reloadRepertoires();
+                      toast('Repertoire gelöscht', 'ok');
+                    },
+                  })
+                }
+              >
+                löschen
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="row-actions">
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name, z. B. Zweitwaffe 1.d4" aria-label="Name des neuen Repertoires" />
+          <select value={newColor} onChange={(e) => setNewColor(e.target.value as Color)} aria-label="Farbe">
+            <option value="white">Weiß</option>
+            <option value="black">Schwarz</option>
+          </select>
+          <button className="btn primary" onClick={() => void create()}>Anlegen</button>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Import / Export</h2>
+        <div className="row-actions wrap">
+          <button className="btn" onClick={() => setImportPreset({ text: '', name: '' })}>PGN importieren</button>
+          <button className="btn" disabled={!rep || !graph} onClick={() => rep && graph && downloadPgn(rep, graph, moves, marks)}>PGN exportieren ({rep?.name ?? '–'})</button>
+          <button className="btn" onClick={() => void downloadBackup()}>JSON-Sicherung exportieren</button>
+          <label className="btn file">
+            JSON-Sicherung einspielen
+            <input type="file" accept="application/json,.json" onChange={(e) => void importBackup(e.target.files?.[0])} hidden />
+          </label>
+        </div>
+        <div className="row-actions wrap">
+          <button
+            className="btn ghost"
+            onClick={() =>
+              setConfirm({
+                title: 'Startrepertoire laden?',
+                text: 'Importiert repertoire_weiss.pgn und repertoire_schwarz.pgn in die Hauptrepertoires (vorhandene Züge bleiben, nur Neues kommt dazu).',
+                label: 'Laden',
+                action: async () => {
+                  const r = await loadSeedRepertoires();
+                  await reloadRepertoires();
+                  await loadRepData();
+                  toast(`+${r.entries} Einträge`, 'ok');
+                },
+              })
+            }
+          >
+            Startrepertoire laden
+          </button>
+          <button className="btn ghost" onClick={async () => setImportPreset({ text: await fetchSeed('studie_spanisch.pgn'), name: 'studie_spanisch.pgn', source: 'seed', repId: repertoires.find((r) => r.color === 'white' && r.isMain)?.id })}>
+            Studie „Spanisch“ importieren
+          </button>
+        </div>
+        <p className="hint">Die Sicherung enthält keinen Lichess-Token und keine Datenbank-/Engine-Caches.</p>
+      </section>
+
+      <section className="card">
+        <h2>Lichess-Datenbank</h2>
+        <label className="field">
+          <span>Persönlicher Token (nur lokal gespeichert, nie exportiert)</span>
+          <div className="row-actions">
+            <input
+              type={showToken ? 'text' : 'password'}
+              defaultValue={settings.explorer.token ?? ''}
+              placeholder="lip_…"
+              autoComplete="off"
+              onBlur={(e) => upd((s) => (s.explorer.token = e.target.value.trim() || undefined))}
+            />
+            <button className="btn small ghost" onClick={() => setShowToken(!showToken)}>{showToken ? 'verbergen' : 'zeigen'}</button>
+          </div>
+        </label>
+        <p className="hint">
+          Token anlegen: <a href="https://lichess.org/account/oauth/token/create" target="_blank" rel="noreferrer">lichess.org → API-Token</a> (keine Rechte nötig).
+          {typeof __DEV_LICHESS_TOKEN__ !== 'undefined' && __DEV_LICHESS_TOKEN__ && !settings.explorer.token ? ' Aktuell wird der Entwicklungs-Token aus .env.local genutzt.' : ''}
+        </p>
+        <fieldset className="checks">
+          <legend>Bedenkzeiten</legend>
+          {SPEEDS.map((sp) => (
+            <label key={sp} className="check">
+              <input
+                type="checkbox"
+                checked={settings.explorer.speeds.includes(sp)}
+                onChange={(e) => upd((s) => (s.explorer.speeds = e.target.checked ? [...s.explorer.speeds, sp] : s.explorer.speeds.filter((x) => x !== sp)))}
+              />
+              {sp}
+            </label>
+          ))}
+        </fieldset>
+        <fieldset className="checks">
+          <legend>Ratingbänder (Untergrenzen)</legend>
+          {RATINGS.map((r) => (
+            <label key={r} className="check">
+              <input
+                type="checkbox"
+                checked={settings.explorer.ratings.includes(r)}
+                onChange={(e) => upd((s) => (s.explorer.ratings = (e.target.checked ? [...s.explorer.ratings, r] : s.explorer.ratings.filter((x) => x !== r)).sort((a, b) => a - b)))}
+              />
+              {r}
+            </label>
+          ))}
+        </fieldset>
+        <div className="grid2">
+          <label className="field">
+            <span>Mindestanteil relevanter Gegnerzüge (%)</span>
+            <input type="number" min={1} max={50} defaultValue={Math.round(settings.explorer.minShare * 100)} onBlur={(e) => upd((s) => (s.explorer.minShare = num(e.target.value, 1, 50) / 100))} />
+          </label>
+          <label className="field">
+            <span>Mindestpartien</span>
+            <input type="number" min={1} max={1000} defaultValue={settings.explorer.minGames} onBlur={(e) => upd((s) => (s.explorer.minGames = num(e.target.value, 1, 1000)))} />
+          </label>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Engine</h2>
+        <div className="grid2">
+          <label className="field">
+            <span>Tiefe (Handy max. 14)</span>
+            <input type="number" min={8} max={26} defaultValue={settings.engine.depth} onBlur={(e) => upd((s) => (s.engine.depth = num(e.target.value, 8, 26)))} />
+          </label>
+          <label className="field">
+            <span>Linien (MultiPV)</span>
+            <input type="number" min={1} max={5} defaultValue={settings.engine.multipv} onBlur={(e) => upd((s) => (s.engine.multipv = num(e.target.value, 1, 5)))} />
+          </label>
+          <label className="field">
+            <span>Engine-Regel: max. Abstand zum Besten (cp)</span>
+            <input type="number" min={0} max={300} defaultValue={settings.engine.nearBestCp} onBlur={(e) => upd((s) => (s.engine.nearBestCp = num(e.target.value, 0, 300)))} />
+          </label>
+          <label className="field">
+            <span>Falle: Mindestverlust (cp)</span>
+            <input type="number" min={30} max={500} defaultValue={settings.engine.trapLossCp} onBlur={(e) => upd((s) => (s.engine.trapLossCp = num(e.target.value, 30, 500)))} />
+          </label>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Training</h2>
+        <div className="grid2">
+          <label className="field">
+            <span>Behaltensziel (0,80–0,97)</span>
+            <input type="number" step={0.01} min={0.8} max={0.97} defaultValue={settings.srs.desiredRetention} onBlur={(e) => upd((s) => (s.srs.desiredRetention = Math.min(0.97, Math.max(0.8, Number(e.target.value) || 0.9))))} />
+          </label>
+          <label className="field">
+            <span>Neue Karten pro Tag</span>
+            <input type="number" min={0} max={100} defaultValue={settings.srs.newPerDay} onBlur={(e) => upd((s) => (s.srs.newPerDay = num(e.target.value, 0, 100)))} />
+          </label>
+          <label className="field">
+            <span>Max. Wiederholungen pro Tag</span>
+            <input type="number" min={10} max={2000} defaultValue={settings.srs.maxReviewsPerDay} onBlur={(e) => upd((s) => (s.srs.maxReviewsPerDay = num(e.target.value, 10, 2000)))} />
+          </label>
+          <label className="field">
+            <span>Kontext-Halbzüge</span>
+            <input type="number" min={0} max={12} defaultValue={settings.srs.contextPlies} onBlur={(e) => upd((s) => (s.srs.contextPlies = num(e.target.value, 0, 12)))} />
+          </label>
+          <label className="field">
+            <span>„Easy“ unter … Sekunden</span>
+            <input type="number" min={1} max={30} defaultValue={settings.srs.easyMs / 1000} onBlur={(e) => upd((s) => (s.srs.easyMs = num(e.target.value, 1, 30) * 1000))} />
+          </label>
+          <label className="field">
+            <span>„Hard“ über … Sekunden</span>
+            <input type="number" min={5} max={120} defaultValue={settings.srs.hardMs / 1000} onBlur={(e) => upd((s) => (s.srs.hardMs = num(e.target.value, 5, 120) * 1000))} />
+          </label>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Anzeige</h2>
+        <label className="check">
+          <input type="checkbox" checked={settings.ui.notation === 'de'} onChange={(e) => upd((s) => (s.ui.notation = e.target.checked ? 'de' : 'en'))} /> Deutsche Notation (S, L, T, D, K)
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={settings.ui.showReach} onChange={(e) => upd((s) => (s.ui.showReach = e.target.checked))} /> Erreichwahrscheinlichkeit anzeigen
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={settings.ui.showTraps} onChange={(e) => upd((s) => (s.ui.showTraps = e.target.checked))} /> Fallen (⚡) markieren
+        </label>
+      </section>
+
+      <section className="card">
+        <h2>Info</h2>
+        <p className="hint">
+          RepLab 0.1 · Daten liegen lokal in diesem Browser (IndexedDB). Lizenz GPL-3 (Stockfish, chessground, chessops). Eröffnungsnamen: lichess-org/chess-openings (CC0).
+        </p>
+      </section>
+
+      {importPreset && <ImportDialog preset={importPreset} onClose={() => setImportPreset(undefined)} />}
+      {confirm && (
+        <Modal
+          title={confirm.title}
+          onClose={() => setConfirm(undefined)}
+          actions={[
+            {
+              label: confirm.label,
+              kind: 'danger',
+              onClick: () => {
+                const c = confirm;
+                setConfirm(undefined);
+                void c.action().catch((e) => toast(String(e), 'err'));
+              },
+            },
+            { label: 'Abbrechen', kind: 'ghost', onClick: () => setConfirm(undefined) },
+          ]}
+        >
+          <p>{confirm.text}</p>
+        </Modal>
+      )}
+    </div>
+  );
+}

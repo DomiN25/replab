@@ -1,0 +1,414 @@
+// Ansicht „Bauen“: Brett | Kandidaten + Notizen | Galaxie/Liste.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { DrawShape } from 'chessground/draw';
+import { Board, uciSquares } from './Board';
+import { Candidates } from './Candidates';
+import { Galaxy, GalaxyLegend } from './Galaxy';
+import { TreeList } from './TreeList';
+import { Modal } from './Modal';
+import { useEngine, useExplorer } from './hooks';
+import {
+  back,
+  currentRep,
+  deleteMyMoves,
+  forward,
+  gotoCursor,
+  gotoNode,
+  playMove,
+  setMyMove,
+  toast,
+  useApp,
+} from './store';
+import { displaySan, playUci, plyOfFen, posKeyOf, turnOf, moveNumberPrefix } from '../core/chess';
+import { oppCandidates } from '../core/relevance';
+import { Scheduler } from '../core/srs';
+import { repo } from '../data/repo';
+
+interface PendingCommit {
+  fen: string;
+  uci: string;
+  san: string;
+  playAfter: boolean;
+  warning?: string;
+}
+
+export function Builder() {
+  const rep = currentRep();
+  const line = useApp((s) => s.line);
+  const cursor = useApp((s) => s.cursor);
+  const graph = useApp((s) => s.graph);
+  const moves = useApp((s) => s.moves);
+  const marks = useApp((s) => s.marks);
+  const cards = useApp((s) => s.cards);
+  const settings = useApp((s) => s.settings);
+  const flipped = useApp((s) => s.flipped);
+  const engineOn = useApp((s) => s.engineOn);
+  const galaxyMode = useApp((s) => s.galaxyMode);
+  const sideView = useApp((s) => s.sideView);
+  const [source, setSource] = useState<'lichess' | 'masters'>('lichess');
+  const [pending, setPending] = useState<PendingCommit | undefined>();
+  const [orphanCheck, setOrphanCheck] = useState(false);
+  const [orphans, setOrphans] = useState<string[] | undefined>();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const step = line[cursor];
+  const fen = step.fen;
+  const posKey = posKeyOf(fen);
+  const myColor = rep?.color ?? 'white';
+  const myTurn = turnOf(fen) === myColor;
+  const entry = moves.get(posKey);
+  const mark = marks.get(posKey);
+  const nodeId = graph?.byPosKey.get(posKey);
+  const node = nodeId !== undefined ? graph!.nodes[nodeId] : undefined;
+
+  const explorerSt = useExplorer(fen, 'lichess');
+  const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
+  const engineSt = useEngine(fen, engineOn);
+
+  // Fokus der Galaxie: aktuelle Stellung, falls sie Kinder hat, sonst ihr Elternknoten.
+  // Außerhalb des Repertoires: tiefster bekannter Vorfahr auf dem Weg.
+  const { focusId, currentId, outside } = useMemo(() => {
+    if (!graph) return { focusId: 0, currentId: undefined, outside: false };
+    let cur: number | undefined = nodeId;
+    let out = false;
+    if (cur === undefined) {
+      out = true;
+      for (let i = cursor; i >= 0; i--) {
+        const id = graph.byPosKey.get(posKeyOf(line[i].fen));
+        if (id !== undefined) {
+          cur = id;
+          break;
+        }
+      }
+    }
+    const c = cur ?? 0;
+    const n = graph.nodes[c];
+    const f = n.children.length || c === 0 ? c : Math.max(0, n.parent);
+    return { focusId: f, currentId: c, outside: out };
+  }, [graph, nodeId, cursor, line]);
+
+  // Abrufwahrscheinlichkeit pro Stellung (für Heatmap/Liste)
+  const rOf = useMemo(() => {
+    const sch = new Scheduler(settings.srs.desiredRetention);
+    const now = Date.now();
+    const cache = new Map<string, number | undefined>();
+    return (k: string) => {
+      if (cache.has(k)) return cache.get(k);
+      const c = cards.get(k);
+      const r = c ? sch.retrievability(c.srs, now) : undefined;
+      cache.set(k, r);
+      return r;
+    };
+  }, [cards, settings.srs.desiredRetention]);
+
+  // Pfeile: grün = mein Zug, gelb gestrichelt = relevante Gegnerzüge (Dicke nach Anteil), blau = Engine-Bester
+  const shapes = useMemo<DrawShape[]>(() => {
+    const out: DrawShape[] = [];
+    const best = engineOn ? engineSt.lines[0]?.uci : undefined;
+    if (myTurn) {
+      const sq = uciSquares(entry?.uci);
+      if (sq) out.push({ orig: sq[0], dest: sq[1], brush: 'mine' });
+      const b = uciSquares(best);
+      if (b && best !== entry?.uci) out.push({ orig: b[0], dest: b[1], brush: 'eng' });
+    } else {
+      const cands = oppCandidates({
+        fen,
+        explorer: explorerSt.data,
+        engine: engineSt.lines.length ? { posKey, depth: engineSt.depth, lines: engineSt.lines, analysedAt: 0 } : undefined,
+        mark,
+        settings: {
+          minShare: settings.explorer.minShare,
+          minGames: settings.explorer.minGames,
+          nearBestCp: settings.engine.nearBestCp,
+          trapLossCp: settings.engine.trapLossCp,
+          trapMinShare: settings.engine.trapMinShare,
+        },
+      }).filter((c) => c.relevant);
+      for (const c of cands.slice(0, 6)) {
+        const sq = uciSquares(c.uci);
+        if (sq) out.push({ orig: sq[0], dest: sq[1], brush: 'opp', modifiers: { lineWidth: 4 + Math.round(12 * (c.share ?? 0.2)) } });
+      }
+      const b = uciSquares(best);
+      if (b && best !== cands[0]?.uci) out.push({ orig: b[0], dest: b[1], brush: 'eng' });
+    }
+    return out;
+  }, [myTurn, entry, engineOn, engineSt, explorerSt.data, fen, mark, posKey, settings]);
+
+  // Prüfen, ob nach einer Änderung alte Äste verwaist sind
+  useEffect(() => {
+    if (!orphanCheck || !graph) return;
+    setOrphanCheck(false);
+    if (graph.orphans.length) setOrphans(graph.orphans);
+  }, [graph, orphanCheck]);
+
+  /** Alle Gegnerzüge des aktuellen Wegs, die noch nicht im Graphen sind, als relevant markieren. */
+  const ensureReachable = useCallback(async () => {
+    if (!graph || !rep) return;
+    for (let i = 1; i <= cursor; i++) {
+      const prev = line[i - 1];
+      const st = line[i];
+      if (turnOf(prev.fen) === rep.color) continue; // mein Zug
+      const childKey = posKeyOf(st.fen);
+      if (!graph.byPosKey.has(childKey)) {
+        await repo.toggleOppMove(rep.id, posKeyOf(prev.fen), st.uci!, 'extra', true);
+      }
+    }
+  }, [graph, rep, cursor, line]);
+
+  const unreachableWarning = useCallback((): string | undefined => {
+    if (!rep) return;
+    for (let i = 1; i <= cursor; i++) {
+      const prev = line[i - 1];
+      if (turnOf(prev.fen) !== rep.color) continue;
+      const e = moves.get(posKeyOf(prev.fen));
+      if (e && e.uci !== line[i].uci) {
+        return `Achtung: Auf diesem Weg weichst du bei ${moveNumberPrefix(i - 1)}${displaySan(line[i].san!, settings.ui.notation)} von deinem Repertoirezug ${displaySan(e.san, settings.ui.notation)} ab. Die Stellung ist dann nur über Zugumstellung erreichbar.`;
+      }
+    }
+    return undefined;
+  }, [rep, cursor, line, moves, settings.ui.notation]);
+
+  const commit = async (c: PendingCommit, resetHistory: boolean) => {
+    const changing = !!moves.get(posKeyOf(c.fen)) && moves.get(posKeyOf(c.fen))!.uci !== c.uci;
+    await ensureReachable();
+    await setMyMove(c.fen, c.uci, c.san, resetHistory);
+    toast(`${displaySan(c.san, settings.ui.notation)} festgelegt`, 'ok');
+    if (changing) setOrphanCheck(true);
+    if (c.playAfter) playMove(c.uci);
+  };
+
+  const onBoardMove = (uci: string) => {
+    let san = uci;
+    try {
+      san = playUci(fen, uci).san;
+    } catch {
+      return;
+    }
+    if (myTurn && !entry && !mark?.endOfLine) {
+      setPending({ fen, uci, san, playAfter: true, warning: unreachableWarning() });
+      return;
+    }
+    playMove(uci);
+  };
+
+  const onCommit = (uci: string, san: string) => {
+    setPending({ fen, uci, san, playAfter: false, warning: unreachableWarning() });
+  };
+
+  const onSelectNode = (id: number) => {
+    if (!graph) return;
+    const n = graph.nodes[id];
+    gotoNode(n.status === 'transposition' ? n.transposeOf! : id);
+  };
+
+  const onGalaxyBack = () => {
+    if (!graph || focusId === 0) return;
+    gotoNode(graph.nodes[focusId].parent);
+  };
+
+  // Tastatur: ← → Navigation, f drehen, Leertaste Engine
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (document.querySelector('.modal')) return;
+      if (e.key === 'ArrowLeft') back();
+      else if (e.key === 'ArrowRight') forward();
+      else if (e.key === 'f') useApp.setState((s) => ({ flipped: !s.flipped }));
+      else if (e.key === ' ') {
+        e.preventDefault();
+        useApp.setState((s) => ({ engineOn: !s.engineOn }));
+      } else return;
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Wischgesten unter dem Brett (Handy)
+  const touch = useRef<{ x: number; y: number } | undefined>(undefined);
+  const onTouchStart = (e: React.TouchEvent) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY });
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = touch.current;
+    if (!s) return;
+    const dx = e.changedTouches[0].clientX - s.x;
+    const dy = e.changedTouches[0].clientY - s.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > 2 * Math.abs(dy)) (dx < 0 ? forward : back)();
+    touch.current = undefined;
+  };
+
+  if (!rep) return <p className="empty">Lege zuerst ein Repertoire an (Start oder Einstellungen).</p>;
+
+  const orientation = flipped ? (myColor === 'white' ? 'black' : 'white') : myColor;
+  const existing = pending ? moves.get(posKeyOf(pending.fen)) : undefined;
+
+  return (
+    <div className="builder">
+      <section className="col-board">
+        <Crumbs />
+        <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
+        <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang">⏮</button>
+          <button className="btn icon" onClick={back} aria-label="Zug zurück">◀</button>
+          <button className="btn icon" onClick={forward} aria-label="Zug vor">▶</button>
+          <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)">⇅</button>
+          <span className="swipe-hint">wischen ◀ ▶</span>
+        </div>
+      </section>
+
+      <section className="col-panel sheet">
+        <Candidates
+          fen={fen}
+          myTurn={myTurn}
+          node={node}
+          graph={graph}
+          lineSans={line.slice(1, cursor + 1).map((s) => s.san!)}
+          entry={entry}
+          mark={mark}
+          explorer={explorerSt}
+          masters={mastersSt}
+          engine={engineSt}
+          source={source}
+          onSource={setSource}
+          onPlay={playMove}
+          onCommit={onCommit}
+          onDeleteEntry={() => setConfirmDelete(true)}
+        />
+      </section>
+
+      <section className="col-side">
+        <div className="side-head">
+          <div className="seg small" role="group" aria-label="Ansicht">
+            <button aria-pressed={sideView === 'galaxy'} onClick={() => useApp.setState({ sideView: 'galaxy' })}>Galaxie</button>
+            <button aria-pressed={sideView === 'list'} onClick={() => useApp.setState({ sideView: 'list' })}>Liste</button>
+          </div>
+          {sideView === 'galaxy' && (
+            <div className="seg small" role="group" aria-label="Farbmodus">
+              <button aria-pressed={galaxyMode === 'family'} onClick={() => useApp.setState({ galaxyMode: 'family' })}>Familie</button>
+              <button aria-pressed={galaxyMode === 'knowledge'} onClick={() => useApp.setState({ galaxyMode: 'knowledge' })}>Wissen</button>
+            </div>
+          )}
+        </div>
+        {!graph ? (
+          <p className="hint">Repertoire wird berechnet …</p>
+        ) : sideView === 'galaxy' ? (
+          <>
+            <Galaxy
+              graph={graph}
+              focusId={focusId}
+              currentId={currentId}
+              mode={galaxyMode}
+              rOf={rOf}
+              notation={settings.ui.notation}
+              onSelect={onSelectNode}
+              onBack={onGalaxyBack}
+              outside={outside}
+            />
+            <GalaxyLegend mode={galaxyMode} graph={graph} />
+            {outside && <p className="hint">Aktuelle Stellung liegt außerhalb des Repertoires – Galaxie zeigt den letzten bekannten Punkt.</p>}
+          </>
+        ) : (
+          <TreeList graph={graph} currentId={currentId} notation={settings.ui.notation} showReach={settings.ui.showReach} rOf={rOf} onSelect={onSelectNode} />
+        )}
+      </section>
+
+      {pending && (
+        <Modal
+          title={existing ? 'Repertoirezug ändern?' : 'Als Repertoirezug festlegen?'}
+          onClose={() => {
+            if (pending.playAfter) playMove(pending.uci);
+            setPending(undefined);
+          }}
+          actions={
+            existing
+              ? [
+                  { label: 'Ändern, Lernstand behalten', kind: 'primary', onClick: () => { void commit(pending, false); setPending(undefined); } },
+                  { label: 'Ändern, Lernstand verwerfen', onClick: () => { void commit(pending, true); setPending(undefined); } },
+                  { label: 'Abbrechen', kind: 'ghost', onClick: () => setPending(undefined) },
+                ]
+              : [
+                  { label: 'Festlegen', kind: 'primary', onClick: () => { void commit(pending, false); setPending(undefined); } },
+                  {
+                    label: 'Nur ansehen',
+                    kind: 'ghost',
+                    onClick: () => {
+                      if (pending.playAfter) playMove(pending.uci);
+                      setPending(undefined);
+                    },
+                  },
+                ]
+          }
+        >
+          <p>
+            In dieser Stellung spielst du{' '}
+            <b className="me">{moveNumberPrefix(plyOfFen(pending.fen)) + displaySan(pending.san, settings.ui.notation)}</b>
+            {existing && <> statt {displaySan(existing.san, settings.ui.notation)}</>}.
+          </p>
+          {existing && <p className="hint">Der alte Ast bleibt gespeichert; danach kannst du nicht mehr erreichbare Einträge aufräumen.</p>}
+          {pending.warning && <p className="hint warn">{pending.warning}</p>}
+        </Modal>
+      )}
+
+      {orphans && (
+        <Modal
+          title="Nicht mehr erreichbare Einträge"
+          onClose={() => setOrphans(undefined)}
+          actions={[
+            { label: `${orphans.length} löschen`, kind: 'danger', onClick: () => { void deleteMyMoves(orphans); setOrphans(undefined); toast('Alter Ast entfernt', 'ok'); } },
+            { label: 'Behalten', kind: 'ghost', onClick: () => setOrphans(undefined) },
+          ]}
+        >
+          <p>{orphans.length} Einträge (inkl. Lernstand) hängen am alten Zug und sind nicht mehr erreichbar. Löschen?</p>
+          <p className="hint">Behalten ist unschädlich; sie erscheinen unter „Lücken → Verwaiste Einträge“.</p>
+        </Modal>
+      )}
+
+      {confirmDelete && entry && (
+        <Modal
+          title="Zug entfernen?"
+          onClose={() => setConfirmDelete(false)}
+          actions={[
+            {
+              label: 'Entfernen',
+              kind: 'danger',
+              onClick: () => {
+                void deleteMyMoves([entry.posKey]).then(() => setOrphanCheck(true));
+                setConfirmDelete(false);
+              },
+            },
+            { label: 'Abbrechen', kind: 'ghost', onClick: () => setConfirmDelete(false) },
+          ]}
+        >
+          <p>
+            {displaySan(entry.san, settings.ui.notation)} und der Lernstand dieser Stellung werden gelöscht. Folgende Einträge bleiben erhalten und können danach aufgeräumt
+            werden.
+          </p>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Crumbs() {
+  const line = useApp((s) => s.line);
+  const cursor = useApp((s) => s.cursor);
+  const notation = useApp((s) => s.settings.ui.notation);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector('.cur')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [cursor]);
+  return (
+    <nav className="crumbs" ref={ref} aria-label="Zugfolge">
+      <button className={cursor === 0 ? 'cur' : ''} onClick={() => gotoCursor(0)}>Start</button>
+      {line.slice(1).map((s, i) => {
+        const ply = plyOfFen(line[i].fen);
+        const label = (ply % 2 === 0 ? `${Math.floor(ply / 2) + 1}.` : '') + displaySan(s.san!, notation);
+        return (
+          <button key={i} className={`${cursor === i + 1 ? 'cur' : ''} ${i + 1 > cursor ? 'ahead' : ''}`} onClick={() => gotoCursor(i + 1)}>
+            {label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
