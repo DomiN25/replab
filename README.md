@@ -2,31 +2,35 @@
 
 Schach-Eröffnungsrepertoire bauen (ein Zug pro eigener Stellung), Lücken finden und mit FSRS lernen. Statische PWA, Daten lokal im Browser (IndexedDB).
 
-## Starten
+**App:** https://domin25.github.io/replab/ (wird bei jedem Push auf `main` per GitHub Actions neu gebaut)
+
+## Am Handy
+
+1. https://domin25.github.io/replab/ öffnen → Browser-Menü → „Zum Startbildschirm hinzufügen“ (Android/Chrome: „App installieren“).
+2. Nach dem ersten Laden funktioniert das Training offline.
+3. Daten vom PC übernehmen: am PC Einstellungen → „JSON-Sicherung exportieren“, Datei z. B. in Google Drive legen, am Handy auf dem Startbildschirm „Sicherung einspielen“.
+   Bis zum Sync (M7) sind die Daten je Gerät getrennt; auch `localhost` und die GitHub-Seite sind getrennte Speicher.
+4. Für Datenbank-Daten am Handy den Lichess-Token unter Einstellungen eintragen (bleibt nur auf dem Gerät). Training braucht keinen Token.
+
+## Entwicklung
 
 ```
 npm install
 npm run dev
 ```
 
-PC: http://localhost:5173 · Handy (gleiches WLAN): die „Network“-Adresse aus der Konsole, z. B. `http://192.168.178.20:5173`.
-Am Handy über WLAN läuft alles außer Installation/Offline (dafür braucht es https → später GitHub Pages). Daten am Handy und am PC sind getrennt, bis der Sync (M7) kommt.
+Lichess-Token für die Entwicklung: `.env.local` mit `LICHESS_TOKEN=lip_…` (nie committen; im Build immer leer).
+Token anlegen: https://lichess.org/account/oauth/token/create (keine Rechte nötig).
 
-## Lichess-Datenbank
-
-Der Opening Explorer verlangt einen persönlichen Token (ohne Rechte): https://lichess.org/account/oauth/token/create
-- Entwicklung: Datei `.env.local` mit `LICHESS_TOKEN=lip_…` (wird nie gebaut oder committet)
-- App: Einstellungen → Lichess-Datenbank → Token
-
-Ohne Token funktionieren Brett, Engine, Training und PGN-Import; Lücken basieren dann nur auf Markierungen aus der PGN.
+Private Dateien (nicht im Repo): `public/seed/*.pgn` (Startrepertoire), `PFLICHTENHEFT.md`, `STATUS.md`.
 
 ## Tests
 
 ```
-npm test        # Vitest: 88 Unit-/Integrationstests
-npm run e2e     # Playwright (Edge): Bauen, Training (Handy-Profil), Seed/Galaxie
+npm test        # Vitest (Seed-Tests laufen nur lokal mit den privaten PGNs)
+npm run e2e     # Playwright (Edge): Bauen, Training (Handy-Profil), Seed/Galaxie (lokal)
 ```
 
 ## Lizenz
 
-GPL-3.0-or-later (wegen Stockfish, chessground, chessops). Eröffnungsnamen: lichess-org/chess-openings (CC0).
+GPL-3.0-or-later (wegen Stockfish, chessground, chessops), siehe `LICENSE`. Eröffnungsnamen: lichess-org/chess-openings (CC0).

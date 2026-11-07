@@ -25,7 +25,7 @@ TypeScript (strict) · Vite · React 18 · Zustand · Dexie (IndexedDB) · chess
 - Lichess-Token für die Entwicklung: `.env.local` mit `LICHESS_TOKEN=lip_…` (nie committen; im Build immer leer)
 
 ## Stand & Status
-- Kurzstand, Entscheidungen, Ungetestetes: `STATUS.md` (zuerst lesen).
+- Kurzstand, Entscheidungen, Ungetestetes: `STATUS.md` (zuerst lesen; lokal, nicht im öffentlichen Repo).
 
 ## Architektur-Regeln
 - `src/core/` enthält reine, UI-freie Logik (posKey, Graph, Lücken, Erreichwahrscheinlichkeit, Strukturen, SRS-Mapping, PGN). Alles dort hat Unit-Tests.

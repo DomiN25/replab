@@ -8,9 +8,12 @@ Testseite: `spike.html` (`npm run dev` → http://localhost:5173/spike.html). Er
 |---|---|---|
 | Erreichbar ohne Token? | **Nein.** HTTP 401 „Authorization Required“ | `curl` und `fetch` aus dem Browser (localhost:5173) |
 | CORS | **Offen.** `Access-Control-Allow-Origin: *`, erlaubte Header inkl. `Authorization`, Preflight 204 | `curl -X OPTIONS …` sowie: `fetch` wirft keinen CORS-Fehler, sondern liefert den 401-Status lesbar zurück |
-| Mit Token | **Noch ungetestet** – braucht deinen persönlichen Token in `.env.local` (`LICHESS_TOKEN=lip_…`) | Spike-Seite testet automatisch, sobald die Datei existiert (Dev-Server neu starten) |
+| Mit Token (08.11.) | **Funktioniert.** HTTP 200 in 73 ms, z. B. nach 1.e4: e5 38 %, c5 25 %, e6 11 % | Spike-Seite mit Token aus `.env.local` |
+| Abfragelimit (08.11.) | Ca. 25–30 Anfragen am Stück, dann **429**. Mit 60 s Pause effektiv nur ~0,4 Anfragen/s | Messung beim Lückenscan (3× 429 im Abstand von ~75 s) |
 
 **Folgerung:** Kein Proxy nötig. Ein persönlicher Lichess-Token (ohne Scopes) ist Pflicht. Die App fragt ihn in den Einstellungen ab (nur lokal gespeichert, nie exportiert) und zeigt bei 401 einen klaren Hinweis. Im Dev-Modus kommt er alternativ aus `.env.local`; im Produktions-Build wird der Wert per `define` hart auf `''` gesetzt.
+
+**Gegenmaßnahme Limit:** Hintergrund-Anfragen (Lückenscan) mit 2 s Abstand, die aktuelle Stellung beim Klicken drängelt vor. Ergebnis: 41 Anfragen in knapp 2 min ohne ein einziges 429. Der erste Vollscan des Weiß-Repertoires (~200 Gegnerstellungen) dauert damit einige Minuten, danach greift der 30-Tage-Cache.
 
 **Plan B** (nur falls Lichess später CORS sperrt): Cloudflare-Worker als Proxy, der `Authorization` durchreicht. Aktuell nicht nötig.
 
@@ -25,7 +28,9 @@ Testseite: `spike.html` (`npm run dev` → http://localhost:5173/spike.html). Er
 
 Die Dateien werden per `scripts/copy-engine.mjs` (läuft vor `dev`/`build`) nach `public/engine/` kopiert, weil ein Worker eine echte URL braucht. Ein eigener Wrapper-Worker (`stockfish.worker.ts` aus dem Pflichtenheft) ist überflüssig: Die Stockfish-Datei *ist* bereits ein Worker; der Wrapper sitzt im Hauptthread (`src/services/engine.ts`).
 
-**Ungetestet:** echtes Handy. Erwartung nach Leistungsverhältnis: Faktor 3–6 langsamer, also Tiefe 18 in 3–6 s. Deshalb Standard-Tiefe am Handy 14 (Pflichtenheft 8) und Abbruch beim Weiterklicken.
+**Live auf GitHub Pages (08.11.):** Tiefe 18 in 0,79 s (PC-Browser), ohne COOP/COEP-Header.
+
+**Ungetestet:** echtes Handy – dafür am Handy https://domin25.github.io/replab/spike.html öffnen. Erwartung nach Leistungsverhältnis: Faktor 3–6 langsamer, also Tiefe 18 in 3–6 s. Deshalb Standard-Tiefe am Handy 14 (Pflichtenheft 8) und Abbruch beim Weiterklicken.
 
 ## (c) chessground + chessops
 
