@@ -70,6 +70,17 @@ const FAMILY_DE: Record<string, string> = {
   'Torre Attack': 'Torre',
   'Mieses Opening': 'Mieses',
   'Robatsch (Modern) Defense': 'Modern',
+  "King's Knight Opening": 'Königsspringerspiel',
+  'Sicilian Defense: Alapin Variation': 'Sizilianisch',
+  'Semi-Slav Defense Accepted': 'Semi-Slawisch',
+  "Queen's Gambit Refused": 'Abgelehntes Damengambit',
+  'Kings Pawn Opening': 'Offene Spiele',
+  'Indian Game': 'Indisch',
+  'Pterodactyl Defense': 'Pterodactylus',
+  'Nimzo-Larsen Attack: Modern Variation': 'Larsen',
+  'Horwitz Defense': 'Horwitz',
+  'Mikenas Defense': 'Mikenas',
+  'Petrov Defense': 'Russisch (Petrow)',
 };
 
 /** Familienteil eines Lichess-Eröffnungsnamens ("Ruy Lopez: Morphy Defense" → "Ruy Lopez"). */

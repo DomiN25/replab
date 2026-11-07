@@ -51,7 +51,8 @@ export interface ExplorerMove {
 }
 
 export interface ExplorerData {
-  key: string; // posKey|source|speeds|ratings
+  key: string; // posKey|sig
+  sig?: string; // source|speeds|ratings – zum Laden aller Einträge einer Parameterkombination
   posKey: string;
   moves: ExplorerMove[];
   total: number;
