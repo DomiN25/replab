@@ -611,6 +611,26 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 .study-commit select { flex: 1; min-width: 0; }
 .study-stats { font-size: 13px; color: var(--muted); }
 .study-stats b { font-family: var(--display); }
+.study-commit.inline { position: static; margin: 16px 0 4px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 16px; background: var(--panel2); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.study-comment small { display: block; font: 600 11px var(--body); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.study-progress { position: relative; flex: none; display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 999px; background: var(--panel2); overflow: hidden; font-size: 12px; }
+.study-progress i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--me-soft); transition: width 0.4s var(--ease-out); }
+.study-progress b { position: relative; font: 700 12px var(--display); font-variant-numeric: tabular-nums; }
+.study-head .btn.small { flex: none; }
+/* Lichess-artig: nächste Züge als Leiste unter dem Brett */
+.study-controls { gap: 6px; }
+.study-controls .btn.icon { flex: none; }
+.var-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; scroll-snap-type: x proximity; }
+.var-chips::-webkit-scrollbar { display: none; }
+.var-chip { position: relative; flex: none; scroll-snap-align: start; min-height: 40px; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-solid); font: 700 14px var(--display); cursor: pointer; color: var(--ink); transition: scale 0.18s var(--ease-out), background-color 0.15s; }
+.var-chip:active { scale: 0.95; }
+.var-chip.main { border-color: color-mix(in srgb, var(--acc) 50%, transparent); }
+.var-chip.chosen { color: var(--me); border-color: color-mix(in srgb, var(--me) 55%, transparent); background: var(--me-soft); }
+.var-chip.opp { color: var(--opp); }
+.var-chip.alt { color: var(--muted); }
+.var-chip.seen { opacity: 0.75; }
+.var-chip i { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
+.var-chips .hint { align-self: center; margin: 0 6px; }
 
 /* Geführter Aufbau */
 .mode-switch { margin-bottom: 10px; }

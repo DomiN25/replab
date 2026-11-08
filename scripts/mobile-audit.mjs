@@ -192,16 +192,29 @@ async function run(scheme) {
   await sd.getByPlaceholder('z. B. Anti-Sizilianer').fill('Anti-Sizilianer');
   await sd.getByRole('button', { name: 'Als Studie speichern' }).tap();
   await page.waitForSelector('.study-moves');
-  await page.locator('.smove-go', { hasText: '1.e4' }).tap();
-  await page.locator('.smove-go', { hasText: 'c5' }).tap();
+  const tapIn = async (loc) => {
+    await loc.evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
+    await page.waitForTimeout(150);
+    await loc.tap({ timeout: 8000 });
+  };
+  // Lichess-artig durchklicken: Variantenleiste unter dem Brett
+  await page.locator('.var-chip', { hasText: '1.e4' }).tap();
+  await page.locator('.var-chip', { hasText: 'c5' }).tap();
   await page.waitForTimeout(400);
   await shot('study-editor');
   await page.locator('.bs-grip').tap();
   await page.waitForTimeout(500);
   await shot('study-editor-full');
-  await page.locator('.smove', { hasText: '2.c3' }).getByRole('button', { name: /entfernen/ }).tap();
+  await tapIn(page.locator('.smove', { hasText: '2.c3' }).getByRole('button', { name: /entfernen/ }));
   await page.waitForTimeout(300);
   await shot('study-cut');
+  await page.locator('.bs-grip').tap();
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /^Offen/ }).tap();
+  await page.waitForTimeout(400);
+  const progress = await page.locator('.study-progress').innerText();
+  console.log(`${scheme}: Studie Fortschritt ${progress}`);
+  await shot('study-next-open');
   await page.getByRole('tab', { name: /Kapitel/ }).tap();
   await shot('study-chapters');
   await nav('Studien');

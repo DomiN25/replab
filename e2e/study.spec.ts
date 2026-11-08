@@ -87,6 +87,20 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await moves.locator('.smove-go', { hasText: 'Sc6' }).click();
   await expect(moves).toContainText('3.Lb5');
 
+  // Position und Fortschritt bleiben gespeichert: Liste und zurück → wieder bei 2…Sc6
+  await expect(page.locator('.study-progress')).toContainText('/');
+  const progress = await page.locator('.study-progress').innerText();
+  await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click();
+  await expect(page.locator('.study-list')).toBeVisible();
+  await page.locator('.study-open', { hasText: 'tbg' }).click();
+  await expect(page.locator('.crumbs')).toContainText('Sc6');
+  await expect(page.locator('.study-progress')).toHaveText(progress);
+  // Variantenleiste unter dem Brett und „Offen“ (nächste nicht angesehene Variante)
+  await page.locator('.var-chip', { hasText: '3.Lb5' }).click();
+  await expect(page.locator('.crumbs')).toContainText('Lb5');
+  await page.getByRole('button', { name: /^Offen/ }).click();
+  await expect(page.locator('.study-progress')).not.toHaveText(progress);
+
   // Kapitel abwählen und wieder an
   await page.getByRole('tab', { name: /Kapitel/ }).click();
   const k2 = page.locator('.study-chapters li', { hasText: 'Kapitel 2' }).getByRole('checkbox');

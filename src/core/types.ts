@@ -120,6 +120,10 @@ export interface Study {
   /** abgewählte Kapitel (Index im PGN) */
   skipChapters: number[];
   added?: { repertoireId: string; at: number; entries: number }[];
+  /** angesehene Stellungen (posKeys) – Fortschritt beim Durcharbeiten */
+  seen?: string[];
+  /** zuletzt angesehene Stellung als Zugweg – dort geht es beim nächsten Öffnen weiter */
+  lastPath?: { key: string; uci: string }[];
   createdAt: number;
   updatedAt: number;
 }

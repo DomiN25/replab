@@ -10,7 +10,7 @@ import { useMediaQuery } from './hooks';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { buildStudyTree, cutKey, guessColor, pgnOrientation, planImport, studyStart, type ExistingEntry } from '../core/pgn';
-import { activeChapters, firstExcluded, nodeView, studyFilter, subtreeSize, type PathStep } from '../core/study';
+import { activeChapters, firstExcluded, nextUnseen, nodeView, readingOrder, studyFilter, subtreeSize, type PathStep } from '../core/study';
 import { displaySan, moveNumberPrefix, plyOfFen } from '../core/chess';
 import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
 import type { Color, Study } from '../core/types';
@@ -215,9 +215,39 @@ function StudyEditor({ id }: { id: string }) {
   useEffect(() => {
     void repo.getStudy(id).then((s) => {
       if (!s) useApp.setState({ studyId: undefined });
-      else setSt(s);
+      else {
+        setSt(s);
+        setPath(s.lastPath ?? []);
+      }
     });
   }, [id]);
+
+  // Speichern gebündelt (die Studie enthält das ganze PGN): kurz nach der letzten Änderung, beim Verlassen sofort
+  const latest = useRef<Study | undefined>(undefined);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const persist = (n: Study) => {
+    latest.current = n;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = undefined;
+      void repo.saveStudy(n);
+    }, 500);
+  };
+  useEffect(() => {
+    const flush = () => {
+      if (timer.current && latest.current) {
+        clearTimeout(timer.current);
+        timer.current = undefined;
+        void repo.saveStudy(latest.current);
+      }
+    };
+    const onHide = () => document.visibilityState === 'hidden' && flush();
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, []);
 
   // Ziel-Repertoire: Hauptrepertoire der Studienfarbe, sonst irgendeins dieser Farbe
   useEffect(() => {
@@ -244,21 +274,38 @@ function StudyEditor({ id }: { id: string }) {
     setSt((prev) => {
       if (!prev) return prev;
       const next = { ...prev, ...patch };
-      void repo.saveStudy(next);
+      persist(next);
       return next;
     });
 
-  // aktuelle Stellung = Ende des Pfads
-  const currentKey = useMemo(() => {
-    if (!tree) return undefined;
+  // aktuelle Stellung = Ende des Pfads (ungültige Reste einer gespeicherten Position werden abgeschnitten)
+  const { currentKey, validLen } = useMemo(() => {
+    if (!tree) return { currentKey: undefined, validLen: 0 };
     let key = tree.root;
+    let n = 0;
     for (const step of path) {
-      const m = tree.nodes.get(step.key)?.moves.find((x) => x.uci === step.uci);
+      const m = step.key === key ? tree.nodes.get(step.key)?.moves.find((x) => x.uci === step.uci) : undefined;
       if (!m) break;
       key = m.child;
+      n++;
     }
-    return key;
+    return { currentKey: key, validLen: n };
   }, [tree, path]);
+  useEffect(() => {
+    if (tree && validLen < path.length) setPath((p) => p.slice(0, validLen));
+  }, [tree, validLen, path.length]);
+
+  // Fortschritt: angesehene Stellungen + letzte Position merken
+  const order = useMemo(() => (tree && st ? readingOrder(tree, st, active) : []), [tree, st?.cuts, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  const seenSet = useMemo(() => new Set(st?.seen ?? []), [st?.seen]);
+  const seenCount = useMemo(() => order.filter((x) => seenSet.has(x.key)).length, [order, seenSet]);
+  useEffect(() => {
+    if (!st || !tree || !currentKey || validLen < path.length) return;
+    const seen = st.seen ?? [];
+    const lastSame = JSON.stringify(st.lastPath ?? []) === JSON.stringify(path);
+    if (seen.includes(currentKey) && lastSame) return;
+    update({ seen: seen.includes(currentKey) ? seen : [...seen, currentKey], lastPath: path });
+  }, [currentKey, path, tree]); // eslint-disable-line react-hooks/exhaustive-deps
   const node = currentKey ? tree?.nodes.get(currentKey) : undefined;
   const view = node && st ? nodeView(node, st, active, existing) : undefined;
   const lastStep = path[path.length - 1];
@@ -278,6 +325,25 @@ function StudyEditor({ id }: { id: string }) {
   const forward = () => {
     const next = view?.moves.find((m) => m.status === 'chosen') ?? view?.moves.find((m) => m.status === 'opp') ?? view?.moves[0];
     if (next) go(next.uci);
+  };
+  const nextOpen = () => {
+    if (!currentKey) return;
+    const p = nextUnseen(order, seenSet, currentKey);
+    if (!p) return toast('Alle Stellungen dieser Studie angesehen.', 'ok');
+    setPath(p);
+  };
+  // Wischen über Brettsteuerung: links = vor, rechts = zurück (nicht in der Variantenleiste, die scrollt selbst)
+  const touch = useRef<{ x: number; y: number } | undefined>(undefined);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t0 = touch.current;
+    touch.current = undefined;
+    if (!t0 || (e.target as HTMLElement).closest('.var-chips')) return;
+    const dx = e.changedTouches[0].clientX - t0.x;
+    const dy = e.changedTouches[0].clientY - t0.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) (dx < 0 ? forward : back)();
   };
 
   useEffect(() => {
@@ -341,11 +407,25 @@ function StudyEditor({ id }: { id: string }) {
   const board = (
     <Board fen={node.fen} orientation={st.color} lastMove={uciSquares(lastStep?.uci)} shapes={shapes} onMove={go} movable="turn" />
   );
+  const nextMoves = view.moves.filter((m) => m.status !== 'cut');
   const controls = (
-    <div className="board-controls">
-      <button className="btn icon" onClick={() => setPath([])} aria-label="Zum Anfang"><Icon name="first" /></button>
-      <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
-      <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
+    <div className="board-controls study-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <button className="btn icon" onClick={back} aria-label="Zug zurück" disabled={!path.length}><Icon name="prev" /></button>
+      <button className="btn icon" onClick={forward} aria-label="Zug vor" disabled={!nextMoves.length}><Icon name="next" /></button>
+      <div className="var-chips" role="group" aria-label="Nächste Züge">
+        {nextMoves.length === 0 && <span className="hint">Ende der Linie</span>}
+        {nextMoves.map((m, i) => (
+          <button
+            key={m.uci}
+            className={`var-chip ${m.status} ${i === 0 ? 'main' : ''} ${seenSet.has(m.child) ? 'seen' : ''}`}
+            onClick={() => go(m.uci)}
+            title={m.comment}
+          >
+            {sanLabel(node.fen, m.san)}
+            {m.comment && <i aria-label="mit Kommentar" />}
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -370,6 +450,15 @@ function StudyEditor({ id }: { id: string }) {
           <span className={`kdot ${st.color}`} aria-hidden /> {st.name}
         </button>
       )}
+      <span className="study-progress" title={`${seenCount} von ${order.length} Stellungen angesehen`}>
+        <i style={{ width: `${order.length ? (100 * seenCount) / order.length : 0}%` }} />
+        <b>
+          {seenCount}/{order.length}
+        </b>
+      </span>
+      <button className="btn small" onClick={nextOpen} title="Zur nächsten noch nicht angesehenen Variante">
+        Offen <Icon name="next" />
+      </button>
     </div>
   );
 
@@ -383,7 +472,12 @@ function StudyEditor({ id }: { id: string }) {
           <button className="btn small" onClick={() => setPath(path.slice(0, excluded.index))}>Zur Stelle</button>
         </div>
       )}
-      {lastMove?.comment && <p className="note study-comment">{lastMove.comment}</p>}
+      {lastMove?.comment && (
+        <div className="note study-comment">
+          <small>Kommentar zu {sanLabel(tree.nodes.get(lastStep.key)!.fen, lastMove.san)}</small>
+          {lastMove.comment}
+        </div>
+      )}
       {path.length === 0 && tree.chapters.filter((c) => active.has(c.index) && c.intro)[0] && (
         <p className="note study-comment">{tree.chapters.filter((c) => active.has(c.index) && c.intro)[0].intro}</p>
       )}
@@ -470,7 +564,7 @@ function StudyEditor({ id }: { id: string }) {
   );
 
   const commitBar = (
-    <div className="study-commit">
+    <div className={mobile ? 'study-commit inline' : 'study-commit'}>
       <div className="study-stats">
         {plan ? (
           <>

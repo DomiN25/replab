@@ -94,3 +94,39 @@ export function subtreeSize(tree: StudyTree, key: string, active: Set<number>): 
   }
   return seen.size;
 }
+
+/**
+ * Alle Stellungen der Studie in Lesereihenfolge (Tiefensuche, Hauptvariante zuerst, nur aktive Kapitel und
+ * nicht entfernte Züge), jeweils mit Zugweg ab der Grundstellung. Zugumstellungen nur beim ersten Erreichen.
+ */
+export function readingOrder(tree: StudyTree, st: Pick<Study, 'cuts'>, active: Set<number>): { key: string; path: PathStep[] }[] {
+  const cuts = new Set(st.cuts);
+  const out: { key: string; path: PathStep[] }[] = [];
+  const seen = new Set<string>();
+  const rec = (key: string, path: PathStep[]) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ key, path });
+    for (const m of tree.nodes.get(key)?.moves ?? []) {
+      if (!m.chapters.some((c) => active.has(c)) || cuts.has(cutKey(key, m.uci))) continue;
+      rec(m.child, [...path, { key, uci: m.uci }]);
+    }
+  };
+  rec(tree.root, []);
+  return out;
+}
+
+/**
+ * Nächste noch nicht angesehene Stellung in Lesereihenfolge, ab der aktuellen Stellung weitergesucht
+ * (am Ende wieder von vorn). undefined = alles angesehen.
+ */
+export function nextUnseen(order: { key: string; path: PathStep[] }[], seen: Set<string>, currentKey: string): PathStep[] | undefined {
+  if (!order.length) return undefined;
+  const start = Math.max(0, order.findIndex((x) => x.key === currentKey));
+  for (let i = 1; i <= order.length; i++) {
+    const x = order[(start + i) % order.length];
+    if (!seen.has(x.key)) return x.path;
+  }
+  return undefined;
+}
+

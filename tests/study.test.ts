@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStudyTree, cutKey, planImport, type ExistingEntry } from '../src/core/pgn';
-import { activeChapters, firstExcluded, nodeView, studyFilter, subtreeSize } from '../src/core/study';
+import { activeChapters, firstExcluded, nextUnseen, nodeView, readingOrder, studyFilter, subtreeSize } from '../src/core/study';
 import type { Study } from '../src/core/types';
 import { keyAfter } from './helpers';
 
@@ -110,3 +110,34 @@ describe('Auswahl wie beim Import', () => {
     expect(subtreeSize(tree, keyAfter(['e4', 'c5', 'c3']), active)).toBe(4); // nach 2.c3: …e5, 3.Sf3, …Sc6
   });
 });
+
+describe('Durcharbeiten', () => {
+  const active = activeChapters(tree, study());
+  const order = readingOrder(tree, study(), active);
+  const sanPath = (path: { key: string; uci: string }[]) =>
+    path.map((p) => tree.nodes.get(p.key)!.moves.find((m) => m.uci === p.uci)!.san).join(' ');
+
+  it('Lesereihenfolge: Hauptvariante zuerst, dann die Nebenvarianten', () => {
+    const lines = order.map((x) => sanPath(x.path));
+    expect(lines[0]).toBe('');
+    expect(lines.indexOf('e4 c5 Nf3 Nc6 Bb5 e5 O-O d6')).toBeLessThan(lines.indexOf('e4 c5 Nf3 Nc6 Bb5 g6'));
+    expect(lines.indexOf('e4 c5 Nf3 Nc6 Bb5 g6')).toBeLessThan(lines.indexOf('e4 c5 c3'));
+    expect(lines).not.toContain('d4'); // Weiß-Kapitel nicht dabei
+  });
+
+  it('entfernte Äste zählen nicht', () => {
+    const cut = study({ cuts: [cutKey(keyAfter(['e4', 'c5']), 'c2c3')] });
+    const o = readingOrder(tree, cut, activeChapters(tree, cut));
+    expect(o.length).toBe(order.length - 4);
+  });
+
+  it('nächste offene Variante: ab der aktuellen Stellung, am Ende von vorn', () => {
+    const seen = new Set(order.slice(0, 9).map((x) => x.key)); // Hauptvariante bis 4…d6 angesehen
+    const next = nextUnseen(order, seen, order[8].key)!;
+    expect(sanPath(next)).toBe('e4 c5 Nf3 Nc6 Bb5 g6');
+    const allButFirst = new Set(order.slice(1).map((x) => x.key));
+    expect(nextUnseen(order, allButFirst, order[order.length - 1].key)).toEqual([]); // wieder Start
+    expect(nextUnseen(order, new Set(order.map((x) => x.key)), tree.root)).toBeUndefined();
+  });
+});
+
