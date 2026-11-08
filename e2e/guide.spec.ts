@@ -33,7 +33,7 @@ test('Geführt: Lücken der Reihe nach schließen', async ({ page }) => {
   await expect(page.getByTestId('gap-count')).toHaveText('2');
 
   // Pfeile: durchgehend (nicht gestrichelt), ohne Zahlen, Dicke nach Häufigkeit (60 % dicker als 40 %)
-  const opp = page.locator("svg.cg-shapes line[stroke='#f5b54a']");
+  const opp = page.locator("svg.cg-shapes line[stroke='#f08c00']");
   await expect(opp).toHaveCount(2);
   const widths = (await opp.evaluateAll((ls) => ls.map((l) => Number(l.getAttribute('stroke-width'))))).sort((a, b) => a - b);
   expect(widths[1]).toBeGreaterThan(widths[0]);

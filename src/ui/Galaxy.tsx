@@ -259,7 +259,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
       </g>
       <g className="galaxy-center" onClick={onBack} style={{ cursor: focusId === 0 ? 'default' : 'pointer' }}>
         <circle r={RING - 4} fill="#101827" stroke="#26324a" />
-        <text textAnchor="middle" dy="-0.15em" fontFamily="Chakra Petch, sans-serif" fontSize={22} fill="#46e3ad">
+        <text textAnchor="middle" dy="-0.15em" fontFamily="Sora, sans-serif" fontWeight={700} fontSize={22} fill="#46e3ad">
           {center}
         </text>
         <text textAnchor="middle" dy="1.5em" fontSize={10} fill="#8e9db4">

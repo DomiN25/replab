@@ -8,6 +8,14 @@ import { downloadBackup, downloadPgn } from './backup';
 import { fetchSeed, loadSeedRepertoires } from './seed';
 import { SyncSettings } from './SyncSettings';
 import type { Color, Settings } from '../core/types';
+import { BOARD_THEMES, useAppearance, type ThemeMode } from './theme';
+import { Icon, type IconName } from './Icon';
+
+const MODES: { id: ThemeMode; label: string; icon: IconName }[] = [
+  { id: 'auto', label: 'System', icon: 'auto' },
+  { id: 'light', label: 'Hell', icon: 'sun' },
+  { id: 'dark', label: 'Dunkel', icon: 'moon' },
+];
 
 const SPEEDS = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence'];
 const RATINGS = [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500];
@@ -24,6 +32,7 @@ export function SettingsView() {
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState<Color>('white');
   const rep = currentRep();
+  const look = useAppearance();
 
   const upd = (fn: (s: Settings) => void) => {
     const s = structuredClone(settings);
@@ -288,6 +297,29 @@ export function SettingsView() {
 
       <section className="card">
         <h2>Anzeige</h2>
+        <div className="appearance-row">
+          <span>Farbschema</span>
+          <div className="seg" role="group" aria-label="Farbschema">
+            {MODES.map((m) => (
+              <button key={m.id} aria-pressed={look.mode === m.id} onClick={() => look.setMode(m.id)}>
+                <Icon name={m.icon} />
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="appearance-row">
+          <span>Brett</span>
+          <div className="board-picks" role="group" aria-label="Brettfarben">
+            {BOARD_THEMES.map((b) => (
+              <button key={b.id} className="board-pick" aria-pressed={look.board === b.id} onClick={() => look.setBoard(b.id)}>
+                <i style={{ backgroundImage: `conic-gradient(${b.sq[1]} 0 90deg, ${b.sq[0]} 0 180deg, ${b.sq[1]} 0 270deg, ${b.sq[0]} 0)` }} aria-hidden />
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="hint small">Farbschema und Brett gelten nur für dieses Gerät.</p>
         <label className="check">
           <input type="checkbox" checked={settings.ui.notation === 'de'} onChange={(e) => upd((s) => (s.ui.notation = e.target.checked ? 'de' : 'en'))} /> Deutsche Notation (S, L, T, D, K)
         </label>

@@ -24,6 +24,7 @@ import { displaySan, playUci, plyOfFen, posKeyOf, turnOf, moveNumberPrefix } fro
 import { oppCandidates } from '../core/relevance';
 import { Scheduler } from '../core/srs';
 import { repo } from '../data/repo';
+import { Icon } from './Icon';
 
 interface PendingCommit {
   fen: string;
@@ -258,11 +259,11 @@ export function Builder() {
         <Crumbs />
         <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
         <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-          <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang">⏮</button>
-          <button className="btn icon" onClick={back} aria-label="Zug zurück">◀</button>
-          <button className="btn icon" onClick={forward} aria-label="Zug vor">▶</button>
-          <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)">⇅</button>
-          <span className="swipe-hint">wischen ◀ ▶</span>
+          <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>
+          <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
+          <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
+          <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
+          <span className="swipe-hint">zum Blättern wischen</span>
         </div>
       </section>
 

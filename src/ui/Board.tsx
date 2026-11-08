@@ -10,10 +10,11 @@ import { positionFromFen, turnOf } from '../core/chess';
 import type { Color } from '../core/types';
 
 export const BRUSHES = {
-  mine: { key: 'mi', color: '#46e3ad', opacity: 0.85, lineWidth: 11 },
-  opp: { key: 'op', color: '#f5b54a', opacity: 0.7, lineWidth: 8 },
-  eng: { key: 'en', color: '#5aa9ff', opacity: 0.85, lineWidth: 5 },
-  wrong: { key: 'wr', color: '#ff6b6b', opacity: 0.85, lineWidth: 9 },
+  // Farben für helle Bretter (alle Brett-Themes sind hell genug): kräftig statt pastell
+  mine: { key: 'mi', color: '#12b886', opacity: 0.85, lineWidth: 11 },
+  opp: { key: 'op', color: '#f08c00', opacity: 0.75, lineWidth: 8 },
+  eng: { key: 'en', color: '#1971c2', opacity: 0.85, lineWidth: 5 },
+  wrong: { key: 'wr', color: '#e03131', opacity: 0.85, lineWidth: 9 },
 };
 
 export interface BoardProps {

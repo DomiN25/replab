@@ -17,8 +17,8 @@
     "prebuild": "node scripts/copy-engine.mjs"
   },
   "dependencies": {
-    "@fontsource/chakra-petch": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@fontsource/sora": "^5.3.0",
     "chessground": "^9.2.1",
     "chessops": "^0.15.1",
     "d3": "^7.9.2",

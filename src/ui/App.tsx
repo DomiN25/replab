@@ -5,13 +5,14 @@ import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
 import { selectRepertoire, setView, useApp, type View } from './store';
 import { syncNow, syncTitle } from './sync';
+import { Icon, type IconName } from './Icon';
 
-const NAV: { v: View; label: string; icon: string }[] = [
-  { v: 'home', label: 'Start', icon: '⌂' },
-  { v: 'build', label: 'Bauen', icon: '♞' },
-  { v: 'gaps', label: 'Lücken', icon: '●' },
-  { v: 'train', label: 'Training', icon: '⟳' },
-  { v: 'settings', label: 'Einstellungen', icon: '⚙' },
+const NAV: { v: View; label: string; icon: IconName }[] = [
+  { v: 'home', label: 'Start', icon: 'home' },
+  { v: 'build', label: 'Bauen', icon: 'tree' },
+  { v: 'gaps', label: 'Lücken', icon: 'gap' },
+  { v: 'train', label: 'Training', icon: 'train' },
+  { v: 'settings', label: 'Einstellungen', icon: 'more' },
 ];
 
 export function App() {
@@ -25,7 +26,13 @@ export function App() {
   const toast = useApp((s) => s.toast);
   const sync = useApp((s) => s.sync);
 
-  if (!loaded) return <div className="splash">RepLab lädt …</div>;
+  if (!loaded)
+    return (
+      <div className="splash" role="status" aria-label="RepLab lädt">
+        <div>Rep<span>Lab</span></div>
+        <i aria-hidden />
+      </div>
+    );
 
   return (
     <div className={`app view-${view}`}>
@@ -57,7 +64,7 @@ export function App() {
             aria-label={syncTitle(sync)}
             onClick={() => void syncNow(true)}
           >
-            <span aria-hidden>☁</span>
+            <Icon name="cloud" />
             {sync.status === 'syncing' ? <i className="spin">◌</i> : sync.status === 'needs-auth' || sync.dirty ? <i>!</i> : sync.status === 'error' ? <i>×</i> : <i>✓</i>}
           </button>
         )}
@@ -65,6 +72,7 @@ export function App() {
         <nav className="nav-top" aria-label="Hauptnavigation">
           {NAV.map((n) => (
             <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => setView(n.v)}>
+              <Icon name={n.icon} />
               {n.label}
             </button>
           ))}
@@ -80,13 +88,13 @@ export function App() {
       <nav className="nav-bottom" aria-label="Hauptnavigation">
         {NAV.map((n) => (
           <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => setView(n.v)}>
-            <span className="ic" aria-hidden>{n.icon}</span>
+            <span className="ic"><Icon name={n.icon} /></span>
             <span>{n.label === 'Einstellungen' ? 'Mehr' : n.label}</span>
           </button>
         ))}
       </nav>
       {toast && (
-        <div className={`toast ${toast.kind}`} role="status">
+        <div key={toast.id} className={`toast ${toast.kind}`} role="status">
           {toast.text}
         </div>
       )}

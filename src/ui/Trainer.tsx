@@ -13,6 +13,7 @@ import { buildPool, dueItems, lineItems, newItems, type Focus } from './training
 import { pathSans } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
 import type { ReviewLog, TrainingMode } from '../core/types';
+import { Icon } from './Icon';
 
 type Phase = 'context' | 'ask' | 'right' | 'wrong' | 'fixed';
 
@@ -96,7 +97,7 @@ export function Trainer() {
           </small>
         </button>
         <button className="tile" disabled={!graph} onClick={startLine}>
-          <b>⟿</b>
+          <b><Icon name="tree" /></b>
           <span>Linie durchspielen</span>
           <small>zufällige Linie im Fokus, in Zugreihenfolge</small>
         </button>
@@ -311,6 +312,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
     const total = stats.current.right + stats.current.wrong;
     return (
       <div className="page trainer-done">
+        <DoneMoment rate={total ? stats.current.right / total : 0} total={total} />
         <h1>Sitzung beendet</h1>
         <div className="train-cards">
           <div className="tile"><b>{stats.current.right}</b><span>richtig</span></div>
@@ -385,14 +387,14 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
         )}
         {phase === 'right' && (
           <div>
-            <p className="ok big">✓ Richtig</p>
+            <p className="ok big"><Icon name="check" />Richtig</p>
             {move.note && <p className="note">{move.note}</p>}
             {move.note && <button className="btn primary big" onClick={next}>Weiter</button>}
           </div>
         )}
         {phase === 'wrong' && (
           <div>
-            <p className="bad big">✗ Richtig ist {moveNumberPrefix(ply) + displaySan(move.san, notation)}</p>
+            <p className="bad big"><Icon name="x" />Richtig ist {moveNumberPrefix(ply) + displaySan(move.san, notation)}</p>
             <p className="hint">Spiel den richtigen Zug nach. Die Stellung kommt in dieser Sitzung noch einmal.</p>
             {move.note && <p className="note">{move.note}</p>}
           </div>
@@ -409,6 +411,50 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
       </div>
     </div>
   );
+}
+
+/** Abschluss: Häkchen zeichnet sich; bei guter Quote (≥ 80 %, mind. 3 Karten) einmal Konfetti. */
+function DoneMoment({ rate, total }: { rate: number; total: number }) {
+  useEffect(() => {
+    if (total < 3 || rate < 0.8) return;
+    const t = setTimeout(confetti, 450); // nach dem Häkchen; Abbruch verhindert doppeltes Konfetti (StrictMode)
+    return () => clearTimeout(t);
+  }, [rate, total]);
+  return (
+    <svg className="done-check" viewBox="0 0 92 92" aria-hidden>
+      <circle cx="46" cy="46" r="40" pathLength={1} />
+      <path d="M28 47l12 12 24-26" pathLength={1} />
+    </svg>
+  );
+}
+
+/** Konfetti-Schnipsel per Web Animations (räumt sich selbst auf, respektiert „weniger Bewegung“). */
+function confetti() {
+  if (prefersReducedMotion() || typeof document.body.animate !== 'function') return;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  document.body.appendChild(box);
+  const css = getComputedStyle(document.documentElement);
+  const colors = ['--acc', '--me', '--opp', '--gap'].map((v) => css.getPropertyValue(v).trim() || '#1b75b7');
+  const w = window.innerWidth;
+  for (let i = 0; i < 70; i++) {
+    const el = document.createElement('i');
+    el.style.left = `${w / 2 + (Math.random() - 0.5) * 80}px`;
+    el.style.top = '38%';
+    el.style.background = colors[i % colors.length];
+    box.appendChild(el);
+    const dx = (Math.random() - 0.5) * w * 0.9;
+    const dy = -(160 + Math.random() * 260);
+    el.animate(
+      [
+        { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+        { transform: `translate(${dx * 0.6}px, ${dy}px) rotate(${Math.random() * 360}deg)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(${dx}px, ${dy + 520}px) rotate(${Math.random() * 720}deg)`, opacity: 0 },
+      ],
+      { duration: 1400 + Math.random() * 900, easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' },
+    );
+  }
+  setTimeout(() => box.remove(), 2600);
 }
 
 function plyOfFenSafe(fen: string) {

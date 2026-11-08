@@ -41,7 +41,7 @@ TypeScript (strict) · Vite · React 18 · Zustand · Dexie (IndexedDB) · chess
 
 ## UI-Regeln
 - Alle Texte Deutsch, Figuren in deutscher Notation (S, L, T, D, K). Intern UCI/SAN englisch.
-- Look: dunkle „Sternwarte“ (Nachtblau, Mint = eigener Zug, Bernstein = Gegnerzug, Rot = Lücke). Chakra Petch + IBM Plex Sans.
+- Look: Stil „Ozean“ (hell + dunkel, Auto/Hell/Dunkel pro Gerät; Vorbild Hub „Clean · Ozean“). Blau = Bedienung, Mint/Grün = eigener Zug, Bernstein = Gegnerzug, Rot = Lücke. Sora (Überschriften/Zahlen) + IBM Plex Sans. Farben nur als CSS-Variablen in `src/styles/app.css`; Brett-Themes über `data-board` (`src/ui/theme.ts`). Icons als SVG (`src/ui/Icon.tsx`), keine Unicode-/Emoji-Symbole für Bedienelemente.
 - Mobile first beim Training (große Touch-Ziele, Bottom-Sheet), Desktop-Layout mit drei Spalten beim Bauen.
 - `prefers-reduced-motion` beachten, sichtbarer Fokus.
 
