@@ -103,6 +103,27 @@ export interface Card {
 
 export type FsrsRating = 1 | 2 | 3 | 4;
 
+/**
+ * Studie im Studien-Reiter: Original-PGN bleibt unverändert, Bearbeitungen liegen daneben.
+ * Erst „Zum Repertoire hinzufügen“ erzeugt Einträge und Karten. Nur lokal (nicht im Sync).
+ */
+export interface Study {
+  id: string;
+  name: string;
+  color: Color;
+  pgn: string;
+  source?: string; // z. B. Lichess-Link
+  /** gewählter eigener Zug je Stellung (posKey → uci), wo die Studie mehrere hat */
+  choices: Record<string, string>;
+  /** entfernte Züge `${posKey} ${uci}` (Ast ab dort) */
+  cuts: string[];
+  /** abgewählte Kapitel (Index im PGN) */
+  skipChapters: number[];
+  added?: { repertoireId: string; at: number; entries: number }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ReviewLog {
   id?: number; // lokale laufende Nummer (IndexedDB)
   uid?: string; // geräteübergreifende ID (Sync)
@@ -136,6 +157,10 @@ export interface Settings {
     contextPlies: number;
     easyMs: number; // < easyMs → Easy
     hardMs: number; // > hardMs → Hard
+    /** Reihenfolge neuer Karten: wichtigste (Erreichbarkeit) zuerst oder Linie für Linie. */
+    newOrder: 'reach' | 'line';
+    /** Neue Karten erst ab dieser Erreichbarkeit einführen (0 = alle) – gegen 1000 neue Stellungen nach Importen. */
+    newMinReach: number;
   };
   ui: { notation: 'de' | 'en'; showReach: boolean; showTraps: boolean; structuresLink?: string };
   updatedAt: number;
@@ -145,7 +170,7 @@ export const DEFAULT_SETTINGS: Settings = {
   id: 'settings',
   explorer: { speeds: ['rapid', 'classical'], ratings: [1800, 2000], minShare: 0.05, minGames: 20 },
   engine: { depth: 18, multipv: 5, nearBestCp: 50, trapLossCp: 100, trapMinShare: 0.1 },
-  srs: { desiredRetention: 0.9, newPerDay: 10, maxReviewsPerDay: 200, contextPlies: 4, easyMs: 4000, hardMs: 15000 },
+  srs: { desiredRetention: 0.9, newPerDay: 10, maxReviewsPerDay: 200, contextPlies: 4, easyMs: 4000, hardMs: 15000, newOrder: 'reach', newMinReach: 0 },
   ui: { notation: 'de', showReach: true, showTraps: true },
   updatedAt: 0,
 };

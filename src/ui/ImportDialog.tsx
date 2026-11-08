@@ -5,6 +5,7 @@ import { formatLine, displaySan } from '../core/chess';
 import { repo } from '../data/repo';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
+import { saveAsStudy } from './Studies';
 
 export interface ImportPreset {
   text: string;
@@ -84,6 +85,10 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
     setResolutions(m);
   };
   const wrongColor = rep && orient && rep.color !== orient;
+  const saveStudy = () => {
+    void saveAsStudy(text, name, fromStudy ? studyUrl.trim() : undefined, orient);
+    onClose();
+  };
 
   const doImport = async () => {
     if (!plan || !repId) return;
@@ -176,9 +181,20 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
               Kommentare werden Notizen. Wo die Studie in einer Stellung etwas anderes spielt als dein Repertoire, fragt die Vorschau nach.
             </p>
             <div className="modal-actions">
-              <button className="btn primary" disabled={!text.trim() || !repId} onClick={() => void analyse()}>Vorschau</button>
+              {fromStudy ? (
+                <>
+                  <button className="btn primary" onClick={saveStudy}>Als Studie speichern</button>
+                  <button className="btn" disabled={!repId} onClick={() => void analyse()}>Direkt ins Repertoire …</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn primary" disabled={!text.trim() || !repId} onClick={() => void analyse()}>Vorschau</button>
+                  <button className="btn" disabled={!text.trim()} onClick={saveStudy}>Als Studie speichern</button>
+                </>
+              )}
               <button className="btn ghost" onClick={onClose}>Abbrechen</button>
             </div>
+            <p className="hint small">„Als Studie speichern“: erst im Reiter Studien ansehen und zuschneiden, dann übernehmen.</p>
           </>
         ) : (
           <>

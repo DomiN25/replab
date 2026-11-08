@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS } from '../core/types';
 import type { SyncUiState } from './sync';
 import type { GuideState } from './GuideBar';
 
-export type View = 'home' | 'build' | 'gaps' | 'train' | 'settings';
+export type View = 'home' | 'build' | 'gaps' | 'train' | 'studies' | 'settings';
 export interface LineStep {
   fen: string;
   uci?: string;
@@ -49,6 +49,8 @@ export interface AppState {
   sideView: 'galaxy' | 'list';
   sync: SyncUiState;
   guide: GuideState;
+  /** geöffnete Studie im Studien-Reiter (undefined = Liste) */
+  studyId?: string;
 }
 
 export const useApp = create<AppState>(() => ({
@@ -70,7 +72,7 @@ export const useApp = create<AppState>(() => ({
   galaxyMode: 'family',
   sideView: 'galaxy',
   sync: { status: 'off', connected: false, configured: false, dirty: false },
-  guide: { active: false, strategy: 'shallow', minReach: 0, skipped: [] },
+  guide: { active: false, strategy: 'branch', minReach: 0, skipped: [] },
 }));
 
 const get = useApp.getState;
@@ -146,7 +148,7 @@ export async function init() {
 
 function viewFromHash(): View {
   const h = location.hash.replace(/^#\/?/, '').split('?')[0];
-  return (['home', 'build', 'gaps', 'train', 'settings'] as View[]).includes(h as View) ? (h as View) : 'home';
+  return (['home', 'build', 'gaps', 'train', 'studies', 'settings'] as View[]).includes(h as View) ? (h as View) : 'home';
 }
 
 export function setView(v: View) {

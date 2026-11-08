@@ -16,6 +16,7 @@ import {
   type ReviewLog,
   type Settings,
   type SrsState,
+  type Study,
 } from '../core/types';
 
 export class Repo {
@@ -301,6 +302,30 @@ export class Repo {
 
   // ------------------------------------------------------------ JSON-Backup
   /** Vollständiges Backup ohne Token und ohne Caches. */
+  // ------------------------------------------------------------ Studien (lokal)
+  async listStudies(): Promise<Study[]> {
+    return (await this.db.studies.toArray()).sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async getStudy(id: string): Promise<Study | undefined> {
+    return this.db.studies.get(id);
+  }
+
+  async createStudy(data: Pick<Study, 'name' | 'color' | 'pgn' | 'source'>): Promise<Study> {
+    const now = Date.now();
+    const st: Study = { id: newId(), choices: {}, cuts: [], skipChapters: [], createdAt: now, updatedAt: now, ...data };
+    await this.db.studies.add(st);
+    return st;
+  }
+
+  async saveStudy(st: Study): Promise<void> {
+    await this.db.studies.put({ ...st, updatedAt: Date.now() });
+  }
+
+  async deleteStudy(id: string): Promise<void> {
+    await this.db.studies.delete(id);
+  }
+
   async exportAll(): Promise<BackupFile> {
     const settings = await this.getSettings();
     const { token: _t, ...explorer } = settings.explorer;

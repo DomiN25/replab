@@ -35,7 +35,9 @@ test('Studie per Link: Schwarz erkannt, importiert, Sprung zur Studie', async ({
   await expect(dlg.locator('select').last()).toHaveValue(/.+/);
   await expect(dlg.locator('select').last().locator('option:checked')).toContainText('Schwarz');
 
-  await dlg.getByRole('button', { name: 'Vorschau' }).click();
+  // Bei Studien-Links ist „Als Studie speichern“ die Hauptaktion; hier der direkte Weg
+  await expect(dlg.getByRole('button', { name: 'Als Studie speichern' })).toBeVisible();
+  await dlg.getByRole('button', { name: 'Direkt ins Repertoire' }).click();
   await expect(dlg.locator('.preview')).toContainText('+');
   await expect(dlg).not.toContainText('Achtung');
   await dlg.getByRole('button', { name: 'Importieren' }).click();
@@ -46,3 +48,63 @@ test('Studie per Link: Schwarz erkannt, importiert, Sprung zur Studie', async ({
   await expect(page.locator('.crumbs')).toContainText('Lb5');
   await expect(page.locator('.crumbs')).toContainText('e5');
 });
+
+test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen', async ({ page }) => {
+  await page.route('https://lichess.org/api/study/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/x-chess-pgn', headers: { 'Access-Control-Allow-Origin': '*' }, body: STUDY }),
+  );
+  await page.goto('/#/settings');
+  await page.getByPlaceholder('Name, z. B. Zweitwaffe 1.d4').fill('Schwarz');
+  await page.getByLabel('Farbe', { exact: true }).selectOption('black');
+  await page.getByRole('button', { name: 'Anlegen' }).click();
+  await expect(page.locator('.rep-list li')).toHaveCount(1);
+
+  await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click();
+  await page.getByRole('button', { name: 'Studie hinzufügen' }).click();
+  const dlg = page.getByRole('dialog');
+  await dlg.getByLabel('Lichess-Studienlink').fill('https://lichess.org/study/BQvp2G0t');
+  await dlg.getByRole('button', { name: 'Laden' }).click();
+  await expect(dlg.getByPlaceholder('z. B. Anti-Sizilianer')).toHaveValue('tbg');
+  await expect(dlg).toContainText('erkannt: Schwarz');
+  await dlg.getByRole('button', { name: 'Als Studie speichern' }).click();
+
+  // Editor: Start → 1.e4 → 1…c5 (eigener Zug, wird übernommen)
+  const moves = page.locator('.study-moves');
+  await expect(moves).toContainText('1.e4');
+  await moves.locator('.smove-go', { hasText: '1.e4' }).click();
+  await expect(moves.locator('.smove', { hasText: 'c5' })).toContainText('wird übernommen');
+  await moves.locator('.smove-go', { hasText: 'c5' }).click();
+
+  // Gegnerzüge nach 1…c5: Alapin (2.c3) entfernen
+  await expect(moves).toContainText('2.c3');
+  const before = await page.locator('.study-stats').innerText();
+  await moves.locator('.smove', { hasText: '2.c3' }).getByRole('button', { name: /entfernen/ }).click();
+  await expect(moves.locator('.smove', { hasText: '2.c3' })).toContainText('entfernt');
+  await expect(page.locator('.study-stats')).not.toHaveText(before);
+
+  // weiter in die Hauptlinie: 2.Sf3 Sc6 → 3.Lb5 ist da
+  await moves.locator('.smove-go', { hasText: '2.Sf3' }).click();
+  await moves.locator('.smove-go', { hasText: 'Sc6' }).click();
+  await expect(moves).toContainText('3.Lb5');
+
+  // Kapitel abwählen und wieder an
+  await page.getByRole('tab', { name: /Kapitel/ }).click();
+  const k2 = page.locator('.study-chapters li', { hasText: 'Kapitel 2' }).getByRole('checkbox');
+  await k2.uncheck();
+  await expect(page.getByRole('tab', { name: /Kapitel/ })).toContainText('1/2');
+  await k2.check();
+  await page.getByRole('tab', { name: 'Züge' }).click();
+
+  // Übernehmen → springt zu „Bauen“ am Studienanfang
+  await page.getByRole('button', { name: 'Zum Repertoire hinzufügen' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Übernehmen' }).click();
+  await expect(page).toHaveURL(/#\/build/);
+  await expect(page.locator('.crumbs')).toContainText('c5');
+
+  // Studie bleibt in der Liste, mit Vermerk
+  await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click();
+  await expect(page.locator('.study-head')).toBeVisible(); // zuletzt bearbeitete Studie bleibt offen
+  await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click(); // nochmal → Liste
+  await expect(page.locator('.study-list')).toContainText('übernommen');
+});
+

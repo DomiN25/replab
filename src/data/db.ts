@@ -10,6 +10,7 @@ import type {
   RepertoireMove,
   ReviewLog,
   Settings,
+  Study,
 } from '../core/types';
 
 export class RepDB extends Dexie {
@@ -22,6 +23,7 @@ export class RepDB extends Dexie {
   reviews!: Table<ReviewLog, number>;
   settings!: Table<Settings, string>;
   tombstones!: Table<Tombstone, string>;
+  studies!: Table<Study, string>;
 
   constructor(name = 'replab') {
     super(name);
@@ -50,6 +52,8 @@ export class RepDB extends Dexie {
             if (!r.uid) r.uid = newId();
           });
       });
+    // v3: Studien-Reiter (nur lokal, nicht im Sync/Backup)
+    this.version(3).stores({ studies: 'id, updatedAt' });
   }
 }
 

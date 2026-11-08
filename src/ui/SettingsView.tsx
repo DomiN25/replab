@@ -274,7 +274,24 @@ export function SettingsView() {
           </label>
           <label className="field">
             <span>Neue Karten pro Tag</span>
-            <input type="number" min={0} max={100} defaultValue={settings.srs.newPerDay} onBlur={(e) => upd((s) => (s.srs.newPerDay = num(e.target.value, 0, 100)))} />
+            <input type="number" min={0} max={500} defaultValue={settings.srs.newPerDay} onBlur={(e) => upd((s) => (s.srs.newPerDay = num(e.target.value, 0, 500)))} />
+          </label>
+          <label className="field">
+            <span>Reihenfolge neuer Karten</span>
+            <select value={settings.srs.newOrder} onChange={(e) => upd((s) => (s.srs.newOrder = e.target.value as 'reach' | 'line'))}>
+              <option value="reach">wichtigste zuerst (häufigste Stellungen)</option>
+              <option value="line">Linie für Linie</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Neue Karten erst ab Erreichbarkeit</span>
+            <select value={settings.srs.newMinReach} onChange={(e) => upd((s) => (s.srs.newMinReach = Number(e.target.value)))}>
+              <option value={0}>alle</option>
+              <option value={0.001}>≥ 0,1 %</option>
+              <option value={0.005}>≥ 0,5 %</option>
+              <option value={0.01}>≥ 1 %</option>
+              <option value={0.02}>≥ 2 %</option>
+            </select>
           </label>
           <label className="field">
             <span>Max. Wiederholungen pro Tag</span>

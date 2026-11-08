@@ -1,6 +1,8 @@
 // Ansicht „Bauen“: Brett | Kandidaten + Notizen | Galaxie/Liste.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DrawShape } from 'chessground/draw';
+import type { Color, RepertoireMove } from '../core/types';
+import type { LineStep } from './store';
 import { Board, uciSquares } from './Board';
 import { Candidates } from './Candidates';
 import { Galaxy, GalaxyLegend } from './Galaxy';
@@ -68,6 +70,9 @@ export function Builder() {
   const mark = marks.get(posKey);
   const nodeId = graph?.byPosKey.get(posKey);
   const node = nodeId !== undefined ? graph!.nodes[nodeId] : undefined;
+
+  // Abweichung vom Repertoire auf dem Weg bis hierher: erste eigene Stellung, in der ein anderer Zug gespielt wurde
+  const deviation = useMemo(() => findDeviation(line, cursor, myColor, moves), [line, cursor, myColor, moves]);
 
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
@@ -273,6 +278,30 @@ export function Builder() {
       <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
     </>
   );
+  const outsideBanner = deviation ? (
+    <div className="outside" role="status" data-testid="outside">
+      <span>
+        <b>Außerhalb des Repertoires.</b> Bei {deviation.label} spielst du laut Repertoire <b className="me">{displaySan(deviation.repSan, settings.ui.notation)}</b>, hier
+        wurde {displaySan(deviation.playedSan, settings.ui.notation)} gespielt.
+      </span>
+      <span className="row-actions">
+        <button className="btn small" onClick={() => gotoCursor(deviation.index)}>Zur Abweichung</button>
+        <button
+          className="btn small"
+          onClick={() => {
+            gotoCursor(deviation.index);
+            setTimeout(() => playMove(deviation.repUci), 0);
+          }}
+        >
+          Repertoirezug spielen
+        </button>
+      </span>
+    </div>
+  ) : node === undefined && graph && cursor > 0 ? (
+    <div className="outside soft" role="status" data-testid="outside">
+      <span>Diese Stellung kommt in deinem Repertoire-Baum nicht vor (Gegnerzug nicht vorbereitet oder Zugfolge außerhalb).</span>
+    </div>
+  ) : null;
   const candidates = (
           <Candidates
             fen={fen}
@@ -335,7 +364,7 @@ export function Builder() {
       {mobile ? (
         <>
           <section className="col-board" ref={boardRef}>
-            <Crumbs />
+            <Crumbs devIndex={deviation?.index} />
             {board}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
               {navButtons}
@@ -355,6 +384,7 @@ export function Builder() {
           >
             {sheetTab === 'moves' ? (
               <>
+                {outsideBanner}
                 <GuideBar />
                 {candidates}
               </>
@@ -368,14 +398,17 @@ export function Builder() {
           <section className="col-board">
             {modeSwitch}
             <GuideBar />
-            <Crumbs />
+            <Crumbs devIndex={deviation?.index} />
             {board}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
               {navButtons}
               <span className="swipe-hint">zum Blättern wischen</span>
             </div>
           </section>
-          <section className="col-panel sheet">{candidates}</section>
+          <section className="col-panel sheet">
+            {outsideBanner}
+            {candidates}
+          </section>
           <section className="col-side">{side}</section>
         </>
       )}
@@ -457,7 +490,30 @@ export function Builder() {
   );
 }
 
-function Crumbs() {
+interface Deviation {
+  /** Index im Pfad der eigenen Stellung, in der abgewichen wurde */
+  index: number;
+  label: string;
+  repUci: string;
+  repSan: string;
+  playedSan: string;
+}
+
+function findDeviation(line: LineStep[], cursor: number, color: Color, moves: Map<string, RepertoireMove>): Deviation | undefined {
+  for (let i = 0; i < cursor; i++) {
+    const at = line[i];
+    if (turnOf(at.fen) !== color) continue;
+    const entry = moves.get(posKeyOf(at.fen));
+    const next = line[i + 1];
+    if (entry && next?.uci && entry.uci !== next.uci) {
+      const ply = plyOfFen(at.fen);
+      return { index: i, label: moveNumberPrefix(ply).trim() || 'Zug', repUci: entry.uci, repSan: entry.san, playedSan: next.san ?? next.uci };
+    }
+  }
+  return undefined;
+}
+
+function Crumbs({ devIndex }: { devIndex?: number }) {
   const line = useApp((s) => s.line);
   const cursor = useApp((s) => s.cursor);
   const notation = useApp((s) => s.settings.ui.notation);
@@ -472,7 +528,12 @@ function Crumbs() {
         const ply = plyOfFen(line[i].fen);
         const label = (ply % 2 === 0 ? `${Math.floor(ply / 2) + 1}.` : '') + displaySan(s.san!, notation);
         return (
-          <button key={i} className={`${cursor === i + 1 ? 'cur' : ''} ${i + 1 > cursor ? 'ahead' : ''}`} onClick={() => gotoCursor(i + 1)}>
+          <button
+            key={i}
+            className={`${cursor === i + 1 ? 'cur' : ''} ${i + 1 > cursor ? 'ahead' : ''} ${devIndex !== undefined && i >= devIndex ? 'off' : ''}`}
+            title={devIndex !== undefined && i === devIndex ? 'Hier weicht die Zugfolge von deinem Repertoire ab' : undefined}
+            onClick={() => gotoCursor(i + 1)}
+          >
             {label}
           </button>
         );

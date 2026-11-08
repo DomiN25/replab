@@ -3,6 +3,7 @@ import { Gaps } from './Gaps';
 import { Home } from './Home';
 import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
+import { Studies } from './Studies';
 import { selectRepertoire, setView, useApp, type View } from './store';
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
@@ -12,6 +13,7 @@ const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'build', label: 'Bauen', icon: 'tree' },
   { v: 'gaps', label: 'Lücken', icon: 'gap' },
   { v: 'train', label: 'Training', icon: 'train' },
+  { v: 'studies', label: 'Studien', icon: 'book' },
   { v: 'settings', label: 'Einstellungen', icon: 'more' },
 ];
 
@@ -71,7 +73,7 @@ export function App() {
         <span className={`ex-dot ${ex.state}`} title={explorerTitle(ex.state, ex.lastError)} aria-label={explorerTitle(ex.state, ex.lastError)} />
         <nav className="nav-top" aria-label="Hauptnavigation">
           {NAV.map((n) => (
-            <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => setView(n.v)}>
+            <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>
               <Icon name={n.icon} />
               {n.label}
             </button>
@@ -83,11 +85,12 @@ export function App() {
         {view === 'build' && <Builder />}
         {view === 'gaps' && <Gaps />}
         {view === 'train' && <Trainer />}
+        {view === 'studies' && <Studies />}
         {view === 'settings' && <SettingsView />}
       </main>
       <nav className="nav-bottom" aria-label="Hauptnavigation">
         {NAV.map((n) => (
-          <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => setView(n.v)}>
+          <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>
             <span className="ic"><Icon name={n.icon} /></span>
             <span>{n.label === 'Einstellungen' ? 'Mehr' : n.label}</span>
           </button>
@@ -100,6 +103,12 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** Navigation; erneuter Tipp auf „Studien“ führt aus einer offenen Studie zurück zur Liste. */
+function navTo(v: View) {
+  if (v === 'studies' && useApp.getState().view === 'studies') useApp.setState({ studyId: undefined });
+  setView(v);
 }
 
 function explorerTitle(state: string, err?: string) {

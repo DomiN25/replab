@@ -9,7 +9,7 @@ import { repo } from '../data/repo';
 import { answer, createSession, currentStep, isFinished, type Session, type SessionItem } from '../core/session';
 import { ratingFor, Scheduler } from '../core/srs';
 import { displaySan, playUci, START_FEN, formatLine, moveNumberPrefix, plyOfFen } from '../core/chess';
-import { buildPool, dueItems, lineItems, newItems, type Focus } from './training';
+import { buildPool, dueItems, eligibleNew, lineItems, newItems, type Focus } from './training';
 import { pathSans } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
 import type { ReviewLog, TrainingMode } from '../core/types';
@@ -38,6 +38,10 @@ export function Trainer() {
   const pool = useMemo(() => buildPool(cardList, logs, settings, now, graph, focus), [cardList, logs, settings, graph, focus, now]);
   const due = useMemo(() => dueItems(pool, settings, now, graph), [pool, settings, now, graph]);
   const fresh = useMemo(() => newItems(pool, settings, graph), [pool, settings, graph]);
+  const eligibleCount = useMemo(() => eligibleNew(pool, settings, graph).length, [pool, settings, graph]);
+  const deferredCount = pool.fresh.length - eligibleCount; // unter der Mindest-Erreichbarkeit zurückgestellt
+  // Über das Tageslimit hinaus: 10 weitere neue Karten (falls noch welche da sind)
+  const extraNew = useMemo(() => (fresh.length === 0 && eligibleCount > 0 ? newItems(pool, settings, graph, 10) : []), [fresh.length, eligibleCount, pool, settings, graph]);
 
   const families = useMemo(() => {
     if (!graph) return [];
@@ -90,13 +94,25 @@ export function Trainer() {
           <span>fällig – Wiederholen</span>
           {pool.reviewsToday > 0 && <small>heute schon {pool.reviewsToday}</small>}
         </button>
-        <button className="tile" disabled={!fresh.length} onClick={() => start('new', fresh)}>
-          <b>{fresh.length}</b>
-          <span>neu lernen</span>
-          <small>
-            {pool.fresh.length} neue insgesamt · max. {settings.srs.newPerDay}/Tag
-          </small>
-        </button>
+        {fresh.length > 0 || !extraNew.length ? (
+          <button className="tile" disabled={!fresh.length} onClick={() => start('new', fresh)}>
+            <b>{fresh.length}</b>
+            <span>neu lernen</span>
+            <small>
+              {pool.fresh.length} neue insgesamt · max. {settings.srs.newPerDay}/Tag
+              {deferredCount > 0 && ` · ${deferredCount} selten, zurückgestellt`}
+            </small>
+          </button>
+        ) : (
+          <button className="tile" onClick={() => start('new', extraNew)}>
+            <b>+{extraNew.length}</b>
+            <span>Extra-Runde neu lernen</span>
+            <small>
+              Tageslimit ({settings.srs.newPerDay}) erreicht · noch {eligibleCount} neue
+              {deferredCount > 0 && ` · ${deferredCount} selten, zurückgestellt`}
+            </small>
+          </button>
+        )}
         <button className="tile" disabled={!graph} onClick={startLine}>
           <b><Icon name="tree" /></b>
           <span>Linie durchspielen</span>
@@ -119,9 +135,11 @@ export function Trainer() {
         </label>
       </section>
       <p className="hint">
-        Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug. Bewertung automatisch: falsch = Again, &gt;{' '}
-        {settings.srs.hardMs / 1000} s = Hard, &lt; {settings.srs.easyMs / 1000} s = Easy, sonst Good. Falsche Karten kommen in der Sitzung genau einmal später wieder.
-        Funktioniert offline.
+        Karteikarten-Prinzip (FSRS, wie Anki): Jede Stellung ist eine Karte. Weißt du sie, kommt sie in immer größeren Abständen wieder (Tage, Wochen, Monate),
+        vergisst du sie, kommt sie bald wieder. Die Abstände werden so gewählt, dass du dich mit {Math.round(settings.srs.desiredRetention * 100)} % Wahrscheinlichkeit
+        erinnerst (Behaltensziel in den Einstellungen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
+        Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Neue Karten:{' '}
+        {settings.srs.newOrder === 'line' ? 'Linie für Linie' : 'wichtigste (häufigste) Stellungen zuerst'}. Funktioniert offline.
       </p>
     </div>
   );
@@ -143,6 +161,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
   const [boardFen, setBoardFen] = useState(START_FEN);
   const [lastUci, setLastUci] = useState<string | undefined>();
   const askAt = useRef(0);
+  const [nextDue, setNextDue] = useState<number | undefined>();
   const answered = useRef(false);
   const stats = useRef({ right: 0, wrong: 0 });
   const scheduler = useMemo(() => new Scheduler(settings.srs.desiredRetention), [settings.srs.desiredRetention]);
@@ -184,6 +203,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
   useEffect(() => {
     if (!step || !context.length) return;
     answered.current = false;
+    setNextDue(undefined);
     setWrongUci(undefined);
     setPhase('context');
     const instant = prefersReducedMotion() || context.length === 1;
@@ -240,6 +260,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
     const fresh = await repo.db.cards.get(card.id);
     if (!fresh) return;
     const srs = scheduler.review(fresh.srs, mode === 'line' ? 1 : rating, Date.now());
+    if (correct) setNextDue(srs.due);
     await repo.saveReview(fresh, srs, {
       cardId: card.id,
       repertoireId: rep.id,
@@ -395,6 +416,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
         {phase === 'right' && (
           <div>
             <p className="ok big"><Icon name="check" />Richtig</p>
+            {nextDue !== undefined && <p className="hint next-due">Kommt wieder {dueLabel(nextDue)}.</p>}
             {move.note && <p className="note">{move.note}</p>}
             {move.note && <button className="btn primary big" onClick={next}>Weiter</button>}
           </div>
@@ -462,6 +484,20 @@ function confetti() {
     );
   }
   setTimeout(() => box.remove(), 2600);
+}
+
+/** „in 3 Tagen“, „morgen“, „in 10 Minuten“ – für die Anzeige nach einer Antwort. */
+function dueLabel(due: number): string {
+  const ms = due - Date.now();
+  const min = Math.round(ms / 60000);
+  if (min < 60) return min <= 1 ? 'in einer Minute' : `in ${min} Minuten`;
+  const h = Math.round(ms / 3600000);
+  if (h < 20) return h === 1 ? 'in einer Stunde' : `in ${h} Stunden`;
+  const d = Math.round(ms / 86400000);
+  if (d <= 1) return 'morgen';
+  if (d < 45) return `in ${d} Tagen`;
+  const mo = Math.round(d / 30);
+  return mo < 12 ? `in ${mo} Monaten` : 'in über einem Jahr';
 }
 
 function plyOfFenSafe(fen: string) {

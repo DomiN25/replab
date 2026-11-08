@@ -14,6 +14,18 @@ const PGN = `[Event "Audit"]
 
 1. e4 {Offene Stellungen, Initiative.} e5 (1... c5 2. Nf3 d6 3. d4) (1... e6 2. d4 d5 3. Nc3) 2. Nf3 Nc6 3. Bb5 *`;
 
+const STUDY = `[Event "Kapitel 1"]
+[ChapterName "Rossolimo"]
+
+{ Einleitung: Schwarz gegen die Anti-Sizilianer. }
+1. e4 c5 2. Nf3 (2. c3 { Alapin. } 2... e5) (2. Nc3 Nc6 3. Bb5 (3. f4 e6) 3... Nd4) 2... Nc6 3. Bb5 e5 { Meine Wahl gegen Rossolimo. } (3... g6 4. O-O Bg7) 4. O-O d6 *
+
+[Event "Kapitel 2"]
+[ChapterName "Morra"]
+
+1. e4 c5 2. d4 cxd4 3. c3 e5 *
+`;
+
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b';
 const TABLE = {
@@ -121,6 +133,12 @@ async function run(scheme) {
   await page.waitForSelector('[data-testid="guide"]');
   await shot('build-tour');
   await page.locator('.mode-switch').getByRole('button', { name: 'Frei' }).tap();
+  // Abweichung vom Repertoire: ab Start 1.d4 statt 1.e4
+  await page.getByRole('button', { name: 'Zum Anfang' }).tap();
+  await page.waitForTimeout(300);
+  await move(page, 'd2d4');
+  await page.waitForSelector('[data-testid="outside"]');
+  await shot('build-outside');
 
   await nav('Lücken');
   await shot('gaps', true);
@@ -164,6 +182,31 @@ async function run(scheme) {
     if (await next.isVisible()) await next.click();
   }
   await shot('train-done');
+
+  // Studien-Reiter: Studie aus eingefügtem PGN, Editor, Sheet, Kapitel
+  await nav('Studien');
+  await shot('studies-empty');
+  await page.getByRole('button', { name: 'Studie hinzufügen' }).tap();
+  const sd = page.getByRole('dialog');
+  await sd.locator('textarea').fill(STUDY);
+  await sd.getByPlaceholder('z. B. Anti-Sizilianer').fill('Anti-Sizilianer');
+  await sd.getByRole('button', { name: 'Als Studie speichern' }).tap();
+  await page.waitForSelector('.study-moves');
+  await page.locator('.smove-go', { hasText: '1.e4' }).tap();
+  await page.locator('.smove-go', { hasText: 'c5' }).tap();
+  await page.waitForTimeout(400);
+  await shot('study-editor');
+  await page.locator('.bs-grip').tap();
+  await page.waitForTimeout(500);
+  await shot('study-editor-full');
+  await page.locator('.smove', { hasText: '2.c3' }).getByRole('button', { name: /entfernen/ }).tap();
+  await page.waitForTimeout(300);
+  await shot('study-cut');
+  await page.getByRole('tab', { name: /Kapitel/ }).tap();
+  await shot('study-chapters');
+  await nav('Studien');
+  await nav('Studien');
+  await shot('studies-list');
 
   await nav('Mehr');
   await page.getByRole('button', { name: /löschen/i }).first().click().catch(() => {});

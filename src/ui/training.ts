@@ -56,10 +56,33 @@ export function dueItems(pool: Pool, settings: Settings, now: number, g?: Graph)
   return items.slice(0, limit);
 }
 
-/** Neue Karten in Linien-Reihenfolge (Tiefensuche, häufige Gegnerzüge zuerst). */
-export function newItems(pool: Pool, settings: Settings, g?: Graph): SessionItem[] {
-  const limit = Math.max(0, settings.srs.newPerDay - pool.newToday);
-  const byKey = new Map(pool.fresh.map((c) => [c.posKey, c]));
+/** Neue Karten, die nach der Mindest-Erreichbarkeit überhaupt in Frage kommen (Rest bleibt zurückgestellt). */
+export function eligibleNew(pool: Pool, settings: Settings, g?: Graph): Card[] {
+  const min = settings.srs.newMinReach ?? 0;
+  if (!g || min <= 0) return pool.fresh;
+  return pool.fresh.filter((c) => {
+    const id = g.byPosKey.get(c.posKey);
+    return id !== undefined && g.nodes[id].reach >= min;
+  });
+}
+
+/**
+ * Neue Karten für heute: Tageslimit (+ freiwillige Extra-Karten), nur ab Mindest-Erreichbarkeit.
+ * Reihenfolge „reach“: wahrscheinlichste Stellungen zuerst (Eltern vor Kindern, da Erreichbarkeit entlang der Linie
+ * nur sinkt) – sinnvoll nach großen Importen. „line“: Linie für Linie (Tiefensuche, häufige Gegnerzüge zuerst).
+ */
+export function newItems(pool: Pool, settings: Settings, g?: Graph, extra = 0): SessionItem[] {
+  const limit = Math.max(0, settings.srs.newPerDay - pool.newToday) + extra;
+  const eligible = eligibleNew(pool, settings, g);
+  if ((settings.srs.newOrder ?? 'reach') === 'reach' && g) {
+    const info = (c: Card) => {
+      const id = g.byPosKey.get(c.posKey);
+      return id !== undefined ? { reach: g.nodes[id].reach, ply: g.nodes[id].ply } : { reach: -1, ply: 999 };
+    };
+    const sorted = eligible.map((c) => ({ c, ...info(c) })).sort((a, b) => b.reach - a.reach || a.ply - b.ply);
+    return sorted.slice(0, limit).map(({ c }, i) => ({ cardId: c.id, posKey: c.posKey, path: pathOf(g, c.posKey), priority: -i }));
+  }
+  const byKey = new Map(eligible.map((c) => [c.posKey, c]));
   const ordered: Card[] = [];
   if (g) {
     for (const id of lineOrder(g)) {

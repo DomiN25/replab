@@ -150,22 +150,44 @@ export function readPgn(text: string): Game<PgnNodeData>[] {
   return parsePgn(text.replace(/^﻿/, ''));
 }
 
+/** Bearbeitung einer Studie vor der Übernahme: entfernte Züge (Ast ab dort) und abgewählte Kapitel. */
+export interface StudyFilter {
+  /** `${posKey} ${uci}` – dieser Zug samt allem dahinter wird nicht übernommen. */
+  cuts?: Set<string>;
+  /** Kapitel-Indizes (Reihenfolge im PGN), die nicht übernommen werden. */
+  skipChapters?: Set<number>;
+}
+
+export const cutKey = (posKey: string, uci: string) => `${posKey} ${uci}`;
+
+/** Farbe eines Kapitels laut Orientation-Header (sonst undefined). */
+function chapterColor(g: Game<PgnNodeData>): Color | undefined {
+  const o = g.headers.get('Orientation')?.toLowerCase();
+  return o === 'white' || o === 'black' ? o : undefined;
+}
+
 /** Kapitel für eine Repertoire-Farbe: Kapitel mit Orientation der anderen Farbe fallen weg (z. B. gemischte Lichess-Studien). */
-function gamesFor(text: string, color: Color): { games: Game<PgnNodeData>[]; otherColor: number } {
+function gamesFor(text: string, color: Color, filter?: StudyFilter): { games: Game<PgnNodeData>[]; otherColor: number } {
   const all = readPgn(text);
-  const games = all.filter((g) => {
-    const o = g.headers.get('Orientation')?.toLowerCase();
-    return o !== 'white' && o !== 'black' ? true : o === color;
+  let otherColor = 0;
+  const games = all.filter((g, i) => {
+    const c = chapterColor(g);
+    if (c && c !== color) {
+      otherColor++;
+      return false;
+    }
+    return !filter?.skipChapters?.has(i);
   });
-  return { games, otherColor: all.length - games.length };
+  return { games, otherColor };
 }
 
 /** Schritt 1: Konflikte finden (zwei verschiedene eigene Züge in derselben Stellung). */
-export function analyzePgn(text: string, color: Color, existing: Map<string, ExistingEntry>): ImportAnalysis {
-  const { games, otherColor } = gamesFor(text, color);
+export function analyzePgn(text: string, color: Color, existing: Map<string, ExistingEntry>, filter?: StudyFilter): ImportAnalysis {
+  const { games, otherColor } = gamesFor(text, color, filter);
   const errors: string[] = [];
   const seen = new Map<string, { fen: string; sans: string[]; moves: { uci: string; san: string }[] }>();
   walkGames(games, errors, (ctx, _data, mv) => {
+    if (filter?.cuts?.has(cutKey(keyOfFen(ctx.fen), mv.uci))) return false;
     if (turnOf(ctx.fen) !== color) return true;
     const key = keyOfFen(ctx.fen);
     const s = seen.get(key) ?? { fen: ctx.fen, sans: ctx.sans, moves: [] };
@@ -195,14 +217,15 @@ export function planImport(
   resolutions: Map<string, string> = new Map(),
   /** Schon berechnete Analyse (spart einen zweiten Durchlauf). */
   analysis?: ImportAnalysis,
+  filter?: StudyFilter,
 ): ImportPlan {
-  const { games } = gamesFor(text, color);
+  const { games } = gamesFor(text, color, filter);
   const errors: string[] = [];
   const entries = new Map<string, PlannedEntry>();
   const marks = new Map<string, PlannedMark>();
   const firstSeen = new Map<string, string>();
   let skipped = 0;
-  const conflictKeys = new Set((analysis ?? analyzePgn(text, color, existing)).conflicts.map((c) => c.posKey));
+  const conflictKeys = new Set((analysis ?? analyzePgn(text, color, existing, filter)).conflicts.map((c) => c.posKey));
   /** Konfliktstellungen, die mit den gewählten Zügen tatsächlich erreicht werden (Rest liegt in übersprungenen Ästen). */
   const reached = new Set<string>();
 
@@ -217,6 +240,10 @@ export function planImport(
 
   walkGames(games, errors, (ctx, data, mv) => {
     const key = keyOfFen(ctx.fen);
+    if (filter?.cuts?.has(cutKey(key, mv.uci))) {
+      skipped++;
+      return false; // vom Nutzer entfernter Ast
+    }
     const parsed = parseRepComment(commentText(data));
     const afterKey = keyOfFen(mv.fenAfter);
     if (turnOf(ctx.fen) === color) {
@@ -415,3 +442,89 @@ export function mainlineSans(text: string): string[] {
   const games = readPgn(text);
   return games.length ? [...games[0].moves.mainline()].map((d) => d.san) : [];
 }
+
+// ---------------------------------------------------------------- Studienbaum (Studien-Reiter)
+
+export interface StudyMove {
+  uci: string;
+  san: string;
+  /** posKey nach dem Zug */
+  child: string;
+  /** Kapitel (Indizes), in denen der Zug vorkommt */
+  chapters: number[];
+  /** Kommentar(e) zum Zug, ohne Pfeil-/Feldmarkierungen */
+  comment?: string;
+}
+
+export interface StudyNode {
+  key: string;
+  fen: string;
+  moves: StudyMove[];
+}
+
+export interface StudyChapter {
+  index: number;
+  name: string;
+  /** Farbe laut Orientation-Header; undefined = unbekannt */
+  color?: Color;
+  /** Einleitungstext des Kapitels */
+  intro?: string;
+}
+
+export interface StudyTree {
+  root: string;
+  nodes: Map<string, StudyNode>;
+  chapters: StudyChapter[];
+}
+
+const cleanComment = (raw: string) => parseComment(raw).text.replace(/\s+/g, ' ').trim();
+
+/**
+ * Alle Kapitel als ein Baum, Stellungen über posKey zusammengeführt (Zugumstellungen fallen zusammen).
+ * Kapitel der anderen Farbe sind enthalten, aber markiert (chapters[i].color) – die Ansicht blendet sie aus.
+ */
+export function buildStudyTree(text: string): StudyTree {
+  const all = readPgn(text);
+  const nodes = new Map<string, StudyNode>();
+  const chapters: StudyChapter[] = all.map((g, i) => {
+    const intro = (g.comments ?? []).map(cleanComment).filter(Boolean).join(' ');
+    return {
+      index: i,
+      name: g.headers.get('ChapterName') || g.headers.get('Event') || `Kapitel ${i + 1}`,
+      color: chapterColor(g),
+      intro: intro || undefined,
+    };
+  });
+  const nodeOf = (fen: string) => {
+    const key = keyOfFen(fen);
+    let n = nodes.get(key);
+    if (!n) {
+      n = { key, fen, moves: [] };
+      nodes.set(key, n);
+    }
+    return n;
+  };
+  let root = keyOfFen(START_FEN);
+  all.forEach((game, gi) => {
+    const start = startingPosition(game.headers);
+    if (start.isErr) return;
+    const startFen = fenOf(start.value);
+    if (gi === 0) root = keyOfFen(startFen);
+    nodeOf(startFen);
+    walkGames([game], [], (ctx, data, mv) => {
+      const n = nodeOf(ctx.fen);
+      nodeOf(mv.fenAfter);
+      let m = n.moves.find((x) => x.uci === mv.uci);
+      if (!m) {
+        m = { uci: mv.uci, san: mv.san, child: keyOfFen(mv.fenAfter), chapters: [] };
+        n.moves.push(m);
+      }
+      if (!m.chapters.includes(gi)) m.chapters.push(gi);
+      const c = (data.comments ?? []).map(cleanComment).filter(Boolean).join(' ');
+      if (c && !(m.comment ?? '').includes(c)) m.comment = m.comment ? `${m.comment} · ${c}` : c;
+      return true;
+    });
+  });
+  return { root, nodes, chapters };
+}
+
