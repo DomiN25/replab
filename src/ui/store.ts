@@ -8,6 +8,7 @@ import { EngineService } from '../services/engine';
 import { GraphClient } from '../services/graphClient';
 import type { Card, PositionMark, Repertoire, RepertoireMove, Settings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/types';
+import type { SyncUiState } from './sync';
 
 export type View = 'home' | 'build' | 'gaps' | 'train' | 'settings';
 export interface LineStep {
@@ -45,6 +46,7 @@ export interface AppState {
   toast?: Toast;
   galaxyMode: 'family' | 'knowledge';
   sideView: 'galaxy' | 'list';
+  sync: SyncUiState;
 }
 
 export const useApp = create<AppState>(() => ({
@@ -65,6 +67,7 @@ export const useApp = create<AppState>(() => ({
   scanQueued: 0,
   galaxyMode: 'family',
   sideView: 'galaxy',
+  sync: { status: 'off', connected: false, configured: false, dirty: false },
 }));
 
 const get = useApp.getState;

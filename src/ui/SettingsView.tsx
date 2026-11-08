@@ -6,6 +6,7 @@ import { ImportDialog, type ImportPreset } from './ImportDialog';
 import { Modal } from './Modal';
 import { downloadBackup, downloadPgn } from './backup';
 import { fetchSeed, loadSeedRepertoires } from './seed';
+import { SyncSettings } from './SyncSettings';
 import type { Color, Settings } from '../core/types';
 
 const SPEEDS = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence'];
@@ -127,6 +128,8 @@ export function SettingsView() {
           <button className="btn primary" onClick={() => void create()}>Anlegen</button>
         </div>
       </section>
+
+      <SyncSettings />
 
       <section className="card">
         <h2>Import / Export</h2>

@@ -4,6 +4,7 @@ import { Home } from './Home';
 import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
 import { selectRepertoire, setView, useApp, type View } from './store';
+import { syncNow, syncTitle } from './sync';
 
 const NAV: { v: View; label: string; icon: string }[] = [
   { v: 'home', label: 'Start', icon: '⌂' },
@@ -22,6 +23,7 @@ export function App() {
   const graphBusy = useApp((s) => s.graphBusy);
   const ex = useApp((s) => s.explorerStatus);
   const toast = useApp((s) => s.toast);
+  const sync = useApp((s) => s.sync);
 
   if (!loaded) return <div className="splash">RepLab lädt …</div>;
 
@@ -42,8 +44,21 @@ export function App() {
         )}
         {repertoires.length > 0 && (
           <button className="gap-chip" onClick={() => setView('gaps')} title="Lücken im Repertoire">
-            Lücken: <b data-testid="gap-count">{gaps ?? '…'}</b>
+            <span className="lbl">Lücken: </span>
+            <b data-testid="gap-count">{gaps ?? '…'}</b>
             {graphBusy && <span className="spin" aria-hidden>◌</span>}
+          </button>
+        )}
+        {sync.connected && (
+          <button
+            className={`sync-btn ${sync.status} ${sync.dirty ? 'dirty' : ''}`}
+            data-testid="sync-btn"
+            title={syncTitle(sync)}
+            aria-label={syncTitle(sync)}
+            onClick={() => void syncNow(true)}
+          >
+            <span aria-hidden>☁</span>
+            {sync.status === 'syncing' ? <i className="spin">◌</i> : sync.status === 'needs-auth' || sync.dirty ? <i>!</i> : sync.status === 'error' ? <i>×</i> : <i>✓</i>}
           </button>
         )}
         <span className={`ex-dot ${ex.state}`} title={explorerTitle(ex.state, ex.lastError)} aria-label={explorerTitle(ex.state, ex.lastError)} />

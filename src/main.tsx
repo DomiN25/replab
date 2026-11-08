@@ -10,6 +10,7 @@ import 'chessground/assets/chessground.cburnett.css';
 import './styles/app.css';
 import { App } from './ui/App';
 import { init } from './ui/store';
+import { initSync } from './ui/sync';
 import { registerSW } from 'virtual:pwa-register';
 
 createRoot(document.getElementById('root')!).render(
@@ -18,7 +19,7 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-void init();
+void init().then(initSync);
 
 // Service Worker (Offline-Training). Nur in sicheren Kontexten (https/localhost) verfügbar.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

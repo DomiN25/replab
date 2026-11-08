@@ -98,6 +98,14 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
 .gap-chip b { color: var(--gap); font-family: var(--display); font-size: 15px; }
 .spin { display: inline-block; margin-left: 4px; animation: spin 1s linear infinite; color: var(--muted); }
 @keyframes spin { to { transform: rotate(360deg); } }
+.sync-btn { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); background: transparent; color: var(--me); border-radius: 999px; padding: 2px 9px; min-height: 34px; cursor: pointer; font-size: 15px; flex: none; }
+.sync-btn i { font-style: normal; font-size: 11px; font-weight: 700; }
+.sync-btn.needs-auth, .sync-btn.dirty { color: var(--opp); border-color: rgba(245, 181, 74, 0.5); }
+.sync-btn.error { color: var(--gap); border-color: rgba(255, 107, 107, 0.5); }
+.sync-btn.syncing { color: var(--eng); }
+.sync-status b.st-ok { color: var(--me); }
+.sync-status b.st-needs-auth { color: var(--opp); }
+.sync-status b.st-error { color: var(--gap); }
 .ex-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--me); flex: none; }
 .ex-dot.busy { background: var(--eng); }
 .ex-dot.backoff { background: var(--opp); }
@@ -122,7 +130,8 @@ main { padding: 12px 12px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom)
   .brand { font-size: 20px; }
   .gap-chip { padding: 4px 8px; }
   .topbar { gap: 8px; padding: 8px 10px; }
-  .rep-select { max-width: 38vw; }
+  .rep-select { max-width: 34vw; }
+  .gap-chip .lbl { display: none; }
 }
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); z-index: 60; background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 92vw; }
