@@ -7,6 +7,7 @@ import { Modal } from './Modal';
 import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
 import { effectiveDepth } from '../services/engine';
+import { Icon } from './Icon';
 
 export function Gaps() {
   const graph = useApp((s) => s.graph);
@@ -109,7 +110,7 @@ export function Gaps() {
           </label>
           {settings.ui.showTraps && (
             <label className="check">
-              <input type="checkbox" checked={onlyTraps} onChange={(e) => setOnlyTraps(e.target.checked)} /> nur nach ⚡ Fallenzügen
+              <input type="checkbox" checked={onlyTraps} onChange={(e) => setOnlyTraps(e.target.checked)} /> nur nach <Icon name="bolt" className="trap-ico" /> Fallenzügen
             </label>
           )}
         </div>
@@ -119,13 +120,13 @@ export function Gaps() {
         <div className="notice">
           {lichessToken() ? (
             <>
-              ⏳ {graph.pending.length} Gegnerstellungen warten auf Datenbank-Daten
+              <Icon name="clock" /> {graph.pending.length} Gegnerstellungen warten auf Datenbank-Daten
               {scanQueued > 0 ? ` (lädt, ${scanQueued} in der Warteschlange)` : ''}. Neue Lücken erscheinen automatisch.
               {status.state === 'backoff' && ' Lichess-Limit: kurze Pause.'}
             </>
           ) : (
             <>
-              ⏳ {graph.pending.length} Gegnerstellungen ohne Datenbank-Daten. Ohne Lichess-Token zählen dort nur deine eigenen Markierungen (z. B. aus dem PGN-Import).{' '}
+              <Icon name="clock" /> {graph.pending.length} Gegnerstellungen ohne Datenbank-Daten. Ohne Lichess-Token zählen dort nur deine eigenen Markierungen (z. B. aus dem PGN-Import).{' '}
               <button className="link-btn" onClick={() => setView('settings')}>Token eintragen</button>
             </>
           )}
@@ -133,7 +134,7 @@ export function Gaps() {
       )}
       {graph.needsEngine.length > 0 && (
         <div className="notice">
-          🔎 {graph.needsEngine.length} tiefe Stellungen haben zu wenige Partien – dort gilt nur die Engine-Regel.{' '}
+          <Icon name="search" /> {graph.needsEngine.length} tiefe Stellungen haben zu wenige Partien – dort gilt nur die Engine-Regel.{' '}
           {engineScan ? (
             <span>Analysiere {engineScan.done}/{engineScan.total} …</span>
           ) : (
@@ -156,7 +157,7 @@ export function Gaps() {
                   <button onClick={() => jump(gp.id)}>
                     <span className="line">{formatLine(gp.sans, notation)}</span>
                     <span className="meta">
-                      {gp.viaTrap && settings.ui.showTraps && <span className="trap" title="Gegnerzug ist eine Chance (Fehler)">⚡</span>}
+                      {gp.viaTrap && settings.ui.showTraps && <span className="trap" title="Gegnerzug ist eine Chance (Fehler)"><Icon name="bolt" /></span>}
                       {gp.name && gp.name !== g.family && <span className="nm">{gp.name}</span>}
                       {settings.ui.showReach && gp.reach > 0 && <span className="reach">≈ {(gp.reach * 100).toFixed(1)} %</span>}
                     </span>

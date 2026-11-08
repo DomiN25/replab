@@ -151,6 +151,7 @@ function viewFromHash(): View {
 
 export function setView(v: View) {
   if (viewFromHash() !== v) location.hash = `/${v}`;
+  if (get().view !== v && typeof window !== 'undefined') window.scrollTo(0, 0); // neue Ansicht beginnt oben
   set({ view: v });
 }
 

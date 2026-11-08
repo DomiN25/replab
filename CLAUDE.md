@@ -22,6 +22,7 @@ TypeScript (strict) · Vite · React 18 · Zustand · Dexie (IndexedDB) · chess
 - `npm run lint` / `npm run typecheck` – beides `tsc --noEmit` (kein ESLint eingerichtet)
 - `node scripts/build-openings.mjs [ordner]` – Eröffnungsnamen neu bauen (`src/data/openings.json`)
 - `node scripts/make-icons.mjs` – PWA-Icons neu erzeugen
+- `node scripts/mobile-audit.mjs [url]` – Handy-Simulation (Pixel 7, Edge, hell + dunkel): klickt alle Ansichten durch, Screenshots nach `test-results/mobile-audit/` (Dev-Server muss laufen; nur Emulation, kein echtes Gerät)
 - Lichess-Token für die Entwicklung: `.env.local` mit `LICHESS_TOKEN=lip_…` (nie committen; im Build immer leer)
 
 ## Stand & Status

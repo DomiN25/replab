@@ -280,7 +280,7 @@ function statusText(g: Graph, n: GNode): string {
   const c = n.status === 'transposition' ? g.nodes[n.transposeOf!] : n;
   if (n.status === 'transposition') return ' · ⇄ Zugumstellung';
   if (c.status === 'gap') return ' · ● Lücke';
-  if (c.status === 'end') return ' · ⏹ Ende';
+  if (c.status === 'end') return ' · ■ Ende';
   return '';
 }
 

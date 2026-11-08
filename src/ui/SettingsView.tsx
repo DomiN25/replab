@@ -319,7 +319,10 @@ export function SettingsView() {
             ))}
           </div>
         </div>
-        <p className="hint small">Farbschema und Brett gelten nur für dieses Gerät.</p>
+        <label className="check">
+          <input type="checkbox" checked={look.haptics} onChange={(e) => look.setHaptics(e.target.checked)} /> Vibration beim Antworten im Training (Android)
+        </label>
+        <p className="hint small">Farbschema, Brett und Vibration gelten nur für dieses Gerät.</p>
         <label className="check">
           <input type="checkbox" checked={settings.ui.notation === 'de'} onChange={(e) => upd((s) => (s.ui.notation = e.target.checked ? 'de' : 'en'))} /> Deutsche Notation (S, L, T, D, K)
         </label>
@@ -327,7 +330,7 @@ export function SettingsView() {
           <input type="checkbox" checked={settings.ui.showReach} onChange={(e) => upd((s) => (s.ui.showReach = e.target.checked))} /> Erreichwahrscheinlichkeit anzeigen
         </label>
         <label className="check">
-          <input type="checkbox" checked={settings.ui.showTraps} onChange={(e) => upd((s) => (s.ui.showTraps = e.target.checked))} /> Fallen (⚡) markieren
+          <input type="checkbox" checked={settings.ui.showTraps} onChange={(e) => upd((s) => (s.ui.showTraps = e.target.checked))} /> Fallen (<Icon name="bolt" className="trap-ico" />) markieren
         </label>
       </section>
 

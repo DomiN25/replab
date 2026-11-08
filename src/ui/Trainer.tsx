@@ -14,6 +14,7 @@ import { pathSans } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
 import type { ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
+import { buzz } from './theme';
 
 type Phase = 'context' | 'ask' | 'right' | 'wrong' | 'fixed';
 
@@ -145,6 +146,11 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
   const answered = useRef(false);
   const stats = useRef({ right: 0, wrong: 0 });
   const scheduler = useMemo(() => new Scheduler(settings.srs.desiredRetention), [settings.srs.desiredRetention]);
+  // Fokus-Modus am Handy: Brett ganz oben. Block-Körper nötig – scrollTo gibt in neuem Chromium ein Promise zurück,
+  // das React sonst als Aufräumfunktion aufrufen würde (Absturz).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const step = currentStep(session);
   const card = step ? [...cards.values()].find((c) => c.id === step.cardId) : undefined;
@@ -283,6 +289,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
     const ms = performance.now() - askAt.current;
     void record(correct, ms, correct ? undefined : played.uci);
     pendingAnswer.current = correct;
+    buzz(correct ? 12 : [35, 60, 35]);
     if (correct) {
       stats.current.right++;
       setBoardFen(played.fen);

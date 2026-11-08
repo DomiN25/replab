@@ -62,9 +62,22 @@ export function initTheme() {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 }
 
+const K_HAPTICS = 'replab.haptics';
+export const hapticsOn = () => read(K_HAPTICS) !== 'off';
+/** Kurze Vibration (Android; iOS-Safari kann das nicht). Respektiert die Einstellung pro Gerät. */
+export function buzz(pattern: number | number[]) {
+  if (!hapticsOn() || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    /* manche Browser werfen ohne Nutzergeste */
+  }
+}
+
 export function useAppearance() {
   const [mode, setModeState] = useState<ThemeMode>(themeMode);
   const [board, setBoardState] = useState<BoardTheme>(boardTheme);
+  const [haptics, setHapticsState] = useState<boolean>(hapticsOn);
   useEffect(() => applyTheme(), [mode, board]);
   return {
     mode,
@@ -76,6 +89,12 @@ export function useAppearance() {
     setBoard: (b: BoardTheme) => {
       write(K_BOARD, b);
       setBoardState(b);
+    },
+    haptics,
+    setHaptics: (on: boolean) => {
+      write(K_HAPTICS, on ? 'on' : 'off');
+      setHapticsState(on);
+      if (on) buzz(15);
     },
   };
 }

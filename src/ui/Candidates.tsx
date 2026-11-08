@@ -8,6 +8,7 @@ import type { EngineLine, PositionMark, RepertoireMove } from '../core/types';
 import { nameDe } from '../core/openings';
 import type { ExplorerState, EngineState } from './hooks';
 import { saveMoveMeta, setEndOfLine, toggleOpp, updateMark, useApp } from './store';
+import { Icon } from './Icon';
 
 interface Props {
   fen: string;
@@ -119,7 +120,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
             )}
           </>
         ) : p.mark?.endOfLine ? (
-          <div className="you"><span className="lbl">⏹ Ende der Linie – hier improvisierst du</span></div>
+          <div className="you"><span className="lbl">■ Ende der Linie – hier improvisierst du</span></div>
         ) : (
           <div className="you">
             <span className="lbl">{isGap ? '● Lücke: noch kein Zug festgelegt' : 'Noch kein Zug festgelegt'}</span>
@@ -192,7 +193,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
       ) : (
         <div className="row-actions">
           <button className="btn small" onClick={() => void setEndOfLine(posKey, !p.mark?.endOfLine)}>
-            {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '⏹ Ende der Linie hier'}
+            {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '■ Ende der Linie hier'}
           </button>
         </div>
       )}
@@ -337,7 +338,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
     const g = p.graph;
     const gid = g?.byPosKey.get(child.posKey);
     const gn = gid !== undefined ? g!.nodes[gid] : undefined;
-    if (marks.get(child.posKey)?.endOfLine) return { icon: '⏹', cls: 'end', reach: gn?.reach, childKey: child.posKey };
+    if (marks.get(child.posKey)?.endOfLine) return { icon: '■', cls: 'end', reach: gn?.reach, childKey: child.posKey };
     if (moves.has(child.posKey)) return { icon: '✓', cls: 'ok', reach: gn?.reach, childKey: child.posKey };
     return { icon: c.relevant ? '●' : '', cls: 'gap', reach: gn?.reach, childKey: child.posKey };
   };
@@ -352,7 +353,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
             {displaySan(c.san, p.notation)}
           </button>
           {settings.ui.showTraps && c.trap && (
-            <span className="trap" title={`Chance: verliert ca. ${((c.lossCp ?? 0) / 100).toFixed(1).replace('.', ',')} Bauern, gespielt in ${pct(c.share)} der Partien`}>⚡</span>
+            <span className="trap" title={`Chance: verliert ca. ${((c.lossCp ?? 0) / 100).toFixed(1).replace('.', ',')} Bauern, gespielt in ${pct(c.share)} der Partien`}><Icon name="bolt" /></span>
           )}
         </td>
         <td className="num">{pct(c.share)}</td>
@@ -391,7 +392,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
     <>
       {p.mark?.note && <p className="note">{p.mark.note}</p>}
       <ExplorerStatusLine ex={p.ex} />
-      {p.mark?.endOfLine && <p className="hint">⏹ Ende-Marker: ab hier keine Lücken mehr.</p>}
+      {p.mark?.endOfLine && <p className="hint">■ Ende-Marker: ab hier keine Lücken mehr.</p>}
       <div className="table-wrap">
         <table className="ctable">
           <thead>
@@ -419,7 +420,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
       {!relevant.length && !p.ex.loading && <p className="hint">Keine relevanten Gegnerzüge bekannt.</p>}
       <div className="row-actions">
         <button className="btn small" onClick={() => void setEndOfLine(posKey, !p.mark?.endOfLine)}>
-          {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '⏹ Ende der Linie hier'}
+          {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '■ Ende der Linie hier'}
         </button>
       </div>
       <LabelEditor posKey={posKey} mark={p.mark} />

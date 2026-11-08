@@ -216,7 +216,7 @@ export function GuideBar() {
                 >
                   {displaySan(s.san, notation)}
                   {s.share !== undefined && <small> {(s.share * 100).toFixed(0)} %</small>}
-                  {s.status === 'gap' ? ' ●' : s.status === 'answered' ? ' ✓' : s.status === 'end' ? ' ⏹' : ''}
+                  {s.status === 'gap' ? ' ●' : s.status === 'answered' ? ' ✓' : s.status === 'end' ? ' ■' : ''}
                 </button>
               ))}
             </div>
