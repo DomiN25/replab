@@ -78,15 +78,23 @@ const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 
 
 export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelect, onBack, outside }: GalaxyProps) {
   const target = useMemo(() => layoutGalaxy(graph, focusId), [graph, focusId]);
-  const [frame, setFrame] = useState<{ arcs: (ArcDatum & { o: number })[] }>({ arcs: target.map((a) => ({ ...a, o: 1 })) });
+  // Segmente sind an ihren Graphen gebunden: Knoten-IDs gelten nur für den Graphen, aus dem sie stammen.
+  const [frame, setFrameRaw] = useState<{ arcs: (ArcDatum & { o: number })[]; graph: Graph }>({ arcs: target.map((a) => ({ ...a, o: 1 })), graph });
+  const setFrame = (f: { arcs: (ArcDatum & { o: number })[] }) => setFrameRaw({ ...f, graph });
   const prev = useRef<Map<string, ArcDatum>>(new Map(target.map((a) => [a.key, a])));
   const prevFocus = useRef(focusId);
+  const prevGraph = useRef(graph);
+  // Bis der Effekt läuft: veraltete Segmente eines alten Graphen nie mit dem neuen Graphen zeichnen
+  const arcs = frame.graph === graph ? frame.arcs : target.map((a) => ({ ...a, o: 1 }));
 
   // Animation zwischen altem und neuem Layout (≤ 650 ms, reduced-motion → sofort)
   useEffect(() => {
-    const from = prev.current;
+    const graphChanged = prevGraph.current !== graph;
+    prevGraph.current = graph;
+    // Neuer Graph (Neuberechnung im Hintergrund): IDs haben sich verschoben → ohne Animation neu
+    const from = graphChanged ? new Map<string, ArcDatum>() : prev.current;
     const to = new Map(target.map((a) => [a.key, a]));
-    const focusChanged = prevFocus.current !== focusId;
+    const focusChanged = prevFocus.current !== focusId && !graphChanged;
     prevFocus.current = focusId;
     if (!focusChanged || prefersReducedMotion()) {
       prev.current = to;
@@ -190,7 +198,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
       </defs>
       <Stars />
       <g>
-        {frame.arcs.map((d) => {
+        {arcs.map((d) => {
           const n = d.id >= 0 ? graph.nodes[d.id] : undefined;
           const isPath = n && (onPath.has(n.id) || n.id === currentId);
           const title = n
@@ -213,7 +221,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
         })}
       </g>
       <g pointerEvents="none" textAnchor="middle">
-        {frame.arcs.map((d) => {
+        {arcs.map((d) => {
           if (d.id < 0) return null;
           const len = (d.x1 - d.x0) * ((d.y0 + d.y1) / 2) * RING;
           if (len < 24 || d.y1 - d.y0 < 0.6) return null;
@@ -236,7 +244,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
         })}
       </g>
       <g pointerEvents="none">
-        {frame.arcs.map((d) => {
+        {arcs.map((d) => {
           const ids = d.id >= 0 ? [d.id] : d.rest!.ids;
           const hasGap = ids.some((i) => {
             const n = graph.nodes[i];

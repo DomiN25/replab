@@ -9,6 +9,7 @@ import { GraphClient } from '../services/graphClient';
 import type { Card, PositionMark, Repertoire, RepertoireMove, Settings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/types';
 import type { SyncUiState } from './sync';
+import type { GuideState } from './GuideBar';
 
 export type View = 'home' | 'build' | 'gaps' | 'train' | 'settings';
 export interface LineStep {
@@ -47,6 +48,7 @@ export interface AppState {
   galaxyMode: 'family' | 'knowledge';
   sideView: 'galaxy' | 'list';
   sync: SyncUiState;
+  guide: GuideState;
 }
 
 export const useApp = create<AppState>(() => ({
@@ -68,6 +70,7 @@ export const useApp = create<AppState>(() => ({
   galaxyMode: 'family',
   sideView: 'galaxy',
   sync: { status: 'off', connected: false, configured: false, dirty: false },
+  guide: { active: false, strategy: 'shallow', minReach: 0, skipped: [] },
 }));
 
 const get = useApp.getState;

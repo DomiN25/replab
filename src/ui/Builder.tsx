@@ -6,6 +6,7 @@ import { Candidates } from './Candidates';
 import { Galaxy, GalaxyLegend } from './Galaxy';
 import { TreeList } from './TreeList';
 import { Modal } from './Modal';
+import { GuideBar, startGuide, stopGuide } from './GuideBar';
 import { useEngine, useExplorer } from './hooks';
 import {
   back,
@@ -45,6 +46,7 @@ export function Builder() {
   const engineOn = useApp((s) => s.engineOn);
   const galaxyMode = useApp((s) => s.galaxyMode);
   const sideView = useApp((s) => s.sideView);
+  const guideActive = useApp((s) => s.guide.active);
   const [source, setSource] = useState<'lichess' | 'masters'>('lichess');
   const [pending, setPending] = useState<PendingCommit | undefined>();
   const [orphanCheck, setOrphanCheck] = useState(false);
@@ -124,9 +126,20 @@ export function Builder() {
           trapMinShare: settings.engine.trapMinShare,
         },
       }).filter((c) => c.relevant);
-      for (const c of cands.slice(0, 6)) {
+      // Dicke nach Häufigkeit (3…25 von 64 Feldbreite), Anteil als Zahl auf dem Pfeil
+      const maxShare = Math.max(...cands.map((c) => c.share ?? 0), 0.01);
+      for (const c of cands.slice(0, 8)) {
         const sq = uciSquares(c.uci);
-        if (sq) out.push({ orig: sq[0], dest: sq[1], brush: 'opp', modifiers: { lineWidth: 4 + Math.round(12 * (c.share ?? 0.2)) } });
+        if (!sq) continue;
+        const share = c.share;
+        const rel = share !== undefined ? share / maxShare : 0.3;
+        out.push({
+          orig: sq[0],
+          dest: sq[1],
+          brush: 'opp',
+          modifiers: { lineWidth: 3 + Math.round(22 * Math.sqrt(rel)) },
+          label: share !== undefined && share >= 0.03 ? { text: `${Math.round(share * 100)}`, fill: '#f5b54a' } : undefined,
+        });
       }
       const b = uciSquares(best);
       if (b && best !== cands[0]?.uci) out.push({ orig: b[0], dest: b[1], brush: 'eng' });
@@ -244,6 +257,11 @@ export function Builder() {
   return (
     <div className="builder">
       <section className="col-board">
+        <div className="mode-switch seg" role="group" aria-label="Modus">
+          <button aria-pressed={!guideActive} onClick={stopGuide}>Frei</button>
+          <button aria-pressed={guideActive} onClick={startGuide}>Geführt: Lücken schließen</button>
+        </div>
+        <GuideBar />
         <Crumbs />
         <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
         <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>

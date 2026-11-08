@@ -4,6 +4,7 @@ import { gapList, groupGaps, type GapSort } from '../core/graph';
 import { formatLine, displaySan } from '../core/chess';
 import { deleteMyMoves, gotoNode, lichessToken, requestGraph, setView, toast, useApp, engine } from './store';
 import { Modal } from './Modal';
+import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
 import { effectiveDepth } from '../services/engine';
 
@@ -68,6 +69,15 @@ export function Gaps() {
           {shown !== total && <small className="shown"> {shown} angezeigt</small>}
         </h1>
         <div className="tools">
+          <button
+            className="btn primary"
+            onClick={() => {
+              setView('build');
+              setTimeout(startGuide, 0);
+            }}
+          >
+            Geführt schließen
+          </button>
           <label className="field inline">
             <span>Sortieren</span>
             <select value={sort} onChange={(e) => setSort(e.target.value as GapSort)}>

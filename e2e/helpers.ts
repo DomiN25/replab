@@ -3,6 +3,10 @@ import type { Page, Route } from '@playwright/test';
 /** Klick/Tipp auf ein Feld des (ersten sichtbaren) chessground-Bretts. */
 export async function clickSquare(page: Page, sq: string) {
   const board = page.locator('cg-board').first();
+  await board.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ block: 'center' });
+  });
   const box = (await board.boundingBox())!;
   const wrap = page.locator('.cg-wrap').first();
   const white = ((await wrap.getAttribute('class')) ?? '').includes('orientation-white');
