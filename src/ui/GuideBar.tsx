@@ -1,7 +1,8 @@
-// Geführter Aufbau („Lücken schließen“): bringt dich zur Lücke, die am nächsten am Anfang liegt.
+// Lückentour (geführter Aufbau): bringt dich der Reihe nach zu den Lücken deines Repertoires.
 // Du analysierst, legst deinen Zug fest – und es geht automatisch zur nächsten Lücke weiter.
+// Reihenfolge: „Ast für Ast“ (ähnliche Linien hintereinander), „flachste zuerst“ oder „Linie zu Ende“.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { nextGap, oppSiblings, openGapCount, type GuideStrategy } from '../core/guide';
+import { gapFamilies, nextGap, oppSiblings, openGapCount, type GuideStrategy } from '../core/guide';
 import { pathUcis } from '../core/graph';
 import { displaySan, formatLine, playUci, posKeyOf, moveNumberPrefix } from '../core/chess';
 import { explorer, explorerParams, gotoNode, lichessToken, requestGraph, setEndOfLine, toggleOpp, toast, useApp } from './store';
@@ -13,16 +14,20 @@ export interface GuideState {
   skipped: string[];
   currentKey?: string;
   lastPath?: string[];
+  lastFamily?: string;
+  /** Nur dieser Ast (Familie); leer = alle. */
+  family?: string;
 }
 
-export const DEFAULT_GUIDE: GuideState = { active: false, strategy: 'shallow', minReach: 0, skipped: [] };
+export const DEFAULT_GUIDE: GuideState = { active: false, strategy: 'branch', minReach: 0, skipped: [] };
+const STRATEGIES: GuideStrategy[] = ['branch', 'shallow', 'line'];
 
 function loadPrefs(): Pick<GuideState, 'strategy' | 'minReach'> {
   try {
     const p = JSON.parse(localStorage.getItem('replab.guide') ?? '{}');
-    return { strategy: p.strategy === 'line' ? 'line' : 'shallow', minReach: Number(p.minReach) || 0 };
+    return { strategy: STRATEGIES.includes(p.strategy) ? p.strategy : 'branch', minReach: Number(p.minReach) || 0 };
   } catch {
-    return { strategy: 'shallow', minReach: 0 };
+    return { strategy: 'branch', minReach: 0 };
   }
 }
 
@@ -40,18 +45,25 @@ function setGuide(p: Partial<GuideState>) {
 export function guideNext(): boolean {
   const { graph, guide } = useApp.getState();
   if (!graph) return false;
-  const gp = nextGap(graph, { strategy: guide.strategy, minReach: guide.minReach, skipped: new Set(guide.skipped), lastPath: guide.lastPath });
+  const gp = nextGap(graph, {
+    strategy: guide.strategy,
+    minReach: guide.minReach,
+    skipped: new Set(guide.skipped),
+    lastPath: guide.lastPath,
+    lastFamily: guide.lastFamily,
+    family: guide.family,
+  });
   if (!gp) {
     setGuide({ currentKey: undefined });
     return false;
   }
   gotoNode(gp.id);
-  setGuide({ currentKey: gp.posKey, lastPath: pathUcis(graph, gp.id) });
+  setGuide({ currentKey: gp.posKey, lastPath: pathUcis(graph, gp.id), lastFamily: gp.branch });
   return true;
 }
 
-export function startGuide() {
-  setGuide({ ...loadPrefs(), active: true, skipped: [], currentKey: undefined, lastPath: undefined });
+export function startGuide(family?: string) {
+  setGuide({ ...loadPrefs(), active: true, skipped: [], currentKey: undefined, lastPath: undefined, lastFamily: undefined, family });
   if (!guideNext()) toast('Keine offenen Lücken unter den aktuellen Filtern.', 'info');
 }
 
@@ -79,7 +91,11 @@ export function GuideBar() {
   const stillGap = gapNode?.status === 'gap';
 
   const open = useMemo(
-    () => (graph ? openGapCount(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped) }) : 0),
+    () => (graph ? openGapCount(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped), family: guide.family }) : 0),
+    [graph, guide.minReach, guide.skipped, guide.family],
+  );
+  const families = useMemo(
+    () => (graph ? gapFamilies(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped) }) : []),
     [graph, guide.minReach, guide.skipped],
   );
 
@@ -130,15 +146,32 @@ export function GuideBar() {
   return (
     <div className="guide" data-testid="guide">
       <div className="guide-head">
-        <b>Geführt: Lücken schließen</b>
+        <b>Lückentour</b>
         <span className="count gap" data-testid="guide-open">{open}</span>
         <select
           aria-label="Strategie"
           value={guide.strategy}
           onChange={(e) => setGuide({ strategy: e.target.value as GuideStrategy })}
         >
+          <option value="branch">Ast für Ast</option>
           <option value="shallow">flachste zuerst</option>
-          <option value="line">in der Linie bleiben</option>
+          <option value="line">Linie zu Ende</option>
+        </select>
+        <select
+          aria-label="Ast"
+          value={guide.family ?? ''}
+          onChange={(e) => {
+            setGuide({ family: e.target.value || undefined, skipped: [] });
+            setTimeout(() => guideNext(), 0);
+          }}
+        >
+          <option value="">alle Äste</option>
+          {guide.family && !families.some((f) => f.family === guide.family) && <option value={guide.family}>{guide.family} (0)</option>}
+          {families.map((f) => (
+            <option key={f.family} value={f.family}>
+              {f.family} ({f.count})
+            </option>
+          ))}
         </select>
         <select aria-label="Mindest-Erreichbarkeit" value={guide.minReach} onChange={(e) => setGuide({ minReach: Number(e.target.value), skipped: [] })}>
           <option value={0}>alle</option>
@@ -154,7 +187,9 @@ export function GuideBar() {
         <p className="hint">
           {graph && graph.pending.length > 0 && lichessToken()
             ? `Keine offene Lücke – ${graph.pending.length} Stellungen laden noch Datenbank-Daten …`
-            : 'Keine offene Lücke unter den aktuellen Filtern. 🎉'}{' '}
+            : guide.family
+              ? `Ast „${guide.family}“ ist fertig.`
+              : 'Keine offene Lücke unter den aktuellen Filtern.'}{' '}
           <button className="link-btn" onClick={() => guideNext()}>erneut suchen</button>
         </p>
       ) : (

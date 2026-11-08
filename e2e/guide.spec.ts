@@ -1,4 +1,4 @@
-// E2E: Geführter Aufbau – zur flachsten Lücke, festlegen → automatisch weiter, ignorieren, Ende hier.
+// E2E: Lückentour (Ast für Ast) – festlegen → automatisch weiter im Ast, Ende hier, überspringen, ignorieren.
 import { test, expect } from '@playwright/test';
 import { mockExplorer, move } from './helpers';
 
@@ -6,7 +6,7 @@ const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w';
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b';
 const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b';
 
-test('Geführt: Lücken der Reihe nach schließen', async ({ page }) => {
+test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
   await mockExplorer(page, {
     [START]: [['e2e4', 'e4', 5000]],
     [AFTER_E4]: [
@@ -40,27 +40,30 @@ test('Geführt: Lücken der Reihe nach schließen', async ({ page }) => {
   expect(await opp.evaluateAll((ls) => ls.map((l) => getComputedStyle(l).strokeDasharray))).toEqual(['none', 'none']);
   await expect(page.locator('svg.cg-custom-svgs text')).toHaveCount(0);
 
-  // Geführt starten → flachste Lücke, bei gleicher Tiefe die häufigere: 1.e4 e5
-  await page.getByRole('button', { name: 'Geführt: Lücken schließen' }).click();
+  // Lückentour starten (Standard „Ast für Ast“) → schwerster Ast zuerst (Offene Spiele 60 % vor Sizilianisch 40 %): 1.e4 e5
+  await page.getByRole('button', { name: 'Lückentour' }).click();
   const guide = page.getByTestId('guide');
   await expect(guide.locator('.guide-line')).toContainText('1.e4 e5');
   await expect(page.getByTestId('guide-open')).toHaveText('2');
 
-  // Zug am Brett → festlegen → automatisch zur nächsten flachsten Lücke (1.e4 c5)
+  // Zug am Brett → festlegen → bleibt im Ast (Offene Spiele): 2…Sc6 kommt vor 1…c5
   await move(page, 'g1f3');
   await page.getByRole('dialog').getByRole('button', { name: 'Festlegen' }).click();
-  await expect(guide.locator('.guide-line')).toContainText('1.e4 c5');
-
-  // 1…c5 als irrelevant markieren → weiter zu 2…Sc6
-  await guide.getByRole('button', { name: /c5 ignorieren/ }).click();
   await expect(guide.locator('.guide-line')).toContainText('1.e4 e5 2.Sf3 Sc6');
 
-  // Ende hier → weiter zu 2…Sf6; andere Gegnerzüge werden angezeigt
+  // Ende hier → weiter zu 2…Sf6 (gleicher Ast); andere Gegnerzüge werden angezeigt
   await guide.getByRole('button', { name: 'Ende hier' }).click();
   await expect(guide.locator('.guide-line')).toContainText('1.e4 e5 2.Sf3 Sf6');
   await expect(guide.locator('.guide-sibs')).toContainText('Sc6');
 
-  // Überspringen → keine Lücke mehr übrig
+  // Überspringen → Ast leer → nächster Ast: 1…c5
   await guide.getByRole('button', { name: 'Überspringen' }).click();
+  await expect(guide.locator('.guide-line')).toContainText('1.e4 c5');
+
+  // 1…c5 als irrelevant markieren → keine Lücke mehr übrig (2…Sf6 ist übersprungen)
+  await guide.getByRole('button', { name: /c5 ignorieren/ }).click();
   await expect(guide).toContainText('Keine offene Lücke');
+
+  // Ast-Auswahl bietet nur Äste mit offenen Lücken an
+  await expect(guide.getByRole('combobox', { name: 'Ast' })).toContainText('alle Äste');
 });

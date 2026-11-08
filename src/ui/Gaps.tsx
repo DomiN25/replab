@@ -74,10 +74,10 @@ export function Gaps() {
             className="btn primary"
             onClick={() => {
               setView('build');
-              setTimeout(startGuide, 0);
+              setTimeout(() => startGuide(), 0);
             }}
           >
-            Geführt schließen
+            Lückentour starten
           </button>
           <label className="field inline">
             <span>Sortieren</span>
@@ -149,7 +149,19 @@ export function Gaps() {
         {groups.map((g) => (
           <section key={g.family} className="gapfam">
             <h2>
-              {g.family} <small>{g.gaps.length}</small>
+              <span>
+                {g.family} <small>{g.gaps.length}</small>
+              </span>
+              <button
+                className="btn small ghost"
+                title={`Lückentour nur für ${g.family}`}
+                onClick={() => {
+                  setView('build');
+                  setTimeout(() => startGuide(g.family), 0);
+                }}
+              >
+                Tour
+              </button>
             </h2>
             <ul>
               {g.gaps.map((gp) => (

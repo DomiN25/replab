@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { analyzePgn, planImport, pgnOrientation, type ExistingEntry } from '../core/pgn';
 import { formatLine, displaySan } from '../core/chess';
 import { repo } from '../data/repo';
-import { loadRepData, reloadRepertoires, selectRepertoire, toast, useApp } from './store';
+import { lichessToken, loadRepData, reloadRepertoires, selectRepertoire, toast, useApp } from './store';
+import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
 
 export interface ImportPreset {
   text: string;
@@ -23,7 +24,29 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   const [existing, setExisting] = useState<Map<string, ExistingEntry> | undefined>();
   const [resolutions, setResolutions] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
+  const [studyUrl, setStudyUrl] = useState('');
+  const [loadingStudy, setLoadingStudy] = useState(false);
   const rep = repertoires.find((r) => r.id === repId);
+  const studyRef = parseStudyUrl(studyUrl);
+
+  const loadStudy = async () => {
+    if (!studyRef) return;
+    setLoadingStudy(true);
+    try {
+      const pgn = await fetchStudyPgn(studyRef, lichessToken() || undefined);
+      setText(pgn);
+      setName(studyName(pgn) ?? 'Lichess-Studie');
+      const o = pgnOrientation(pgn);
+      const match = o && repertoires.find((r) => r.color === o && r.isMain);
+      if (match) setRepId(match.id);
+      setExisting(undefined);
+      toast(`Studie geladen${studyName(pgn) ? `: ${studyName(pgn)}` : ''}`, 'ok');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    } finally {
+      setLoadingStudy(false);
+    }
+  };
 
   const analyse = async () => {
     if (!repId) return;
@@ -69,6 +92,24 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
         <h2>PGN importieren {name && <small>{name}</small>}</h2>
         {!existing ? (
           <>
+            <div className="field">
+              <span>Lichess-Studie (Link)</span>
+              <div className="row-actions" style={{ margin: 0 }}>
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={studyUrl}
+                  onChange={(e) => setStudyUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && void loadStudy()}
+                  placeholder="https://lichess.org/study/…"
+                  aria-label="Lichess-Studienlink"
+                />
+                <button className="btn" disabled={!studyRef || loadingStudy} onClick={() => void loadStudy()}>
+                  {loadingStudy ? 'Lädt …' : 'Laden'}
+                </button>
+              </div>
+              {studyUrl && !studyRef && <small className="warn">Kein gültiger Studienlink.</small>}
+            </div>
             <label className="field">
               <span>Datei</span>
               <input type="file" accept=".pgn,.txt,application/x-chess-pgn,text/plain" onChange={(e) => void onFile(e.target.files?.[0])} />
@@ -87,7 +128,10 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
                 ))}
               </select>
             </label>
-            <p className="hint">Alle Züge der Repertoire-Farbe werden Einträge, Gegnerzüge werden als relevant markiert, Kommentare werden Notizen.</p>
+            <p className="hint">
+              Die Studie wird in das Ziel-Repertoire eingemischt: Züge der Repertoire-Farbe werden Einträge, Gegnerzüge werden als relevant markiert,
+              Kommentare werden Notizen. Wo die Studie in einer Stellung etwas anderes spielt als dein Repertoire, fragt die Vorschau nach.
+            </p>
             <div className="modal-actions">
               <button className="btn primary" disabled={!text.trim() || !repId} onClick={() => void analyse()}>Vorschau</button>
               <button className="btn ghost" onClick={onClose}>Abbrechen</button>
@@ -126,6 +170,13 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
                 })}
                 <p className="hint">Der Ast des nicht gewählten Zugs wird übersprungen. Wählst du einen neuen Zug statt eines vorhandenen, verfällt dessen Lernstand.</p>
               </div>
+            )}
+            {analysis && analysis.otherColor > 0 && (
+              <p className="notice">
+                {analysis.otherColor} {analysis.otherColor === 1 ? 'Kapitel ist' : 'Kapitel sind'} für {rep?.color === 'white' ? 'Schwarz' : 'Weiß'} und{' '}
+                {analysis.otherColor === 1 ? 'wird' : 'werden'} hier übersprungen – für diese Kapitel denselben Import mit einem{' '}
+                {rep?.color === 'white' ? 'Schwarz' : 'Weiß'}-Repertoire als Ziel wiederholen.
+              </p>
             )}
             {analysis && analysis.errors.length > 0 && (
               <div className="errors">

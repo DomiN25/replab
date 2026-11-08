@@ -7,7 +7,8 @@ import { Galaxy, GalaxyLegend } from './Galaxy';
 import { TreeList } from './TreeList';
 import { Modal } from './Modal';
 import { GuideBar, startGuide, stopGuide } from './GuideBar';
-import { useEngine, useExplorer } from './hooks';
+import { useEngine, useExplorer, useMediaQuery } from './hooks';
+import { BottomSheet, type SheetSnap } from './BottomSheet';
 import {
   back,
   currentRep,
@@ -53,6 +54,10 @@ export function Builder() {
   const [orphanCheck, setOrphanCheck] = useState(false);
   const [orphans, setOrphans] = useState<string[] | undefined>();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const mobile = useMediaQuery('(max-width: 899px)');
+  const boardRef = useRef<HTMLElement>(null);
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('peek');
+  const [sheetTab, setSheetTab] = useState<'moves' | 'map'>('moves');
 
   const step = line[cursor];
   const fen = step.fen;
@@ -243,85 +248,137 @@ export function Builder() {
     touch.current = undefined;
   };
 
+  // Neue Stellung (Zug in der Tabelle, Galaxie, Brett): aufgezogenes Sheet einklappen, damit das Brett sichtbar ist
+  useEffect(() => {
+    setSheetSnap('peek');
+  }, [fen]);
+
   if (!rep) return <p className="empty">Lege zuerst ein Repertoire an (Start oder Einstellungen).</p>;
 
   const orientation = flipped ? (myColor === 'white' ? 'black' : 'white') : myColor;
   const existing = pending ? moves.get(posKeyOf(pending.fen)) : undefined;
 
-  return (
-    <div className="builder">
-      <section className="col-board">
-        <div className="mode-switch seg" role="group" aria-label="Modus">
-          <button aria-pressed={!guideActive} onClick={stopGuide}>Frei</button>
-          <button aria-pressed={guideActive} onClick={startGuide}>Geführt: Lücken schließen</button>
-        </div>
-        <GuideBar />
-        <Crumbs />
-        <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
-        <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-          <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>
-          <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
-          <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
-          <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
-          <span className="swipe-hint">zum Blättern wischen</span>
-        </div>
-      </section>
-
-      <section className="col-panel sheet">
-        <Candidates
-          fen={fen}
-          myTurn={myTurn}
-          node={node}
-          graph={graph}
-          lineSans={line.slice(1, cursor + 1).map((s) => s.san!)}
-          entry={entry}
-          mark={mark}
-          explorer={explorerSt}
-          masters={mastersSt}
-          engine={engineSt}
-          source={source}
-          onSource={setSource}
-          onPlay={playMove}
-          onCommit={onCommit}
-          onDeleteEntry={() => setConfirmDelete(true)}
-        />
-      </section>
-
-      <section className="col-side">
-        <div className="side-head">
-          <div className="seg small" role="group" aria-label="Ansicht">
-            <button aria-pressed={sideView === 'galaxy'} onClick={() => useApp.setState({ sideView: 'galaxy' })}>Galaxie</button>
-            <button aria-pressed={sideView === 'list'} onClick={() => useApp.setState({ sideView: 'list' })}>Liste</button>
-          </div>
-          {sideView === 'galaxy' && (
-            <div className="seg small" role="group" aria-label="Farbmodus">
-              <button aria-pressed={galaxyMode === 'family'} onClick={() => useApp.setState({ galaxyMode: 'family' })}>Familie</button>
-              <button aria-pressed={galaxyMode === 'knowledge'} onClick={() => useApp.setState({ galaxyMode: 'knowledge' })}>Wissen</button>
+  const modeSwitch = (
+    <div className="mode-switch seg" role="group" aria-label="Modus">
+      <button aria-pressed={!guideActive} onClick={stopGuide}>Frei</button>
+      <button aria-pressed={guideActive} onClick={() => startGuide()}>Lückentour</button>
+    </div>
+  );
+  const board = <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />;
+  const navButtons = (
+    <>
+      <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>
+      <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
+      <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
+      <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
+    </>
+  );
+  const candidates = (
+          <Candidates
+            fen={fen}
+            myTurn={myTurn}
+            node={node}
+            graph={graph}
+            lineSans={line.slice(1, cursor + 1).map((s) => s.san!)}
+            entry={entry}
+            mark={mark}
+            explorer={explorerSt}
+            masters={mastersSt}
+            engine={engineSt}
+            source={source}
+            onSource={setSource}
+            onPlay={playMove}
+            onCommit={onCommit}
+            onDeleteEntry={() => setConfirmDelete(true)}
+          />
+  );
+  const side = (
+    <>
+          <div className="side-head">
+            <div className="seg small" role="group" aria-label="Ansicht">
+              <button aria-pressed={sideView === 'galaxy'} onClick={() => useApp.setState({ sideView: 'galaxy' })}>Galaxie</button>
+              <button aria-pressed={sideView === 'list'} onClick={() => useApp.setState({ sideView: 'list' })}>Liste</button>
             </div>
+            {sideView === 'galaxy' && (
+              <div className="seg small" role="group" aria-label="Farbmodus">
+                <button aria-pressed={galaxyMode === 'family'} onClick={() => useApp.setState({ galaxyMode: 'family' })}>Familie</button>
+                <button aria-pressed={galaxyMode === 'knowledge'} onClick={() => useApp.setState({ galaxyMode: 'knowledge' })}>Wissen</button>
+              </div>
+            )}
+          </div>
+          {!graph ? (
+            <p className="hint">Repertoire wird berechnet …</p>
+          ) : sideView === 'galaxy' ? (
+            <>
+              <Galaxy
+                graph={graph}
+                focusId={focusId}
+                currentId={currentId}
+                mode={galaxyMode}
+                rOf={rOf}
+                notation={settings.ui.notation}
+                onSelect={onSelectNode}
+                onBack={onGalaxyBack}
+                outside={outside}
+              />
+              <GalaxyLegend mode={galaxyMode} graph={graph} />
+              {outside && <p className="hint">Aktuelle Stellung liegt außerhalb des Repertoires – Galaxie zeigt den letzten bekannten Punkt.</p>}
+            </>
+          ) : (
+            <TreeList graph={graph} currentId={currentId} notation={settings.ui.notation} showReach={settings.ui.showReach} rOf={rOf} onSelect={onSelectNode} />
           )}
-        </div>
-        {!graph ? (
-          <p className="hint">Repertoire wird berechnet …</p>
-        ) : sideView === 'galaxy' ? (
-          <>
-            <Galaxy
-              graph={graph}
-              focusId={focusId}
-              currentId={currentId}
-              mode={galaxyMode}
-              rOf={rOf}
-              notation={settings.ui.notation}
-              onSelect={onSelectNode}
-              onBack={onGalaxyBack}
-              outside={outside}
-            />
-            <GalaxyLegend mode={galaxyMode} graph={graph} />
-            {outside && <p className="hint">Aktuelle Stellung liegt außerhalb des Repertoires – Galaxie zeigt den letzten bekannten Punkt.</p>}
-          </>
-        ) : (
-          <TreeList graph={graph} currentId={currentId} notation={settings.ui.notation} showReach={settings.ui.showReach} rOf={rOf} onSelect={onSelectNode} />
-        )}
-      </section>
+    </>
+  );
+
+  return (
+    <div className={mobile ? 'builder builder-m' : 'builder'}>
+      {mobile ? (
+        <>
+          <section className="col-board" ref={boardRef}>
+            <Crumbs />
+            {board}
+            <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+              {navButtons}
+              {modeSwitch}
+            </div>
+          </section>
+          <BottomSheet
+            anchorRef={boardRef}
+            snap={sheetSnap}
+            onSnap={setSheetSnap}
+            header={
+              <div className="seg small bs-tabs" role="tablist" aria-label="Bereich">
+                <button role="tab" aria-selected={sheetTab === 'moves'} aria-pressed={sheetTab === 'moves'} onClick={() => setSheetTab('moves')}>Züge</button>
+                <button role="tab" aria-selected={sheetTab === 'map'} aria-pressed={sheetTab === 'map'} onClick={() => setSheetTab('map')}>Übersicht</button>
+              </div>
+            }
+          >
+            {sheetTab === 'moves' ? (
+              <>
+                <GuideBar />
+                {candidates}
+              </>
+            ) : (
+              side
+            )}
+          </BottomSheet>
+        </>
+      ) : (
+        <>
+          <section className="col-board">
+            {modeSwitch}
+            <GuideBar />
+            <Crumbs />
+            {board}
+            <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+              {navButtons}
+              <span className="swipe-hint">zum Blättern wischen</span>
+            </div>
+          </section>
+          <section className="col-panel sheet">{candidates}</section>
+          <section className="col-side">{side}</section>
+        </>
+      )}
 
       {pending && (
         <Modal

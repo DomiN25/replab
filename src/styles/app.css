@@ -310,6 +310,38 @@ main > * { animation: fadeIn 0.24s var(--ease-out); }
 .swipe-hint { color: var(--muted); font-size: 12px; margin-left: auto; }
 @media (min-width: 900px) { .swipe-hint { display: none; } }
 
+/* Bauen am Handy: Brett oben, Details im Bottom-Sheet (ui/BottomSheet.tsx) */
+.builder-m { display: block; }
+main:has(.builder-m) { padding-top: 6px; padding-bottom: 8px; }
+.builder-m .crumbs { padding-bottom: 4px; }
+.builder-m .crumbs button { min-height: 30px; padding: 3px 7px; }
+.builder-m .board-controls { margin-top: 6px; gap: 6px; }
+.builder-m .board-controls .btn.icon { min-width: 42px; min-height: 42px; }
+.builder-m .board-controls .mode-switch { margin: 0 0 0 auto; }
+.builder-m .mode-switch button { padding: 6px 10px; font-size: 12px; min-height: 34px; }
+.bsheet {
+  position: fixed; left: 0; right: 0; z-index: 25; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column;
+  background: var(--panel-solid); border-radius: 22px 22px 0 0; border: 1px solid var(--card-b); border-bottom: 0;
+  box-shadow: 0 -1px 0 var(--line-soft), 0 -10px 30px rgba(20, 40, 70, 0.14);
+  transition: top 0.38s var(--ease-sheet), box-shadow 0.3s; animation: sheetIn 0.42s var(--ease-sheet);
+}
+.bsheet.full { box-shadow: 0 -1px 0 var(--line-soft), 0 -16px 48px rgba(20, 40, 70, 0.28); }
+.bsheet.dragging { transition: none; }
+.bs-head { flex: none; padding: 0 14px 6px; touch-action: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: grab; user-select: none; }
+.bs-grip { width: 72px; height: 16px; border: 0; background: none; padding: 0; position: relative; cursor: pointer; }
+.bs-grip::before { content: ''; position: absolute; left: 16px; right: 16px; top: 6px; height: 5px; border-radius: 3px; background: var(--line); transition: background-color 0.2s; }
+.bs-grip:hover::before, .bsheet.dragging .bs-grip::before { background: var(--muted); }
+.bs-tabs { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; }
+.bs-tabs button { justify-content: center; min-height: 28px; padding: 3px 10px; }
+/* Inhalt im Sheet etwas dichter: Kopf der Kandidaten und Lückentour */
+.bs-body .turn { font-size: 16px; }
+.bs-body .guide { padding: 10px 12px; }
+.bs-body .guide-head { gap: 6px; }
+.bs-body .guide-head select { min-height: 30px; font-size: 12px; padding: 2px 6px; max-width: 46%; }
+.bs-body .guide-line { margin-top: 6px; }
+.bs-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 16px calc(16px + env(safe-area-inset-bottom)); }
+.bs-body .guide { margin-top: 4px; }
+
 /* Brett */
 .board-wrap { width: 100%; }
 .cg-board-host { width: 100%; aspect-ratio: 1 / 1; }
@@ -410,7 +442,8 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .gapfam { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px 8px; box-shadow: var(--shadow); position: relative; overflow: hidden; animation: rise 0.45s var(--ease-out) backwards; }
 .gapfam::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gap); opacity: 0.8; }
 .gapfam:nth-child(2) { animation-delay: 40ms; } .gapfam:nth-child(3) { animation-delay: 80ms; } .gapfam:nth-child(4) { animation-delay: 120ms; } .gapfam:nth-child(n + 5) { animation-delay: 160ms; }
-.gapfam h2 { font: 700 15px var(--display); margin: 0 0 6px; letter-spacing: -0.01em; text-transform: none; color: var(--ink); }
+.gapfam h2 { font: 700 15px var(--display); margin: 0 0 6px; letter-spacing: -0.01em; text-transform: none; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gapfam h2 .btn { font-family: var(--body); }
 .gapfam h2 small { color: var(--muted); font-weight: 500; }
 .gapfam ul { list-style: none; margin: 0; padding: 0; }
 .gapfam button { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line-soft); padding: 8px 6px; cursor: pointer; display: flex; flex-direction: column; min-height: 44px; border-radius: 10px; transition: background-color 0.15s, scale 0.18s var(--ease-out); }

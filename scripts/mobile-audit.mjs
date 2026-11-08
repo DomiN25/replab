@@ -95,7 +95,32 @@ async function run(scheme) {
   await move(page, 'e2e4');
   await page.waitForTimeout(500);
   await shot('build-e4');
-  await shot('build-e4-full', true);
+  // Bottom-Sheet: am Kopf hochziehen (Touch-ähnlich in kleinen Schritten), Zug antippen klappt es wieder ein
+  const sheet = page.locator('.bsheet');
+  if (await sheet.count()) {
+    await page.waitForTimeout(800); // Einblenden des Sheets abwarten, sonst misst man eine verschobene Position
+    const head = await page.locator('.bs-head').boundingBox();
+    const x = head.x + 40, y = head.y + 12;
+    const cdp = await ctx.newCDPSession(page); // echte Touch-Geste (Playwright kann nur tippen)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - i * 38 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(500);
+    const expanded = (await sheet.getAttribute('class')).includes('full');
+    await shot('build-sheet-full');
+    await page.locator('.bs-grip').tap();
+    await page.waitForTimeout(500);
+    const collapsed = (await sheet.getAttribute('class')).includes('peek');
+    await page.locator('.bs-tabs').getByRole('tab', { name: 'Übersicht' }).tap();
+    await shot('build-sheet-map');
+    await page.locator('.bs-tabs').getByRole('tab', { name: 'Züge' }).tap();
+    console.log(`${scheme}: Sheet hochziehen ${expanded ? 'ok' : 'FEHLT'}, Griff-Tipp einklappen ${collapsed ? 'ok' : 'FEHLT'}`);
+  }
+  // Lückentour (Ast für Ast) starten
+  await page.locator('.mode-switch').getByRole('button', { name: 'Lückentour' }).tap();
+  await page.waitForSelector('[data-testid="guide"]');
+  await shot('build-tour');
+  await page.locator('.mode-switch').getByRole('button', { name: 'Frei' }).tap();
 
   await nav('Lücken');
   await shot('gaps', true);

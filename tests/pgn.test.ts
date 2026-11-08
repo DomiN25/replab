@@ -152,3 +152,30 @@ describe('PGN-Export', () => {
     expect(b.size).toBe(a.size);
   });
 });
+
+describe('Studien mit gemischter Farbe', () => {
+  it('Kapitel mit Orientation der anderen Farbe werden nicht importiert', () => {
+    const text = `[Event "W"]
+[Orientation "white"]
+
+1. e4 e5 2. Nf3 *
+
+[Event "S"]
+[Orientation "black"]
+
+1. d4 Nf6 2. c4 e6 *
+
+[Event "ohne"]
+
+1. e4 c5 2. Nf3 *`;
+    const a = analyzePgn(text, 'white', new Map());
+    expect(a.games).toBe(2);
+    expect(a.otherColor).toBe(1);
+    const plan = planImport(text, 'white', new Map());
+    // 1.e4 und 2.Sf3 (aus „W“ und „ohne“ zusammen) – nichts aus dem Schwarz-Kapitel (dort wäre 1.d4 ein weißer Zug)
+    expect(plan.entries.map((e) => e.san).sort()).toEqual(['Nf3', 'Nf3', 'e4']);
+    const black = analyzePgn(text, 'black', new Map());
+    expect(black.games).toBe(2); // „S“ + Kapitel ohne Orientation
+  });
+});
+

@@ -263,6 +263,8 @@ export interface GapInfo {
   sans: string[];
   reach: number;
   family: string;
+  /** Grober Ast (Familie nach der ersten Antwort, z. B. „Offene Spiele“) – für die Lückentour. */
+  branch: string;
   name?: string;
   viaTrap: boolean;
 }
@@ -280,6 +282,7 @@ export function gapList(g: Graph, sort: GapSort = 'depth'): GapInfo[] {
       sans: pathSans(g, id),
       reach: n.reach,
       family: n.family,
+      branch: n.topFamily,
       name: n.name,
       viaTrap: !!n.trap,
     };

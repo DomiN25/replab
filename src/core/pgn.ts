@@ -73,6 +73,8 @@ export interface ImportConflict {
 
 export interface ImportAnalysis {
   games: number;
+  /** Kapitel, deren Orientation-Header die andere Farbe nennt – werden nicht importiert. */
+  otherColor: number;
   conflicts: ImportConflict[];
   errors: string[];
 }
@@ -140,9 +142,19 @@ export function readPgn(text: string): Game<PgnNodeData>[] {
   return parsePgn(text.replace(/^﻿/, ''));
 }
 
+/** Kapitel für eine Repertoire-Farbe: Kapitel mit Orientation der anderen Farbe fallen weg (z. B. gemischte Lichess-Studien). */
+function gamesFor(text: string, color: Color): { games: Game<PgnNodeData>[]; otherColor: number } {
+  const all = readPgn(text);
+  const games = all.filter((g) => {
+    const o = g.headers.get('Orientation')?.toLowerCase();
+    return o !== 'white' && o !== 'black' ? true : o === color;
+  });
+  return { games, otherColor: all.length - games.length };
+}
+
 /** Schritt 1: Konflikte finden (zwei verschiedene eigene Züge in derselben Stellung). */
 export function analyzePgn(text: string, color: Color, existing: Map<string, ExistingEntry>): ImportAnalysis {
-  const games = readPgn(text);
+  const { games, otherColor } = gamesFor(text, color);
   const errors: string[] = [];
   const seen = new Map<string, { fen: string; sans: string[]; moves: { uci: string; san: string }[] }>();
   walkGames(games, errors, (ctx, _data, mv) => {
@@ -164,7 +176,7 @@ export function analyzePgn(text: string, color: Color, existing: Map<string, Exi
       conflicts.push({ posKey, fen: s.fen, sans: s.sans, options, defaultUci: options[0].uci });
     }
   }
-  return { games: games.length, conflicts, errors };
+  return { games: games.length, otherColor, conflicts, errors };
 }
 
 /** Schritt 2: Importplan mit gewählten Auflösungen (posKey → gewählter UCI). */
@@ -174,7 +186,7 @@ export function planImport(
   existing: Map<string, ExistingEntry>,
   resolutions: Map<string, string> = new Map(),
 ): ImportPlan {
-  const games = readPgn(text);
+  const { games } = gamesFor(text, color);
   const errors: string[] = [];
   const entries = new Map<string, PlannedEntry>();
   const marks = new Map<string, PlannedMark>();

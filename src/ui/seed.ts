@@ -55,21 +55,29 @@ export async function importPgnFiles(files: File[]): Promise<{ imported: number;
   const pending: ImportPreset[] = [];
   for (const f of sorted) {
     const text = await f.text();
-    const color = pgnOrientation(text) ?? 'white';
-    const reps = await repo.listRepertoires();
-    const rep =
-      reps.find((r) => r.color === color && r.isMain) ??
-      (await repo.createRepertoire(color === 'white' ? 'Hauptrepertoire Weiß' : 'Hauptrepertoire Schwarz', color));
-    firstRepId ??= rep.id;
-    const existing = new Map((await repo.getMoves(rep.id)).map((m) => [m.posKey, { uci: m.uci, san: m.san, note: m.note, tags: m.tags }]));
-    const analysis = analyzePgn(text, color, existing);
-    if (analysis.conflicts.length) {
-      pending.push({ text, name: f.name, repId: rep.id, source: 'pgn' });
-      continue;
+    for (const color of fileColors(text)) {
+      const reps = await repo.listRepertoires();
+      const rep =
+        reps.find((r) => r.color === color && r.isMain) ??
+        (await repo.createRepertoire(color === 'white' ? 'Hauptrepertoire Weiß' : 'Hauptrepertoire Schwarz', color));
+      firstRepId ??= rep.id;
+      const existing = new Map((await repo.getMoves(rep.id)).map((m) => [m.posKey, { uci: m.uci, san: m.san, note: m.note, tags: m.tags }]));
+      const analysis = analyzePgn(text, color, existing);
+      if (analysis.conflicts.length) {
+        pending.push({ text, name: f.name, repId: rep.id, source: 'pgn' });
+        continue;
+      }
+      const plan = planImport(text, color, existing);
+      await repo.applyImport(rep.id, plan, 'pgn');
+      imported += plan.stats.newEntries;
     }
-    const plan = planImport(text, color, existing);
-    await repo.applyImport(rep.id, plan, 'pgn');
-    imported += plan.stats.newEntries;
   }
   return { imported, pending, firstRepId };
+}
+
+/** Farben, für die eine Datei Kapitel enthält (Orientation-Header); ohne Header Weiß. */
+function fileColors(text: string): ('white' | 'black')[] {
+  const found = new Set([...text.matchAll(/\[Orientation\s+"(white|black)"\]/gi)].map((m) => m[1].toLowerCase() as 'white' | 'black'));
+  if (!found.size) return [pgnOrientation(text) ?? 'white'];
+  return (['white', 'black'] as const).filter((c) => found.has(c));
 }
