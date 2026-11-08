@@ -10,10 +10,10 @@ import { positionFromFen, turnOf } from '../core/chess';
 import type { Color } from '../core/types';
 
 export const BRUSHES = {
-  mine: { key: 'mi', color: '#46e3ad', opacity: 0.95, lineWidth: 15 },
-  opp: { key: 'op', color: '#f5b54a', opacity: 0.9, lineWidth: 10 },
-  eng: { key: 'en', color: '#5aa9ff', opacity: 0.95, lineWidth: 5 },
-  wrong: { key: 'wr', color: '#ff6b6b', opacity: 0.9, lineWidth: 10 },
+  mine: { key: 'mi', color: '#46e3ad', opacity: 0.85, lineWidth: 11 },
+  opp: { key: 'op', color: '#f5b54a', opacity: 0.7, lineWidth: 8 },
+  eng: { key: 'en', color: '#5aa9ff', opacity: 0.85, lineWidth: 5 },
+  wrong: { key: 'wr', color: '#ff6b6b', opacity: 0.85, lineWidth: 9 },
 };
 
 export interface BoardProps {

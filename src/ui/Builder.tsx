@@ -126,20 +126,13 @@ export function Builder() {
           trapMinShare: settings.engine.trapMinShare,
         },
       }).filter((c) => c.relevant);
-      // Dicke nach Häufigkeit (3…25 von 64 Feldbreite), Anteil als Zahl auf dem Pfeil
+      // Dicke dezent nach Häufigkeit (4…13 von 64 Feldbreite); häufigster Zug am dicksten
       const maxShare = Math.max(...cands.map((c) => c.share ?? 0), 0.01);
-      for (const c of cands.slice(0, 8)) {
+      for (const c of cands.slice(0, 6)) {
         const sq = uciSquares(c.uci);
         if (!sq) continue;
-        const share = c.share;
-        const rel = share !== undefined ? share / maxShare : 0.3;
-        out.push({
-          orig: sq[0],
-          dest: sq[1],
-          brush: 'opp',
-          modifiers: { lineWidth: 3 + Math.round(22 * Math.sqrt(rel)) },
-          label: share !== undefined && share >= 0.03 ? { text: `${Math.round(share * 100)}`, fill: '#f5b54a' } : undefined,
-        });
+        const rel = c.share !== undefined ? c.share / maxShare : 0.4;
+        out.push({ orig: sq[0], dest: sq[1], brush: 'opp', modifiers: { lineWidth: 4 + Math.round(9 * Math.sqrt(rel)) } });
       }
       const b = uciSquares(best);
       if (b && best !== cands[0]?.uci) out.push({ orig: b[0], dest: b[1], brush: 'eng' });

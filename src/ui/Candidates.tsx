@@ -306,6 +306,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
   const marks = useApp((s) => s.marks);
   const posKey = posKeyOf(p.fen);
   const [showMore, setShowMore] = useState(false);
+  const [menu, setMenu] = useState<string | undefined>();
   const cands = useMemo(
     () =>
       oppCandidates({
@@ -360,23 +361,27 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         <td className={`st ${st.cls}`} title={st.cls === 'ok' ? 'beantwortet' : st.cls === 'end' ? 'Ende-Marker' : 'Lücke'}>{st.icon}</td>
         {settings.ui.showReach && <td className="num reach hide-s">{st.reach ? `≈ ${(st.reach * 100).toFixed(1)} %` : ''}</td>}
         <td className="act">
-          {c.relevant ? (
-            <button className="btn small ghost" onClick={() => void toggleOpp(posKey, c.uci, 'ignore', true)} title="Diesen Zug bewusst ignorieren">ignorieren</button>
-          ) : c.ignored ? (
-            <button className="btn small ghost" onClick={() => void toggleOpp(posKey, c.uci, 'ignore', false)}>wieder aufnehmen</button>
-          ) : (
-            <button className="btn small ghost" onClick={() => void toggleOpp(posKey, c.uci, 'extra', true)} title="Als relevant markieren">+ relevant</button>
-          )}
-          {st.childKey && (
-            <button
-              className="btn small ghost"
-              title="Ende der Linie nach diesem Zug"
-              aria-pressed={marks.get(st.childKey)?.endOfLine ?? false}
-              onClick={() => void setEndOfLine(st.childKey!, !marks.get(st.childKey!)?.endOfLine)}
-            >
-              Ende
+          <div className="rowmenu">
+            <button className="dots" aria-label={`Aktionen für ${c.san}`} aria-expanded={menu === c.uci} onClick={() => setMenu(menu === c.uci ? undefined : c.uci)}>
+              ⋯
             </button>
-          )}
+            {menu === c.uci && (
+              <div className="rowmenu-pop" role="menu" onClick={() => setMenu(undefined)}>
+                {c.relevant ? (
+                  <button role="menuitem" onClick={() => void toggleOpp(posKey, c.uci, 'ignore', true)}>Ignorieren (nicht relevant)</button>
+                ) : c.ignored ? (
+                  <button role="menuitem" onClick={() => void toggleOpp(posKey, c.uci, 'ignore', false)}>Wieder aufnehmen</button>
+                ) : (
+                  <button role="menuitem" onClick={() => void toggleOpp(posKey, c.uci, 'extra', true)}>Als relevant markieren</button>
+                )}
+                {st.childKey && (
+                  <button role="menuitem" onClick={() => void setEndOfLine(st.childKey!, !marks.get(st.childKey!)?.endOfLine)}>
+                    {marks.get(st.childKey)?.endOfLine ? 'Ende-Marker entfernen' : 'Ende der Linie danach'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </td>
       </tr>
     );

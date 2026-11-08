@@ -32,9 +32,13 @@ test('Geführt: Lücken der Reihe nach schließen', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Festlegen' }).click();
   await expect(page.getByTestId('gap-count')).toHaveText('2');
 
-  // Pfeile nach Häufigkeit mit Prozentangabe (Brett steht nach 1.e4, Gegner am Zug)
-  await expect(page.locator('svg.cg-custom-svgs text', { hasText: '60' })).toHaveCount(1);
-  await expect(page.locator('svg.cg-custom-svgs text', { hasText: '40' })).toHaveCount(1);
+  // Pfeile: durchgehend (nicht gestrichelt), ohne Zahlen, Dicke nach Häufigkeit (60 % dicker als 40 %)
+  const opp = page.locator("svg.cg-shapes line[stroke='#f5b54a']");
+  await expect(opp).toHaveCount(2);
+  const widths = (await opp.evaluateAll((ls) => ls.map((l) => Number(l.getAttribute('stroke-width'))))).sort((a, b) => a - b);
+  expect(widths[1]).toBeGreaterThan(widths[0]);
+  expect(await opp.evaluateAll((ls) => ls.map((l) => getComputedStyle(l).strokeDasharray))).toEqual(['none', 'none']);
+  await expect(page.locator('svg.cg-custom-svgs text')).toHaveCount(0);
 
   // Geführt starten → flachste Lücke, bei gleicher Tiefe die häufigere: 1.e4 e5
   await page.getByRole('button', { name: 'Geführt: Lücken schließen' }).click();
