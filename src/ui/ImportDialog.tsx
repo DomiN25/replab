@@ -1,9 +1,9 @@
 // PGN-Import mit Vorschau und Konfliktdialog (F9).
-import { useMemo, useState } from 'react';
-import { analyzePgn, planImport, pgnOrientation, type ExistingEntry } from '../core/pgn';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { analyzePgn, guessColor, planImport, pgnOrientation, studyStart, type ExistingEntry } from '../core/pgn';
 import { formatLine, displaySan } from '../core/chess';
 import { repo } from '../data/repo';
-import { lichessToken, loadRepData, reloadRepertoires, selectRepertoire, toast, useApp } from './store';
+import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
 
 export interface ImportPreset {
@@ -18,7 +18,10 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   const notation = useApp((s) => s.settings.ui.notation);
   const [text, setText] = useState(preset?.text ?? '');
   const [name, setName] = useState(preset?.name ?? '');
-  const orient = pgnOrientation(text);
+  const headerOrient = pgnOrientation(text);
+  // Ohne Orientation-Header (bei Lichess-Studien häufig) aus der Verzweigungsstruktur schätzen
+  const guessed = useMemo(() => (headerOrient || !text.trim() ? undefined : guessColor(text)), [headerOrient, text]);
+  const orient = headerOrient ?? guessed;
   const defaultRep = preset?.repId ?? (repertoires.find((r) => r.color === orient && r.isMain) ?? repertoires.find((r) => r.id === useApp.getState().repId) ?? repertoires[0])?.id;
   const [repId, setRepId] = useState<string | undefined>(defaultRep);
   const [existing, setExisting] = useState<Map<string, ExistingEntry> | undefined>();
@@ -26,6 +29,8 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   const [busy, setBusy] = useState(false);
   const [studyUrl, setStudyUrl] = useState('');
   const [loadingStudy, setLoadingStudy] = useState(false);
+  /** Text stammt aus einer per Link geladenen Studie (danach Sprung zur Studie). */
+  const [fromStudy, setFromStudy] = useState(false);
   const rep = repertoires.find((r) => r.id === repId);
   const studyRef = parseStudyUrl(studyUrl);
 
@@ -35,9 +40,10 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
     try {
       const pgn = await fetchStudyPgn(studyRef, lichessToken() || undefined);
       setText(pgn);
+      setFromStudy(true);
       setName(studyName(pgn) ?? 'Lichess-Studie');
-      const o = pgnOrientation(pgn);
-      const match = o && repertoires.find((r) => r.color === o && r.isMain);
+      const o = pgnOrientation(pgn) ?? guessColor(pgn);
+      const match = o && (repertoires.find((r) => r.color === o && r.isMain) ?? repertoires.find((r) => r.color === o));
       if (match) setRepId(match.id);
       setExisting(undefined);
       toast(`Studie geladen${studyName(pgn) ? `: ${studyName(pgn)}` : ''}`, 'ok');
@@ -56,11 +62,28 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   };
 
   const analysis = useMemo(() => (existing && rep ? analyzePgn(text, rep.color, existing) : undefined), [existing, rep, text]);
+  // Plan im Hintergrund nachziehen: der Auswahlknopf reagiert sofort, die Zahlen folgen (am Handy ~0,3 s Rechenzeit)
+  const deferredRes = useDeferredValue(resolutions);
   const plan = useMemo(() => {
     if (!existing || !rep || !analysis) return undefined;
-    const res = new Map(analysis.conflicts.map((c) => [c.posKey, resolutions.get(c.posKey) ?? c.defaultUci]));
-    return planImport(text, rep.color, existing, res);
-  }, [existing, rep, analysis, resolutions, text]);
+    const res = new Map(analysis.conflicts.map((c) => [c.posKey, deferredRes.get(c.posKey) ?? c.defaultUci]));
+    return planImport(text, rep.color, existing, res, analysis);
+  }, [existing, rep, analysis, deferredRes, text]);
+  // Nur Konflikte, die mit der aktuellen Auswahl erreicht werden – der Rest liegt in übersprungenen Ästen
+  const openConflicts = useMemo(
+    () => (analysis && plan ? analysis.conflicts.filter((c) => plan.reachedConflicts.has(c.posKey)) : []),
+    [analysis, plan],
+  );
+  const preferStudy = () => {
+    if (!analysis) return;
+    const m = new Map<string, string>();
+    for (const c of analysis.conflicts) {
+      const fromPgn = c.options.find((o) => o.source === 'pgn');
+      if (fromPgn) m.set(c.posKey, fromPgn.uci);
+    }
+    setResolutions(m);
+  };
+  const wrongColor = rep && orient && rep.color !== orient;
 
   const doImport = async () => {
     if (!plan || !repId) return;
@@ -72,6 +95,11 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
       if (useApp.getState().repId !== repId) await selectRepertoire(repId);
       else await loadRepData();
       onClose();
+      // Studie per Link: direkt dorthin, wo sie beginnt (gemeinsamer Anfang der Kapitel)
+      if (fromStudy && rep && plan.stats.newEntries + plan.stats.replaced > 0) {
+        setLine(lineFromUcis(studyStart(text, rep.color)));
+        setView('build');
+      }
     } catch (e) {
       toast(`Import fehlgeschlagen: ${String(e)}`, 'err');
     } finally {
@@ -82,6 +110,7 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   const onFile = async (f?: File) => {
     if (!f) return;
     setText(await f.text());
+    setFromStudy(false);
     setName(f.name);
     setExisting(undefined);
   };
@@ -116,10 +145,18 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
             </label>
             <label className="field">
               <span>oder PGN einfügen (mehrere Partien/Kapitel möglich)</span>
-              <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="[Event &quot;…&quot;] 1. e4 e5 2. Nf3 …" />
+              <textarea rows={8} value={text} onChange={(e) => { setText(e.target.value); setFromStudy(false); }} placeholder="[Event &quot;…&quot;] 1. e4 e5 2. Nf3 …" />
             </label>
             <label className="field">
-              <span>Ziel-Repertoire {orient && <small>(PGN-Orientierung: {orient === 'white' ? 'Weiß' : 'Schwarz'})</small>}</span>
+              <span>
+                Ziel-Repertoire{' '}
+                {orient && (
+                  <small>
+                    (Studie ist für {orient === 'white' ? 'Weiß' : 'Schwarz'}
+                    {guessed ? ' – erkannt aus den Varianten' : ''})
+                  </small>
+                )}
+              </span>
               <select value={repId} onChange={(e) => setRepId(e.target.value)}>
                 {repertoires.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -128,6 +165,12 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
                 ))}
               </select>
             </label>
+            {wrongColor && (
+              <p className="notice">
+                Achtung: Die Studie sieht nach {orient === 'white' ? 'Weiß' : 'Schwarz'} aus, das Ziel ist ein {rep!.color === 'white' ? 'Weiß' : 'Schwarz'}-Repertoire. Dann
+                würden die Gegnerzüge als deine Züge gewertet.
+              </p>
+            )}
             <p className="hint">
               Die Studie wird in das Ziel-Repertoire eingemischt: Züge der Repertoire-Farbe werden Einträge, Gegnerzüge werden als relevant markiert,
               Kommentare werden Notizen. Wo die Studie in einer Stellung etwas anderes spielt als dein Repertoire, fragt die Vorschau nach.
@@ -141,15 +184,28 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
           <>
             {plan && (
               <p className="preview">
-                {plan.stats.games} Kapitel · <b className="me">+{plan.stats.newEntries} Einträge</b> · {analysis!.conflicts.length} Konflikte · {plan.stats.existing} bereits vorhanden
+                {plan.stats.games} Kapitel · <b className="me">+{plan.stats.newEntries} Einträge</b> · {openConflicts.length} Konflikte · {plan.stats.existing} bereits vorhanden
                 {plan.stats.replaced > 0 && <> · <b className="warn">{plan.stats.replaced} ersetzt</b></>}
                 {plan.stats.skipped > 0 && <> · {plan.stats.skipped} Äste übersprungen</>}
               </p>
             )}
-            {analysis && analysis.conflicts.length > 0 && (
+            {wrongColor && (
+              <p className="notice">
+                Die Studie sieht nach {orient === 'white' ? 'Weiß' : 'Schwarz'} aus, das Ziel ist {rep!.color === 'white' ? 'Weiß' : 'Schwarz'} – „Zurück“ und ein passendes Repertoire wählen?
+              </p>
+            )}
+            {openConflicts.length > 0 && (
               <div className="conflicts">
                 <h3>Konflikte – pro Stellung nur ein Zug</h3>
-                {analysis.conflicts.map((c) => {
+                <p className="hint">
+                  In diesen Stellungen spielt die Studie mehrere eigene Züge oder etwas anderes als dein Repertoire. Vorausgewählt: dein vorhandener Zug, sonst die
+                  Hauptvariante der Studie. Konflikte in Ästen, die dadurch wegfallen, werden nicht mehr gezeigt.
+                </p>
+                <div className="row-actions">
+                  <button className="btn small" onClick={() => setResolutions(new Map())}>Überall Standard</button>
+                  <button className="btn small" onClick={preferStudy}>Überall Studie (ersetzt eigene Züge)</button>
+                </div>
+                {openConflicts.map((c) => {
                   const chosen = resolutions.get(c.posKey) ?? c.defaultUci;
                   return (
                     <fieldset key={c.posKey} className="conflict">

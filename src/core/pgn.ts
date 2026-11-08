@@ -1,7 +1,8 @@
 // PGN-Import (F9) mit Konflikterkennung und PGN-Export.
 import { parsePgn, parseComment, startingPosition, makePgn, ChildNode, Node, type Game, type PgnNodeData } from 'chessops/pgn';
 import { makeSan, parseSan } from 'chessops/san';
-import { fenOf, posKeyOf, positionFromFen, stdUci, turnOf, START_FEN } from './chess';
+import type { Position } from 'chessops/chess';
+import { fenOf, stdUci, turnOf, START_FEN } from './chess';
 import type { Color } from './types';
 import type { Graph } from './graph';
 
@@ -100,13 +101,20 @@ export interface ImportPlan {
   entries: PlannedEntry[];
   marks: PlannedMark[];
   stats: { newEntries: number; existing: number; replaced: number; conflicts: number; skipped: number; games: number };
+  /** Konfliktstellungen, die mit der aktuellen Auswahl erreicht werden – nur diese muss man entscheiden. */
+  reachedConflicts: Set<string>;
   errors: string[];
 }
 
 interface WalkCtx {
   fen: string;
   sans: string[];
+  /** Stellung zu fen – mitgeführt, damit nicht jeder Zug die FEN neu parsen muss. */
+  pos: Position;
 }
+
+/** posKey aus einer FEN, die fenOf() erzeugt hat (ep ist dort schon nur gesetzt, wenn legal) – ohne erneutes Parsen. */
+const keyOfFen = (fen: string) => fen.split(' ', 4).join(' ');
 
 type Visitor = (ctx: WalkCtx, data: PgnNodeData, move: { uci: string; san: string; fenAfter: string }) => boolean;
 
@@ -120,7 +128,7 @@ function walkGames(games: Game<PgnNodeData>[], errors: string[], visit: Visitor)
     }
     const rec = (node: Node<PgnNodeData>, ctx: WalkCtx) => {
       for (const child of node.children) {
-        const p = positionFromFen(ctx.fen);
+        const p = ctx.pos.clone();
         const move = parseSan(p, child.data.san);
         if (!move || !('from' in move)) {
           errors.push(`Kapitel ${gi + 1} „${game.headers.get('Event') ?? ''}“: ungültiger Zug ${child.data.san} nach ${ctx.sans.join(' ') || 'Start'}`);
@@ -131,10 +139,10 @@ function walkGames(games: Game<PgnNodeData>[], errors: string[], visit: Visitor)
         p.play(move);
         const fenAfter = fenOf(p);
         const go = visit(ctx, child.data, { uci, san, fenAfter });
-        if (go) rec(child, { fen: fenAfter, sans: [...ctx.sans, san] });
+        if (go) rec(child, { fen: fenAfter, sans: [...ctx.sans, san], pos: p });
       }
     };
-    rec(game.moves, { fen: fenOf(start.value), sans: [] });
+    rec(game.moves, { fen: fenOf(start.value), sans: [], pos: start.value });
   });
 }
 
@@ -159,7 +167,7 @@ export function analyzePgn(text: string, color: Color, existing: Map<string, Exi
   const seen = new Map<string, { fen: string; sans: string[]; moves: { uci: string; san: string }[] }>();
   walkGames(games, errors, (ctx, _data, mv) => {
     if (turnOf(ctx.fen) !== color) return true;
-    const key = posKeyOf(ctx.fen);
+    const key = keyOfFen(ctx.fen);
     const s = seen.get(key) ?? { fen: ctx.fen, sans: ctx.sans, moves: [] };
     if (!s.moves.some((m) => m.uci === mv.uci)) s.moves.push({ uci: mv.uci, san: mv.san });
     seen.set(key, s);
@@ -185,6 +193,8 @@ export function planImport(
   color: Color,
   existing: Map<string, ExistingEntry>,
   resolutions: Map<string, string> = new Map(),
+  /** Schon berechnete Analyse (spart einen zweiten Durchlauf). */
+  analysis?: ImportAnalysis,
 ): ImportPlan {
   const { games } = gamesFor(text, color);
   const errors: string[] = [];
@@ -192,7 +202,9 @@ export function planImport(
   const marks = new Map<string, PlannedMark>();
   const firstSeen = new Map<string, string>();
   let skipped = 0;
-  const conflictKeys = new Set(analyzePgn(text, color, existing).conflicts.map((c) => c.posKey));
+  const conflictKeys = new Set((analysis ?? analyzePgn(text, color, existing)).conflicts.map((c) => c.posKey));
+  /** Konfliktstellungen, die mit den gewählten Zügen tatsächlich erreicht werden (Rest liegt in übersprungenen Ästen). */
+  const reached = new Set<string>();
 
   const markOf = (posKey: string) => {
     let m = marks.get(posKey);
@@ -204,10 +216,11 @@ export function planImport(
   };
 
   walkGames(games, errors, (ctx, data, mv) => {
-    const key = posKeyOf(ctx.fen);
+    const key = keyOfFen(ctx.fen);
     const parsed = parseRepComment(commentText(data));
-    const afterKey = posKeyOf(mv.fenAfter);
+    const afterKey = keyOfFen(mv.fenAfter);
     if (turnOf(ctx.fen) === color) {
+      if (conflictKeys.has(key)) reached.add(key);
       const ex = existing.get(key);
       const chosen = resolutions.get(key) ?? ex?.uci ?? firstSeen.get(key) ?? mv.uci;
       if (!firstSeen.has(key)) firstSeen.set(key, chosen);
@@ -263,8 +276,33 @@ export function planImport(
       skipped,
       games: games.length,
     },
+    reachedConflicts: reached,
     errors,
   };
+}
+
+/**
+ * Farbe einer Repertoire-Studie ohne Orientation-Header schätzen (Lichess lässt ihn oft weg):
+ * Im Repertoire verzweigt der Gegner (viele Antworten), die eigene Seite kaum (ein Zug pro Stellung).
+ * → die Seite mit deutlich weniger Verzweigungsstellen ist die Repertoire-Farbe. Unklar → undefined.
+ */
+export function guessColor(text: string): Color | undefined {
+  const moves = { white: new Map<string, Set<string>>(), black: new Map<string, Set<string>>() };
+  walkGames(readPgn(text), [], (ctx, _data, mv) => {
+    const side = turnOf(ctx.fen);
+    const key = keyOfFen(ctx.fen);
+    const set = moves[side].get(key) ?? new Set<string>();
+    set.add(mv.uci);
+    moves[side].set(key, set);
+    return true;
+  });
+  const branches = (m: Map<string, Set<string>>) => [...m.values()].filter((x) => x.size > 1).length;
+  const w = branches(moves.white);
+  const b = branches(moves.black);
+  if (Math.max(w, b) < 2) return undefined;
+  if (w >= 2 * b + 1) return 'black';
+  if (b >= 2 * w + 1) return 'white';
+  return undefined;
 }
 
 /** Orientierung aus dem PGN-Header (für die Vorauswahl der Farbe). */
@@ -346,6 +384,33 @@ export function exportPgn(g: Graph, opts: ExportOptions): string {
 }
 
 /** Hilfsfunktion für Tests: SAN-Hauptlinie einer PGN-Partie. */
+/** Gemeinsamer Anfang der Hauptvarianten aller Kapitel (UCI) – dorthin springt die Ansicht nach dem Import. */
+export function studyStart(text: string, color: Color): string[] {
+  let common: string[] | undefined;
+  for (const game of gamesFor(text, color).games) {
+    const start = startingPosition(game.headers);
+    if (start.isErr) continue;
+    const pos = start.value;
+    if (fenOf(pos) !== START_FEN) return []; // eigene Startstellung: kein gemeinsamer Weg ab der Grundstellung
+    const ucis: string[] = [];
+    for (const d of game.moves.mainline()) {
+      const mv = parseSan(pos, d.san);
+      if (!mv) break;
+      ucis.push(stdUci(pos, mv));
+      pos.play(mv);
+    }
+    if (!ucis.length) continue; // reines Textkapitel
+    common = common ? common.slice(0, commonLen(common, ucis)) : ucis;
+  }
+  return common ?? [];
+}
+
+function commonLen(a: string[], b: string[]): number {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
 export function mainlineSans(text: string): string[] {
   const games = readPgn(text);
   return games.length ? [...games[0].moves.mainline()].map((d) => d.san) : [];

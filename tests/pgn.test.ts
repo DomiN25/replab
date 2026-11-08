@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { analyzePgn, planImport, parseRepComment, exportPgn, readPgn, type ExistingEntry } from '../src/core/pgn';
+import { analyzePgn, guessColor, planImport, studyStart, parseRepComment, exportPgn, readPgn, type ExistingEntry } from '../src/core/pgn';
 import { buildGraph } from '../src/core/graph';
 import { keyAfter, SETTINGS } from './helpers';
 
@@ -176,6 +176,43 @@ describe('Studien mit gemischter Farbe', () => {
     expect(plan.entries.map((e) => e.san).sort()).toEqual(['Nf3', 'Nf3', 'e4']);
     const black = analyzePgn(text, 'black', new Map());
     expect(black.games).toBe(2); // „S“ + Kapitel ohne Orientation
+  });
+});
+
+describe('Farbe einer Studie ohne Orientation-Header', () => {
+  it('Schwarz-Repertoire: Weiß verzweigt, Schwarz kaum', () => {
+    const text = `[Event "Anti-Sizilianer"]
+
+1. e4 c5 2. Nf3 (2. c3 e5) (2. Nc3 Nc6 3. Bb5 (3. f4 e6) (3. g3 g6) Nd4) (2. d4 cxd4 3. c3 e5) 2... Nc6 3. Bb5 (3. Nc3 e5) (3. c3 e5) e5 *`;
+    expect(guessColor(text)).toBe('black');
+  });
+  it('Weiß-Repertoire: Schwarz verzweigt', () => {
+    const text = `[Event "Spanisch"]
+
+1. e4 e5 (1... c5 2. Nf3) (1... e6 2. d4) 2. Nf3 Nc6 (2... d6 3. d4) (2... Nf6 3. Nxe5) 3. Bb5 *`;
+    expect(guessColor(text)).toBe('white');
+  });
+  it('ohne klares Muster: keine Schätzung', () => {
+    expect(guessColor(`[Event "x"]
+
+1. e4 e5 2. Nf3 Nc6 *`)).toBeUndefined();
+  });
+});
+
+describe('Sprungziel nach dem Import', () => {
+  it('gemeinsamer Anfang der Kapitel-Hauptvarianten', () => {
+    const text = `[Event "1"]
+
+1. e4 c5 2. Nf3 Nc6 3. Bb5 *
+
+[Event "2"]
+
+1. e4 c5 2. c3 e5 *
+
+[Event "Text"]
+
+{ nur Kommentar } *`;
+    expect(studyStart(text, 'black')).toEqual(['e2e4', 'c7c5']);
   });
 });
 
