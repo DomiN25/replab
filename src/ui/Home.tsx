@@ -6,7 +6,8 @@ import { knowledgeOf, Scheduler, trainingStats } from '../core/srs';
 import { buildPool, dueItems, newItems } from './training';
 import { KNOWLEDGE_COLORS } from './knowledge';
 import { displaySan } from '../core/chess';
-import { loadSeedRepertoires, fetchSeed, seedAvailable } from './seed';
+import { loadSeedRepertoires, fetchSeed, seedAvailable, importPgnFiles } from './seed';
+import { connectSync } from './sync';
 import { ImportDialog, type ImportPreset } from './ImportDialog';
 import { downloadBackup, lastBackupAt } from './backup';
 import type { ReviewLog } from '../core/types';
@@ -20,7 +21,10 @@ export function Home() {
   const moves = useApp((s) => s.moves);
   const settings = useApp((s) => s.settings);
   const [logs, setLogs] = useState<ReviewLog[]>([]);
-  const [importPreset, setImportPreset] = useState<ImportPreset | undefined>();
+  // Warteschlange für Importdialoge (Dateien mit Konflikten nacheinander)
+  const [presets, setPresets] = useState<ImportPreset[]>([]);
+  const sync = useApp((s) => s.sync);
+  const [loadingPgn, setLoadingPgn] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [hasSeed, setHasSeed] = useState<boolean | undefined>();
 
@@ -86,13 +90,31 @@ export function Home() {
       await selectRepertoire(r.whiteId);
       toast(`Startrepertoire geladen: ${r.entries} Einträge`, 'ok');
       // Studie Spanisch: über den Importdialog, damit Konflikte (5.O-O vs 5.d3) abgefragt werden
-      setImportPreset({ text: await fetchSeed('studie_spanisch.pgn'), name: 'studie_spanisch.pgn', repId: r.whiteId, source: 'seed' });
+      setPresets([{ text: await fetchSeed('studie_spanisch.pgn'), name: 'studie_spanisch.pgn', repId: r.whiteId, source: 'seed' }]);
     } catch (e) {
       toast(`Seed fehlgeschlagen: ${String(e)}`, 'err');
     } finally {
       setSeeding(false);
     }
   };
+
+  const loadPgnFiles = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setLoadingPgn(true);
+    try {
+      const r = await importPgnFiles([...list]);
+      await reloadRepertoires();
+      if (r.firstRepId) await selectRepertoire(r.firstRepId);
+      toast(`${r.imported} Einträge übernommen${r.pending.length ? ` – ${r.pending.length} Datei(en) mit Konflikten folgen` : ''}`, 'ok');
+      setPresets(r.pending);
+    } catch (e) {
+      toast(`PGN konnte nicht geladen werden: ${String(e)}`, 'err');
+    } finally {
+      setLoadingPgn(false);
+    }
+  };
+
+  const dialog = presets[0] && <ImportDialog key={presets[0].name} preset={presets[0]} onClose={() => setPresets((p) => p.slice(1))} />;
 
   const backupDue = repertoires.length > 0 && now - lastBackupAt() > 7 * 86400_000;
 
@@ -102,26 +124,43 @@ export function Home() {
         <section className="welcome">
           <h1>Willkommen bei Rep<span>Lab</span></h1>
           <p>Baue dein Eröffnungsrepertoire Zug für Zug, finde Lücken und lerne es mit verteilter Wiederholung.</p>
-          <div className="row-actions">
-            {hasSeed && (
-              <button className="btn primary big" disabled={seeding} onClick={() => void seed()}>{seeding ? 'Lade …' : 'Startrepertoire laden'}</button>
+          <div className="welcome-steps">
+            {sync.configured && (
+              <div className="wstep">
+                <h2>Schon Daten auf einem anderen Gerät?</h2>
+                <button className="btn primary big" disabled={sync.status === 'syncing'} onClick={() => void connectSync()}>
+                  {sync.status === 'syncing' ? 'Synchronisiere …' : 'Mit Google Drive verbinden'}
+                </button>
+                <p className="hint">Holt Repertoire und Lernstand aus deinem Google Drive.</p>
+              </div>
             )}
-            <label className={`btn big file ${hasSeed ? '' : 'primary'}`}>
+            <div className="wstep">
+              <h2>Erstes Gerät?</h2>
+              {hasSeed ? (
+                <button className="btn primary big" disabled={seeding} onClick={() => void seed()}>{seeding ? 'Lade …' : 'Startrepertoire laden'}</button>
+              ) : (
+                <label className={`btn big file ${sync.configured ? '' : 'primary'}`} aria-disabled={loadingPgn}>
+                  {loadingPgn ? 'Lade …' : 'Repertoire aus PGN-Dateien laden'}
+                  <input type="file" accept=".pgn,application/x-chess-pgn,text/plain" multiple hidden onChange={(e) => void loadPgnFiles(e.target.files)} />
+                </label>
+              )}
+              <p className="hint">
+                {hasSeed
+                  ? 'Deine Repertoire-Karte Weiß und Schwarz; danach die Studie „Spanisch“ mit Konfliktabfrage.'
+                  : 'Mehrere Dateien auf einmal wählen, z. B. repertoire_weiss.pgn, repertoire_schwarz.pgn und studie_spanisch.pgn. Die Farbe kommt aus der Datei; bei Widersprüchen wirst du gefragt.'}
+                {sync.configured && ' Danach unter Einstellungen mit Google Drive verbinden.'}
+              </p>
+            </div>
+          </div>
+          <div className="row-actions center">
+            <label className="btn file ghost">
               Sicherung einspielen (JSON)
               <input type="file" accept="application/json,.json" hidden onChange={(e) => void importBackupFile(e.target.files?.[0])} />
             </label>
-            <button className="btn big" onClick={() => setView('settings')}>Leeres Repertoire anlegen</button>
+            <button className="btn ghost" onClick={() => setView('settings')}>Leeres Repertoire anlegen</button>
           </div>
-          {hasSeed ? (
-            <p className="hint">Startrepertoire: deine Repertoire-Karte Weiß und Schwarz; danach wird die Studie „Spanisch“ mit Konfliktabfrage angeboten.</p>
-          ) : (
-            <p className="hint">
-              Daten vom PC übernehmen: dort Einstellungen → „JSON-Sicherung exportieren“, Datei z. B. in Google Drive legen und hier einspielen. Bis zum Sync (M7) sind die Daten
-              je Gerät getrennt.
-            </p>
-          )}
         </section>
-        {importPreset && <ImportDialog preset={importPreset} onClose={() => setImportPreset(undefined)} />}
+        {dialog}
       </div>
     );
   }
@@ -193,6 +232,14 @@ export function Home() {
           </ul>
         </section>
 
+        {sync.configured && !sync.connected && (
+          <section className="card sync-card">
+            <h2>Sync einrichten</h2>
+            <p className="hint">Verbinde Google Drive, damit Handy und PC denselben Stand haben (versteckter App-Ordner, nur RepLab-Daten).</p>
+            <button className="btn primary" onClick={() => void connectSync()}>Mit Google Drive verbinden</button>
+          </section>
+        )}
+
         {backupDue && (
           <section className="card backup">
             <h2>Sicherung</h2>
@@ -201,7 +248,7 @@ export function Home() {
           </section>
         )}
       </div>
-      {importPreset && <ImportDialog preset={importPreset} onClose={() => setImportPreset(undefined)} />}
+      {dialog}
     </div>
   );
 }

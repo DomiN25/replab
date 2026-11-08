@@ -156,6 +156,10 @@ main { padding: 12px 12px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom)
 .welcome h1 { font: 700 36px var(--display); }
 .welcome h1 span { color: var(--me); }
 .welcome .row-actions { justify-content: center; }
+.welcome-steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); max-width: 760px; margin: 22px auto 10px; text-align: left; }
+.wstep { background: linear-gradient(180deg, var(--panel), #101827); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.wstep h2 { font: 700 17px var(--display); margin: 0; }
+.wstep .hint { margin: 0; }
 .dash { display: grid; gap: 14px; grid-template-columns: 1fr; }
 .dash .card { margin: 0; }
 @media (min-width: 720px) { .dash { grid-template-columns: 1fr 1fr; } }

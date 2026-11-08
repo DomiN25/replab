@@ -86,11 +86,14 @@ test('Sync: PC → Drive → Handy, Änderung am Handy → PC', async ({ browser
   await expect.poll(() => g.snapshot()?.moves?.length).toBe(2);
   expect(JSON.stringify(g.snapshot())).not.toContain('token":"lip');
 
-  // Handy: verbinden → holt alles
-  await phone.goto('/#/settings');
-  await phone.getByRole('button', { name: 'Mit Google verbinden' }).click();
-  await expect(phone.locator('.sync-status')).toContainText('Synchronisiert');
+  // Handy (neu, leer): direkt auf der Startseite verbinden → holt alles
+  await phone.goto('/');
+  await expect(phone.getByText('Schon Daten auf einem anderen Gerät?')).toBeVisible();
+  await phone.getByRole('button', { name: 'Mit Google Drive verbinden' }).click();
   await expect(phone.locator('.rep-select')).toContainText('Sync Weiß');
+  await expect(phone.locator('.dash')).toBeVisible();
+  await phone.goto('/#/settings');
+  await expect(phone.locator('.sync-status')).toContainText('Synchronisiert');
   await expect(phone.locator('.rep-name').first()).toHaveValue('Sync Weiß');
 
   // Handy: Repertoire umbenennen → automatischer Upload nach kurzer Verzögerung
