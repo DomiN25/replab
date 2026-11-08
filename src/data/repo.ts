@@ -3,6 +3,7 @@ import { db as defaultDb, newId, type RepDB } from './db';
 import { posKeyOf } from '../core/chess';
 import { newSrs } from '../core/srs';
 import type { ImportPlan } from '../core/pgn';
+import { naturalKey, tombstone, type LocalOps, type SyncSnapshot, type SyncTable } from '../core/sync';
 import {
   DEFAULT_SETTINGS,
   type Card,
@@ -39,6 +40,12 @@ export class Repo {
     await this.db.settings.put({ ...s, id: 'settings', updatedAt: Date.now() });
   }
 
+  // ------------------------------------------------------------ Grabsteine (Sync)
+  /** Löschungen merken, damit sie beim Sync nicht vom anderen Gerät zurückkommen. */
+  private async tomb(table: SyncTable, nks: string[], at = Date.now()) {
+    if (nks.length) await this.db.tombstones.bulkPut(nks.map((nk) => tombstone(table, nk, at)));
+  }
+
   // ------------------------------------------------------------ Repertoires
   listRepertoires(): Promise<Repertoire[]> {
     return this.db.repertoires.toArray();
@@ -69,10 +76,11 @@ export class Repo {
 
   /** Löscht Repertoire inkl. Einträgen, Markierungen, Karten und Historie. */
   async deleteRepertoire(id: string): Promise<void> {
-    await this.db.transaction('rw', [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews], async () => {
+    await this.db.transaction('rw', [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.tombstones], async () => {
       const r = await this.db.repertoires.get(id);
       await this.clearRepertoireTx(id);
       await this.db.repertoires.delete(id);
+      await this.tomb('repertoires', [id]);
       if (r?.isMain) {
         const next = (await this.db.repertoires.where('color').equals(r.color).toArray())[0];
         if (next) await this.db.repertoires.update(next.id, { isMain: true, updatedAt: Date.now() });
@@ -82,10 +90,20 @@ export class Repo {
 
   /** Leert ein Repertoire (für „alles neu festlegen“). */
   async clearRepertoire(id: string): Promise<void> {
-    await this.db.transaction('rw', [this.db.moves, this.db.marks, this.db.cards, this.db.reviews], () => this.clearRepertoireTx(id));
+    await this.db.transaction('rw', [this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.tombstones], () => this.clearRepertoireTx(id));
   }
 
   private async clearRepertoireTx(id: string) {
+    const [moves, marks, cards, reviews] = await Promise.all([
+      this.db.moves.where('repertoireId').equals(id).toArray(),
+      this.db.marks.where('repertoireId').equals(id).toArray(),
+      this.db.cards.where('repertoireId').equals(id).toArray(),
+      this.db.reviews.where('repertoireId').equals(id).toArray(),
+    ]);
+    await this.tomb('moves', moves.map((m) => naturalKey('moves', m)));
+    await this.tomb('marks', marks.map((m) => naturalKey('marks', m)));
+    await this.tomb('cards', cards.map((c) => naturalKey('cards', c)));
+    await this.tomb('reviews', reviews.filter((x) => x.uid).map((x) => x.uid!));
     await this.db.moves.where('repertoireId').equals(id).delete();
     await this.db.marks.where('repertoireId').equals(id).delete();
     await this.db.cards.where('repertoireId').equals(id).delete();
@@ -153,11 +171,14 @@ export class Repo {
   }
 
   async deleteMoves(repId: string, posKeys: string[]): Promise<void> {
-    await this.db.transaction('rw', [this.db.moves, this.db.cards], async () => {
+    await this.db.transaction('rw', [this.db.moves, this.db.cards, this.db.tombstones], async () => {
       for (const k of posKeys) {
         await this.db.moves.where('[repertoireId+posKey]').equals([repId, k]).delete();
         await this.db.cards.where('[repertoireId+posKey]').equals([repId, k]).delete();
       }
+      const nks = posKeys.map((k) => repId + '|' + k);
+      await this.tomb('moves', nks);
+      await this.tomb('cards', nks);
     });
   }
 
@@ -223,7 +244,7 @@ export class Repo {
   async saveReview(card: Card, srs: SrsState, log: Omit<ReviewLog, 'id'>): Promise<void> {
     await this.db.transaction('rw', [this.db.cards, this.db.reviews], async () => {
       await this.db.cards.put({ ...card, srs, updatedAt: Date.now() });
-      await this.db.reviews.add(log as ReviewLog);
+      await this.db.reviews.add({ ...log, uid: log.uid ?? newId() } as ReviewLog);
     });
   }
 
@@ -297,19 +318,92 @@ export class Repo {
     };
   }
 
+  // ------------------------------------------------------------ Sync
+  /** Lokaler Stand für den Sync (ohne Token, ohne Caches). */
+  async exportSnapshot(): Promise<SyncSnapshot> {
+    const s = await this.db.settings.get('settings');
+    let settings: SyncSnapshot['settings'];
+    if (s) {
+      const { token: _t, ...explorer } = s.explorer;
+      void _t;
+      settings = { ...s, explorer };
+    }
+    return {
+      app: 'RepLab',
+      kind: 'sync',
+      version: 1,
+      savedAt: Date.now(),
+      repertoires: await this.db.repertoires.toArray(),
+      moves: await this.db.moves.toArray(),
+      marks: await this.db.marks.toArray(),
+      cards: await this.db.cards.toArray(),
+      reviews: (await this.db.reviews.toArray()).map(({ id: _id, ...r }) => r as ReviewLog),
+      settings,
+      tombstones: await this.db.tombstones.toArray(),
+    };
+  }
+
+  /** Änderungen aus dem Sync lokal anwenden (eine Transaktion). Token bleibt lokal. */
+  async applySyncOps(ops: LocalOps): Promise<void> {
+    const t = this.db;
+    await t.transaction('rw', [t.repertoires, t.moves, t.marks, t.cards, t.reviews, t.settings, t.tombstones], async () => {
+      const splitNk = (nk: string) => {
+        const i = nk.indexOf('|');
+        return [nk.slice(0, i), nk.slice(i + 1)] as [string, string];
+      };
+      for (const id of ops.del.repertoires) await t.repertoires.delete(id);
+      for (const nk of ops.del.moves) await t.moves.where('[repertoireId+posKey]').equals(splitNk(nk)).delete();
+      for (const nk of ops.del.cards) await t.cards.where('[repertoireId+posKey]').equals(splitNk(nk)).delete();
+      for (const nk of ops.del.marks) await t.marks.delete(splitNk(nk));
+      for (const uid of ops.del.reviews) await t.reviews.where('uid').equals(uid).delete();
+      await t.repertoires.bulkPut(ops.put.repertoires);
+      // Züge/Karten: gleiche Stellung kann lokal eine andere ID haben, daher erst ersetzen (eindeutiger Index)
+      for (const m of ops.put.moves) {
+        await t.moves.where('[repertoireId+posKey]').equals([m.repertoireId, m.posKey]).delete();
+        await t.moves.put(m);
+      }
+      for (const c of ops.put.cards) {
+        await t.cards.where('[repertoireId+posKey]').equals([c.repertoireId, c.posKey]).delete();
+        await t.cards.put(c);
+      }
+      await t.marks.bulkPut(ops.put.marks);
+      if (ops.reviews.length) await t.reviews.bulkAdd(ops.reviews.map(({ id: _id, ...r }) => r as ReviewLog));
+      if (ops.settings) {
+        const cur = await t.settings.get('settings');
+        await t.settings.put({ ...ops.settings, id: 'settings', explorer: { ...ops.settings.explorer, token: cur?.explorer.token } } as Settings);
+      }
+      if (ops.tombstones.length) await t.tombstones.bulkPut(ops.tombstones);
+    });
+  }
+
   /** Ersetzt alle Repertoire-Daten durch das Backup. Token und Caches bleiben erhalten. */
   async importAll(b: BackupFile): Promise<void> {
     if (b.app !== 'RepLab' || b.version !== 1) throw new Error('Keine gültige RepLab-Sicherung (Version 1).');
     const token = (await this.getSettings()).explorer.token;
-    await this.db.transaction('rw', [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.settings], async () => {
-      await Promise.all([this.db.repertoires.clear(), this.db.moves.clear(), this.db.marks.clear(), this.db.cards.clear(), this.db.reviews.clear()]);
-      await this.db.repertoires.bulkPut(b.repertoires);
-      await this.db.moves.bulkPut(b.moves);
-      await this.db.marks.bulkPut(b.marks);
-      await this.db.cards.bulkPut(b.cards);
-      await this.db.reviews.bulkPut(b.reviews);
-      if (b.settings) await this.db.settings.put({ ...b.settings, id: 'settings', explorer: { ...b.settings.explorer, token } });
-    });
+    const reviews = b.reviews.map((r) => ({ ...r, uid: r.uid ?? newId() }));
+    await this.db.transaction(
+      'rw',
+      [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.settings, this.db.tombstones],
+      async () => {
+        // Was lokal existiert, aber nicht in der Sicherung steht, gilt als gelöscht (auch für den Sync)
+        const now = Date.now();
+        const gone = <T,>(local: T[], incoming: T[], key: (x: T) => string) => {
+          const keep = new Set(incoming.map(key));
+          return local.map(key).filter((k) => !keep.has(k));
+        };
+        await this.tomb('repertoires', gone(await this.db.repertoires.toArray(), b.repertoires, (x) => x.id), now);
+        await this.tomb('moves', gone(await this.db.moves.toArray(), b.moves, (x) => naturalKey('moves', x)), now);
+        await this.tomb('marks', gone(await this.db.marks.toArray(), b.marks, (x) => naturalKey('marks', x)), now);
+        await this.tomb('cards', gone(await this.db.cards.toArray(), b.cards, (x) => naturalKey('cards', x)), now);
+        await Promise.all([this.db.repertoires.clear(), this.db.moves.clear(), this.db.marks.clear(), this.db.cards.clear(), this.db.reviews.clear()]);
+        await this.db.repertoires.bulkPut(b.repertoires);
+        await this.db.moves.bulkPut(b.moves);
+        await this.db.marks.bulkPut(b.marks);
+        await this.db.cards.bulkPut(b.cards);
+        await this.db.reviews.bulkPut(reviews.map(({ id: _id, ...r }) => r as ReviewLog));
+        if (b.settings) await this.db.settings.put({ ...b.settings, id: 'settings', explorer: { ...b.settings.explorer, token } });
+      },
+    );
   }
 }
 

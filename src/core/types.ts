@@ -104,7 +104,8 @@ export interface Card {
 export type FsrsRating = 1 | 2 | 3 | 4;
 
 export interface ReviewLog {
-  id?: number;
+  id?: number; // lokale laufende Nummer (IndexedDB)
+  uid?: string; // geräteübergreifende ID (Sync)
   cardId: string;
   repertoireId: string;
   posKey: string;

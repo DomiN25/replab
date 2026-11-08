@@ -1,5 +1,6 @@
 // IndexedDB über Dexie. Läuft im Hauptthread UND im Graph-Worker (gleiche Datenbank).
 import Dexie, { type Table } from 'dexie';
+import type { Tombstone } from '../core/sync';
 import type {
   Card,
   EngineData,
@@ -20,6 +21,7 @@ export class RepDB extends Dexie {
   cards!: Table<Card, string>;
   reviews!: Table<ReviewLog, number>;
   settings!: Table<Settings, string>;
+  tombstones!: Table<Tombstone, string>;
 
   constructor(name = 'replab') {
     super(name);
@@ -34,6 +36,20 @@ export class RepDB extends Dexie {
       reviews: '++id, cardId, repertoireId, at',
       settings: 'id',
     });
+    // v2: Sync – Grabsteine für Löschungen, geräteübergreifende uid für Wiederholungen
+    this.version(2)
+      .stores({
+        reviews: '++id, cardId, repertoireId, at, uid',
+        tombstones: 'key, table, deletedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('reviews')
+          .toCollection()
+          .modify((r: { uid?: string }) => {
+            if (!r.uid) r.uid = newId();
+          });
+      });
   }
 }
 
