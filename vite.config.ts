@@ -17,7 +17,6 @@ export default defineConfig(({ command, mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: false,
-        includeAssets: ['icons/*.png', 'seed/*.pgn', 'engine/*'],
         manifest: {
           name: 'RepLab – Repertoire bauen & lernen',
           short_name: 'RepLab',
@@ -37,6 +36,9 @@ export default defineConfig(({ command, mode }) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,wasm,png,svg,pgn,woff2,json}'],
           globIgnores: ['**/spike*'],
+          // Neue Version sofort aktivieren (sonst bleibt ein installiertes Handy auf dem alten Stand hängen)
+          skipWaiting: true,
+          clientsClaim: true,
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/spike/],
