@@ -591,7 +591,10 @@ function Crumbs({ devIndex }: { devIndex?: number }) {
   const notation = useApp((s) => s.settings.ui.notation);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector('.cur')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // nur waagerecht scrollen – scrollIntoView zieht sonst die ganze Seite mit (Brett springt)
+    const nav = ref.current;
+    const cur = nav?.querySelector<HTMLElement>('.cur');
+    if (nav && cur) nav.scrollTo({ left: Math.max(0, cur.offsetLeft - nav.clientWidth + cur.offsetWidth + 40), behavior: 'smooth' });
   }, [cursor]);
   return (
     <nav className="crumbs" ref={ref} aria-label="Zugfolge">

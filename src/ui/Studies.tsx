@@ -246,6 +246,7 @@ function StudyEditor({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const boardRef = useRef<HTMLElement>(null);
+  const crumbsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     void repo.getStudy(id).then((s) => {
@@ -374,6 +375,15 @@ function StudyEditor({ id }: { id: string }) {
   const lastMove = lastStep && tree ? tree.nodes.get(lastStep.key)?.moves.find((m) => m.uci === lastStep.uci) : undefined;
   const excluded = tree && st ? firstExcluded(tree, path, st, active, existing) : undefined;
 
+  // Zugleiste: aktuelle Stellung rechts im Blick halten – nur waagerecht (scrollIntoView würde die Seite mitziehen)
+  useEffect(() => {
+    const nav = crumbsRef.current;
+    const cur = nav?.querySelector<HTMLElement>('.cur');
+    if (!nav || !cur) return;
+    const left = cur.offsetLeft - nav.clientWidth + cur.offsetWidth + 40;
+    nav.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [currentKey, path.length]);
+
   // Neue Stellung → aufgezogenes Sheet einklappen
   useEffect(() => {
     setSnap((s) => (s === 'full' ? 'min' : s)); // nach einem Zug wieder Brett + Text zeigen
@@ -480,7 +490,7 @@ function StudyEditor({ id }: { id: string }) {
   };
 
   const crumbs = (
-    <nav className="crumbs" aria-label="Zugfolge in der Studie">
+    <nav className="crumbs" aria-label="Zugfolge in der Studie" ref={crumbsRef}>
       <button className={path.length === 0 ? 'cur' : ''} onClick={() => (learning && learn ? learn.again() : setPath([]))} disabled={learning && !!learn?.line.start.length}>
         Start
       </button>
@@ -565,6 +575,7 @@ function StudyEditor({ id }: { id: string }) {
           <b>
             {learn.plan.lines.filter((l) => learn.done.has(l.id)).length}/{learn.plan.lines.length}
           </b>
+          <Icon name="down" className="up" />
         </button>
       ) : (
         <button className="study-progress" onClick={nextOpen} aria-label={`Offen: zur nächsten nicht angesehenen Stellung (${seenCount} von ${order.length} angesehen)`}>
@@ -759,23 +770,29 @@ function StudyEditor({ id }: { id: string }) {
     <div className={mobile ? 'study study-m' : 'study'}>
       {mobile ? (
         <>
-          <section className="col-board" ref={boardRef}>
+          <section className={learning ? 'col-board learn-fixed' : 'col-board'} ref={boardRef}>
             {head}
             {crumbs}
             {board}
             {checking && learn ? (
-              <CheckPanel learn={learn} tree={tree} notation={notation} />
+              <div className="learn-pane">
+                <CheckPanel learn={learn} tree={tree} notation={notation} />
+              </div>
             ) : learning && learn ? (
               <>
                 <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} />
-                <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />
+                <div className="learn-pane">
+                  <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} />
+                </div>
               </>
             ) : (
-              controls
+              <>
+                {controls}
+                {commentBlock ?? <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>}
+              </>
             )}
-            {!checking && (commentBlock ?? (!learning && <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>))}
           </section>
-          <BottomSheet anchorRef={boardRef} snap={snap} onSnap={setSnap} header={tabs}>
+          <BottomSheet anchorRef={boardRef} snap={snap} onSnap={setSnap} header={tabs} hiddenAtMin={learning}>
             {tab === 'moves' ? (learning && learn ? <LearnPlan learn={learn} tree={tree} notation={notation} /> : movesPanel) : chaptersPanel}
             {commitBar}
           </BottomSheet>
@@ -800,8 +817,7 @@ function StudyEditor({ id }: { id: string }) {
               {tab === 'moves' ? (
                 learning && learn ? (
                   <>
-                    {!checking && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />}
-                    {!checking && commentBlock}
+                    {!checking && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} />}
                     <LearnPlan learn={learn} tree={tree} notation={notation} />
                   </>
                 ) : (

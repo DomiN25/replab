@@ -17,12 +17,14 @@ interface Props {
   onSnap: (s: SheetSnap) => void;
   header: ReactNode;
   children: ReactNode;
+  /** eingeklappt ganz verstecken (Lernmodus der Studien: geöffnet wird über einen Knopf) */
+  hiddenAtMin?: boolean;
 }
 
 const MIN_PEEK = 190; // px sichtbare Höhe im Ruhezustand mindestens
 const DRAG_START = 6; // px, ab denen aus einem Tippen ein Ziehen wird
 
-export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props) {
+export function BottomSheet({ anchorRef, snap, onSnap, header, children, hiddenAtMin }: Props) {
   const [tops, setTops] = useState({ min: 0, peek: 0, full: 0, bottom: 0, peekUseful: true });
   const [dragTop, setDragTop] = useState<number | undefined>();
   const headRef = useRef<HTMLDivElement>(null);
@@ -58,7 +60,8 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
   }, [measure, anchorRef]);
 
   // Ruhezustand ohne Platz → eingeklappt
-  const effective: SheetSnap = snap === 'peek' && !tops.peekUseful ? 'min' : snap;
+  const effective: SheetSnap = snap === 'peek' && (!tops.peekUseful || hiddenAtMin) ? 'min' : snap;
+  const hidden = !!hiddenAtMin && effective === 'min';
 
   // Esc klappt ein aufgezogenes Sheet zurück
   useEffect(() => {
@@ -68,7 +71,7 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
     return () => window.removeEventListener('keydown', onKey);
   }, [effective, onSnap, tops.peekUseful]);
 
-  const restTop = effective === 'full' ? tops.full : effective === 'peek' ? tops.peek : tops.min;
+  const restTop = hidden ? tops.bottom + 12 : effective === 'full' ? tops.full : effective === 'peek' ? tops.peek : tops.min;
   const top = dragTop ?? restTop;
 
   // Ziehen: Touch über Touch-Events (Chrome bricht Pointer-Events beim Wischen teils mit pointercancel ab,
@@ -121,7 +124,8 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
 
   return (
     <section
-      className={`bsheet ${effective} ${dragTop !== undefined ? 'dragging' : ''}`}
+      className={`bsheet ${effective} ${hidden ? 'hidden' : ''} ${dragTop !== undefined ? 'dragging' : ''}`}
+      aria-hidden={hidden || undefined}
       style={{ top, bottom: window.innerHeight - tops.bottom }}
       aria-label="Details zur Stellung"
     >

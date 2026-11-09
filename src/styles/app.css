@@ -989,3 +989,24 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .check-card .btn { margin-top: 8px; }
 .check-card .learn-go { width: 100%; }
 .check-chip { min-height: 32px; border-color: color-mix(in srgb, var(--acc) 45%, transparent); color: var(--acc); }
+
+/* Studien am Handy: Fokus ohne App-Kopfleiste (die Studien-Kopfzeile hat Zurück + Plan).
+   Lernmodus: Brett, Zugleiste und Knöpfe stehen fest; nur der Text darunter scrollt – kein Springen beim Weiterklicken. */
+@media (max-width: 899px) {
+  .app:has(.study-m) .topbar { display: none; }
+  .app:has(.study-m) main { padding-top: calc(6px + env(safe-area-inset-top)); }
+  .app:has(.study-m) .toast { top: calc(10px + env(safe-area-inset-top)); }
+  main:has(.learn-fixed) { padding-bottom: 0; }
+  .study-m .learn-fixed { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 10px); }
+  .learn-fixed > * { flex: none; }
+  .learn-fixed .learn-pane { flex: 1 1 auto; min-height: 96px; overflow-y: auto; overscroll-behavior: contain; margin: 8px -4px 0; padding: 0 4px 10px; }
+  .learn-fixed .learn-pane .learn-card { margin-top: 0; animation: none; }
+  .study-m .crumbs { scrollbar-width: none; min-height: 44px; }
+  .study-m .crumbs::-webkit-scrollbar { display: none; }
+}
+.bsheet.hidden { box-shadow: none; pointer-events: none; visibility: hidden; transition: top 0.38s var(--ease-sheet), visibility 0s 0.38s; }
+.learn-card .study-comment { margin: 0 0 10px; font-size: 15px; line-height: 1.6; max-height: none; }
+.learn-card > .learn-meta:last-child { margin: 10px -6px -8px 0; padding-top: 4px; border-top: 1px solid var(--line-soft); min-height: 38px; }
+.learn-card > .learn-meta:last-child .learn-of { font-size: 12px; }
+.learn-card > .learn-meta:first-child + .learn-text, .learn-card > .learn-text:first-child { margin-top: 0; }
+button.study-progress .ico.up { rotate: 180deg; }

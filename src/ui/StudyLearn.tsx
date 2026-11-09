@@ -3,7 +3,7 @@
 // Zwischenabfragen: „Verstanden“ legt Lernkarten an (core/studyCards.ts); alle n Linien kommt eine kurze Abfrage.
 // Die Studienansicht (Studies.tsx) zeichnet Brett und Zugleiste; dieser Baustein liefert Zustand, Aktionen,
 // die Bedienleiste unter dem Brett, die Linienkarte und den Plan.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { displaySan, moveNumberPrefix, plyOfFen, turnOf } from '../core/chess';
 import { cutKey, type ExistingEntry, type StudyTree } from '../core/pgn';
 import type { NodeView, PathStep } from '../core/study';
@@ -479,6 +479,7 @@ export function LearnCard({
   notation,
   st,
   onChoose,
+  comment,
 }: {
   learn: Learn;
   tree: StudyTree;
@@ -488,6 +489,8 @@ export function LearnCard({
   st: Study;
   /** anderen eigenen Zug der Studie an dieser Stellung wählen */
   onChoose: (uci: string) => void;
+  /** Kommentar der Studie zum letzten Zug – steht ganz oben, direkt unter den Knöpfen */
+  comment?: ReactNode;
 }) {
   const { line, idx, step, atEnd, plan, done } = learn;
   const total = plan.lines.length;
@@ -504,26 +507,7 @@ export function LearnCard({
   const repDiff = atEnd && view.mine && view.repMove && view.moves.some((m) => m.status !== 'cut') && !view.moves.some((m) => m.inRep);
   return (
     <div className="learn-card">
-      <div className="learn-meta">
-        <span className={`tag lvl lvl${Math.min(line.level, 3)}`}>{levelName(line.level)}</span>
-        <span className="learn-of">
-          {tree.chapters[line.chapter]?.name ? `${tree.chapters[line.chapter].name} · ` : ''}Linie {idx + 1}/{total}
-        </span>
-        {done.has(line.id) && <span className="tag ok">verstanden</span>}
-        {learn.checkAvailable > 0 && (
-          <button className="btn small check-chip" onClick={learn.startCheck} title="Gelernte Stellungen abfragen">
-            Abfrage ({learn.checkAvailable})
-          </button>
-        )}
-        <RowMenu label="Aktionen für diese Linie">
-          {!atEnd && <button onClick={learn.cutRest}>{step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier nicht interessant (Rest entfernen)'}</button>}
-          <button onClick={learn.skip}>Linie überspringen (später)</button>
-          <button onClick={learn.again}>Von vorn</button>
-          <button className="danger" disabled={line.id === 'main'} onClick={learn.cutLine}>
-            Ganze Linie entfernen …
-          </button>
-        </RowMenu>
-      </div>
+      {comment}
       {step === 0 && (
         <p className="learn-text">
           {idx === 0 || !mainHere ? (
@@ -532,16 +516,8 @@ export function LearnCard({
             <>
               Abzweig: Statt <b>{sanAt(tree, mainHere, notation)}</b> spielt {who} hier <b className={who === 'du' ? 'me' : 'warn'}>{sanAt(tree, first, notation)}</b>.
             </>
-          )}{' '}
-          <span className="hint">
-            {line.steps.length} Züge{line.comments ? ` · ${line.comments} Kommentare` : ''}
-          </span>
+          )}
         </p>
-      )}
-      {step === 0 && line.id !== 'main' && (
-        <button className="btn small ghost learn-skipline" onClick={learn.cutRest}>
-          <Icon name="scissors" /> Diese Linie nicht lernen
-        </button>
       )}
       {atEnd && (
         <div className="learn-end" role="status">
@@ -550,17 +526,13 @@ export function LearnCard({
           </b>{' '}
           {line.transposeTo ? (
             <span>
-              Zugumstellung: Diese Stellung kennst du aus Linie {line.transposeTo.line + 1} ({levelName(plan.lines[line.transposeTo.line].level)})
-              {!done.has(plan.lines[line.transposeTo.line].id) && ' – dort noch nicht verstanden'}.
+              Zugumstellung: Diese Stellung kennst du aus Linie {line.transposeTo.line + 1}
+              {!done.has(plan.lines[line.transposeTo.line].id) && ' (dort noch nicht verstanden)'}.
             </span>
           ) : repDiff ? (
             <span className="warn">Dein Repertoire spielt hier {displaySan(view.repMove!.san, notation)} – die Studie geht anders weiter.</span>
           ) : null}
-          {learn.nextIdx !== undefined && (
-            <p className="learn-next">
-              Als Nächstes: Linie {learn.nextIdx + 1} · {levelName(plan.lines[learn.nextIdx].level)} · {lineLabel(tree, plan.lines[learn.nextIdx], notation, 3)}
-            </p>
-          )}
+          {learn.nextIdx !== undefined && <p className="learn-next">Als Nächstes: {lineLabel(tree, plan.lines[learn.nextIdx], notation, 3)}</p>}
           <div className="row-actions">
             <button className="btn small" onClick={learn.again}>
               <Icon name="undo" /> Nochmal
@@ -600,6 +572,27 @@ export function LearnCard({
           ))}
         </div>
       )}
+      {/* Linien-Info klein am Ende – wo genau man ist, muss nicht ständig im Blick sein (Details im Plan) */}
+      <div className="learn-meta">
+        <span className={`tag lvl lvl${Math.min(line.level, 3)}`}>{levelName(line.level)}</span>
+        <span className="learn-of">
+          Linie {idx + 1}/{total}
+        </span>
+        {done.has(line.id) && <span className="tag ok">verstanden</span>}
+        {learn.checkAvailable > 0 && (
+          <button className="btn small check-chip" onClick={learn.startCheck} title="Gelernte Stellungen abfragen">
+            Abfrage ({learn.checkAvailable})
+          </button>
+        )}
+        <RowMenu label="Aktionen für diese Linie">
+          {!atEnd && <button onClick={learn.cutRest}>{step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier nicht interessant (Rest entfernen)'}</button>}
+          <button onClick={learn.skip}>Linie überspringen (später)</button>
+          <button onClick={learn.again}>Von vorn</button>
+          <button className="danger" disabled={line.id === 'main'} onClick={learn.cutLine}>
+            Ganze Linie entfernen …
+          </button>
+        </RowMenu>
+      </div>
     </div>
   );
 }

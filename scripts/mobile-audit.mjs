@@ -233,7 +233,7 @@ async function run(scheme) {
   await page.waitForTimeout(400);
   await shot('study-check-wrong');
   await page.locator('.check-card').getByRole('button', { name: 'Beenden' }).tap();
-  await page.getByRole('tab', { name: 'Plan' }).tap();
+  await page.locator('button.study-progress').tap(); // Plan öffnet sich über den Zähler (Sheet ist im Lernmodus versteckt)
   await page.waitForTimeout(500);
   await shot('study-learn-plan');
   await page.locator('.bs-grip').tap();
