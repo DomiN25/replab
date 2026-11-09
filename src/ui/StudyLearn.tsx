@@ -40,6 +40,8 @@ export interface Learn {
   skip: () => void;
   cutLine: () => void;
   cutRest: () => void;
+  /** Linie i samt Untervarianten entfernen (Planliste) */
+  removeLine: (i: number) => void;
   /** Zug am Brett/aus der Leiste; liefert false, wenn der Zug zu keiner Linie gehört */
   play: (uci: string) => boolean;
 }
@@ -169,6 +171,16 @@ export function useLearn(p: {
       if (line.id === 'main') return toast('Die erste Hauptlinie lässt sich nicht entfernen – einzelne Züge im Lesen-Modus.', 'info');
       cutAt(line.steps[0], true);
     },
+    removeLine: (i) => {
+      const l = lines[i];
+      if (!l || l.id === 'main') return;
+      const first = l.steps[0];
+      const before = st.cuts;
+      const cuts = [...before, cutKey(first.key, first.uci)];
+      const hitsCurrent = i === idx || line.start.some((s) => s.key === first.key && s.uci === first.uci);
+      update(hitsCurrent ? { cuts, learn: { ...st.learn, line: nextAfterCut(first), step: 0 } } : { cuts });
+      toast('Linie samt Untervarianten entfernt', 'ok', { label: 'Rückgängig', run: undoCuts(before) });
+    },
     cutRest: () => {
       const s = line.steps[step];
       if (!s) return;
@@ -235,6 +247,15 @@ export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Lear
           {learn.quiz ? (learn.hint ? 'Zug spielen' : 'Zeigen') : 'Weiter'} <Icon name="next" />
         </button>
       )}
+      <button
+        className="btn icon learn-cut"
+        onClick={learn.cutRest}
+        disabled={atEnd || (step === 0 && line.id === 'main')}
+        aria-label={step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier abschneiden (Rest der Linie entfernen)'}
+        title={step === 0 ? 'Linie nicht lernen' : 'Ab hier abschneiden'}
+      >
+        <Icon name="scissors" />
+      </button>
       <span className="learn-count" title="Züge dieser Linie">
         {step}/{line.steps.length}
       </span>
@@ -280,7 +301,7 @@ export function LearnCard({
       <div className="learn-meta">
         <span className={`tag lvl lvl${Math.min(line.level, 3)}`}>{levelName(line.level)}</span>
         <span className="learn-of">
-          Linie {idx + 1} von {total}
+          {tree.chapters[line.chapter]?.name ? `${tree.chapters[line.chapter].name} · ` : ''}Linie {idx + 1}/{total}
         </span>
         {done.has(line.id) && <span className="tag ok">verstanden</span>}
         <RowMenu label="Aktionen für diese Linie">
@@ -305,6 +326,11 @@ export function LearnCard({
             {line.steps.length} Züge{line.comments ? ` · ${line.comments} Kommentare` : ''}
           </span>
         </p>
+      )}
+      {step === 0 && line.id !== 'main' && (
+        <button className="btn small ghost learn-skipline" onClick={learn.cutRest}>
+          <Icon name="scissors" /> Diese Linie nicht lernen
+        </button>
       )}
       {atEnd && (
         <div className="learn-end" role="status">
@@ -360,34 +386,54 @@ export function LearnCard({
   );
 }
 
-// ------------------------------------------------------------ Plan (Reihenfolge, Fortschritt, Linienliste)
+// ------------------------------------------------------------ Plan (Fortschrittskarte, Reihenfolge, Linienliste)
 
 const LEVEL_PLURAL = ['Hauptlinien', 'Nebenlinien', 'Untervarianten', 'Details'];
 
 export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: StudyTree; notation: 'de' | 'en' }) {
   const { plan, idx, done } = learn;
   const [limit, setLimit] = useState(30);
-  // Fortschritt je Ebene (Details ab Ebene 3 zusammengefasst)
-  const levels = useMemo(() => {
-    const out: { total: number; done: number }[] = [];
-    for (const l of plan.lines) {
+  const stats = useMemo(() => {
+    const levels: { total: number; done: number }[] = [];
+    // Kapitel in Reihenfolge ihres ersten Auftretens im Plan
+    const chapters = new Map<number, { idxs: number[]; done: number; open: number }>();
+    let doneCount = 0;
+    let openMoves = 0;
+    plan.lines.forEach((l, i) => {
       const k = Math.min(l.level, 3);
-      out[k] ??= { total: 0, done: 0 };
-      out[k].total++;
-      if (done.has(l.id)) out[k].done++;
-    }
-    return out;
+      levels[k] ??= { total: 0, done: 0 };
+      levels[k].total++;
+      const d = done.has(l.id);
+      if (d) {
+        levels[k].done++;
+        doneCount++;
+      } else openMoves += l.steps.length;
+      const g = chapters.get(l.chapter) ?? { idxs: [], done: 0, open: 0 };
+      g.idxs.push(i);
+      if (d) g.done++;
+      else g.open++;
+      chapters.set(l.chapter, g);
+    });
+    return { levels, chapters: [...chapters.entries()], doneCount, openMoves };
   }, [plan, done]);
-  const doneCount = plan.lines.filter((l) => done.has(l.id)).length;
+  const pct = plan.lines.length ? Math.round((100 * stats.doneCount) / plan.lines.length) : 0;
+  const curChapter = plan.lines[idx]?.chapter;
   const from = Math.max(0, idx - 3);
   const rows = plan.lines.slice(from, from + limit);
   return (
     <div className="learn-plan">
-      <p className="learn-sum">
-        <b>{doneCount}</b> von {plan.lines.length} Linien verstanden
-      </p>
+      <div className="learn-total">
+        <b>{pct} %</b>
+        <span>
+          {stats.doneCount} von {plan.lines.length} Linien verstanden
+          <small>noch {stats.openMoves} Züge in offenen Linien</small>
+        </span>
+      </div>
+      <div className="learn-totalbar" aria-hidden>
+        <i style={{ width: `${pct}%` }} />
+      </div>
       <div className="lvl-rows">
-        {levels.map((v, k) =>
+        {stats.levels.map((v, k) =>
           v ? (
             <div key={k} className="lvl-row">
               <span>{LEVEL_PLURAL[k]}</span>
@@ -402,6 +448,47 @@ export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: Study
           ) : null,
         )}
       </div>
+
+      <h3 className="learn-h">Fortschritt nach Kapitel</h3>
+      <p className="hint learn-legend">
+        <i className="lmap-cell done" /> verstanden <i className="lmap-cell lvl0" /> Hauptlinie offen <i className="lmap-cell" /> offen <i className="lmap-cell cur" /> aktuell
+      </p>
+      <div className="lmap">
+        {stats.chapters.map(([ch, g]) => (
+          <details key={ch} className="lmap-group" open={ch === curChapter || stats.chapters.length <= 4}>
+            <summary>
+              <span className="lmap-name">{tree.chapters[ch]?.name ?? `Kapitel ${ch + 1}`}</span>
+              <span className="lmap-bar">
+                <i style={{ width: `${(100 * g.done) / g.idxs.length}%` }} />
+              </span>
+              <small>
+                {g.done}/{g.idxs.length}
+              </small>
+            </summary>
+            <div className="lmap-cells">
+              {g.idxs.map((i) => {
+                const l = plan.lines[i];
+                return (
+                  <button
+                    key={l.id}
+                    className={`lmap-cell lvl${Math.min(l.level, 3)} ${done.has(l.id) ? 'done' : ''} ${i === idx ? 'cur' : ''}`}
+                    title={`Linie ${i + 1}: ${lineLabel(tree, l, notation)}`}
+                    aria-label={`Linie ${i + 1}: ${lineLabel(tree, l, notation)}${done.has(l.id) ? ', verstanden' : ''}`}
+                    onClick={() => learn.goto(i)}
+                  />
+                );
+              })}
+            </div>
+            {g.open > 0 && !g.idxs.includes(idx) && (
+              <button className="btn small ghost" onClick={() => learn.goto(g.idxs.find((i) => !done.has(plan.lines[i].id))!)}>
+                Mit diesem Kapitel weitermachen
+              </button>
+            )}
+          </details>
+        ))}
+      </div>
+
+      <h3 className="learn-h">Einstellungen</h3>
       <div className="learn-opts">
         <div className="seg small" role="group" aria-label="Reihenfolge">
           <button aria-pressed={learn.order === 'skeleton'} onClick={() => learn.setOrder('skeleton')} title="Erst alle Hauptlinien, dann Nebenlinien, dann Details">
@@ -415,20 +502,27 @@ export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: Study
           <input type="checkbox" checked={learn.selfPlay} onChange={(e) => learn.setSelfPlay(e.target.checked)} /> Eigene Züge selbst spielen
         </label>
       </div>
+
+      <h3 className="learn-h">Nächste Linien</h3>
       <ol className="line-list">
         {rows.map((l, k) => {
           const i = from + k;
           return (
-            <li key={l.id}>
+            <li key={l.id} className="line-item">
               <button className={`line-row ${i === idx ? 'cur' : ''} ${done.has(l.id) ? 'done' : ''}`} onClick={() => learn.goto(i)}>
                 <span className="ln">{done.has(l.id) ? <Icon name="check" /> : i + 1}</span>
                 <span className="lt">
                   <b>{lineLabel(tree, l, notation)}</b>
                   <small>
-                    {levelName(l.level)} · {l.steps.length} Züge{l.transposeTo ? ' · Zugumstellung' : ''}
+                    {levelName(l.level)} · {tree.chapters[l.chapter]?.name ?? ''} · {l.steps.length} Züge{l.transposeTo ? ' · Zugumstellung' : ''}
                   </small>
                 </span>
               </button>
+              {l.id !== 'main' && (
+                <button className="btn small ghost line-cut" aria-label={`Linie ${i + 1} nicht lernen (entfernen)`} title="Linie samt Untervarianten entfernen" onClick={() => learn.removeLine(i)}>
+                  <Icon name="scissors" />
+                </button>
+              )}
             </li>
           );
         })}

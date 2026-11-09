@@ -84,6 +84,8 @@ describe('Zugumstellungen und eigene Züge', () => {
     expect(planB.lines.map((l) => sans(tree, l))).toEqual(['e4 e5 Nf3 Nc6 Bc4', 'Nf3 Nc6 e4 e5', 'Bb5']);
     expect(planB.lines.map((l) => l.level)).toEqual([0, 0, 0]);
     expect(planB.lines[1].transposeTo).toMatchObject({ line: 0, step: 4 });
+    // Kapitel je Linie: 1.e4 gehört zu Kapitel 1, 1.Sf3 und 3.Lb5 nur zu Kapitel 2
+    expect(planB.lines.map((l) => l.chapter)).toEqual([0, 1, 1]);
   });
 
   it('gewählter eigener Zug bestimmt die Linie, vorhandener Repertoirezug ebenso', () => {

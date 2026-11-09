@@ -32,6 +32,8 @@ export interface StudyLine {
   transposeTo?: { key: string; line: number; step: number };
   /** Anzahl kommentierter Züge */
   comments: number;
+  /** Kapitel, zu dem die Linie gehört (niedrigstes aktives Kapitel ihres ersten Zugs) – für die Fortschrittskarte */
+  chapter: number;
 }
 
 export interface LinePlan {
@@ -182,7 +184,10 @@ export function buildLinePlan(
       uci = undefined;
     }
     if (!steps.length) continue;
-    lines.push({ id: p.uci === undefined ? 'main' : cutKey(p.from, p.uci), level: p.level, start: p.path, steps, parent: p.parent, transposeTo, comments });
+    const firstMove = tree.nodes.get(steps[0].key)?.moves.find((m) => m.uci === steps[0].uci);
+    const chMin = Math.min(...(firstMove?.chapters.filter((c) => active.has(c)) ?? []));
+    const chapter = Number.isFinite(chMin) ? chMin : 0;
+    lines.push({ id: p.uci === undefined ? 'main' : cutKey(p.from, p.uci), level: p.level, start: p.path, steps, parent: p.parent, transposeTo, comments, chapter });
   }
 
   const byId = new Map(lines.map((l, i) => [l.id, i]));

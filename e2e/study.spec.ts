@@ -77,12 +77,12 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
 
   // Lernmodus ist Standard: Linie 1 = Hauptlinie (beide Kapitel, 8 Züge), danach der erste Abzweig 2.c3
   const card = page.locator('.learn-card');
-  await expect(card).toContainText('Linie 1 von 9');
+  await expect(card).toContainText('Linie 1/9');
   await expect(card).toContainText('Hauptlinie');
   for (let i = 0; i < 8; i++) await page.getByRole('button', { name: /^Weiter/ }).click();
   await expect(card).toContainText('Ende der Linie');
   await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
-  await expect(card).toContainText('Linie 2 von 9');
+  await expect(card).toContainText('Linie 2/9');
   await expect(card).toContainText('Statt 2.Sf3');
   await expect(card).toContainText('2.c3');
   await expect(page.locator('.study-progress')).toHaveText('1/9');
@@ -103,6 +103,16 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await page.getByRole('button', { name: /^Zug spielen/ }).click();
   await expect(page.getByRole('button', { name: 'Verstanden', exact: true })).toBeVisible();
   await page.getByLabel('Eigene Züge selbst spielen').uncheck();
+
+  // Sichtbare Schere: Rest der Linie abschneiden (mit Rückgängig), Fortschrittskarte zeigt alle Linien
+  await page.getByRole('button', { name: 'Zug zurück' }).click(); // vor 3…Sd4
+  await page.getByRole('button', { name: /Ab hier abschneiden/ }).click();
+  await expect(page.locator('.toast')).toContainText('Rest der Linie entfernt');
+  await expect(page.locator('.learn-count')).toHaveText('3/3');
+  await page.locator('.toast').getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.locator('.learn-count')).toHaveText('3/4');
+  await expect(page.locator('.lmap-cell:not(.learn-legend .lmap-cell)')).toHaveCount(9);
+  await expect(page.locator('.lmap-cell.done')).toHaveCount(2); // Hauptlinie (+ Legende)
 
   // Lesen-Modus, zurück zur Grundstellung
   await page.getByRole('button', { name: 'Lesen' }).click();
