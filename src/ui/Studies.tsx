@@ -9,6 +9,7 @@ import { Modal, trapFocus } from './Modal';
 import { useBackClose } from './backClose';
 import { useEngine, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
+import { LearnCard, LearnControls, LearnPlan, useLearn } from './StudyLearn';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { buildStudyTree, cutKey, guessColor, pgnOrientation, planImport, studyStart, type ExistingEntry } from '../core/pgn';
@@ -365,6 +366,8 @@ function StudyEditor({ id }: { id: string }) {
   const evalOn = useApp((s) => s.settings.ui.evalBar !== false);
   const engineSt = useEngine(node?.fen ?? '', evalOn && !!node);
   const view = node && st ? nodeView(node, st, active, existing) : undefined;
+  const learn = useLearn({ tree, st, active, existing, update, setPath });
+  const learning = !!learn?.on;
   const lastStep = path[path.length - 1];
   const lastMove = lastStep && tree ? tree.nodes.get(lastStep.key)?.moves.find((m) => m.uci === lastStep.uci) : undefined;
   const excluded = tree && st ? firstExcluded(tree, path, st, active, existing) : undefined;
@@ -375,11 +378,16 @@ function StudyEditor({ id }: { id: string }) {
   }, [currentKey]);
 
   const go = (uci: string) => {
+    if (learning && learn) {
+      if (!learn.play(uci)) toast('Dieser Zug gehört zu keiner Linie, die du lernst (nicht gewählt oder entfernt).', 'info');
+      return;
+    }
     if (!currentKey || !view?.moves.some((m) => m.uci === uci)) return toast('Dieser Zug kommt in der Studie hier nicht vor.', 'info');
     setPath((p) => [...p, { key: currentKey, uci }]);
   };
-  const back = () => setPath((p) => p.slice(0, -1));
+  const back = () => (learning && learn ? learn.prev() : setPath((p) => p.slice(0, -1)));
   const forward = () => {
+    if (learning && learn) return learn.atEnd ? undefined : learn.next();
     const next = view?.moves.find((m) => m.status === 'chosen') ?? view?.moves.find((m) => m.status === 'opp') ?? view?.moves[0];
     if (next) go(next.uci);
   };
@@ -426,7 +434,13 @@ function StudyEditor({ id }: { id: string }) {
   const choose = (uci: string) => update({ choices: { ...st.choices, [node.key]: uci } });
   const target = repertoires.find((r) => r.id === targetId);
   // Nicht alle Fortsetzungen zeichnen (bei 12 Gegnerzügen unlesbar): gewählter Zug + die häufigsten (meiste Kapitel)
-  const shapes: DrawShape[] = view.moves
+  const learnShape = (): DrawShape[] => {
+    const e = learn?.expected;
+    if (!e || (learn.quiz && !learn.hint)) return [];
+    const sq = uciSquares(e.uci)!;
+    return [{ orig: sq[0], dest: sq[1], brush: view.mine ? 'mine' : 'opp' }];
+  };
+  const shapes: DrawShape[] = learning ? learnShape() : view.moves
     .filter((m) => m.status !== 'cut')
     .sort((a, b) => Number(b.status === 'chosen') - Number(a.status === 'chosen') || b.chapters.length - a.chapters.length)
     .slice(0, 4)
@@ -450,13 +464,21 @@ function StudyEditor({ id }: { id: string }) {
 
   const crumbs = (
     <nav className="crumbs" aria-label="Zugfolge in der Studie">
-      <button className={path.length === 0 ? 'cur' : ''} onClick={() => setPath([])}>Start</button>
+      <button className={path.length === 0 ? 'cur' : ''} onClick={() => (learning && learn ? learn.again() : setPath([]))} disabled={learning && !!learn?.line.start.length}>
+        Start
+      </button>
       {path.map((p, i) => {
         const n = tree.nodes.get(p.key)!;
         const m = n.moves.find((x) => x.uci === p.uci)!;
         const off = excluded && i >= excluded.index;
+        const ctx = learning && learn && i < learn.line.start.length; // Weg bis zum Abzweig
         return (
-          <button key={i} className={`${i === path.length - 1 ? 'cur' : ''} ${off ? 'off' : ''}`} onClick={() => setPath(path.slice(0, i + 1))}>
+          <button
+            key={i}
+            className={`${i === path.length - 1 ? 'cur' : ''} ${off ? 'off' : ''} ${ctx ? 'ctx' : ''}`}
+            disabled={!!ctx}
+            onClick={() => (learning && learn ? learn.goto(learn.idx, i + 1 - learn.line.start.length) : setPath(path.slice(0, i + 1)))}
+          >
             {sanLabel(n.fen, m.san)}
           </button>
         );
@@ -513,15 +535,35 @@ function StudyEditor({ id }: { id: string }) {
           <span className={`kdot ${st.color}`} aria-hidden /> {st.name}
         </button>
       )}
-      <span className="study-progress" title={`${seenCount} von ${order.length} Stellungen angesehen`}>
-        <i style={{ width: `${order.length ? (100 * seenCount) / order.length : 0}%` }} />
-        <b>
-          {seenCount}/{order.length}
-        </b>
-      </span>
-      <button className="btn small" onClick={nextOpen} title="Zur nächsten noch nicht angesehenen Variante">
-        Offen <Icon name="next" />
-      </button>
+      {learning && learn ? (
+        <button
+          className="study-progress"
+          onClick={() => {
+            setTab('moves');
+            setSnap('full');
+          }}
+          aria-label={`Lernplan öffnen: ${learn.plan.lines.filter((l) => learn.done.has(l.id)).length} von ${learn.plan.lines.length} Linien geschafft`}
+        >
+          <i style={{ width: `${(100 * learn.plan.lines.filter((l) => learn.done.has(l.id)).length) / learn.plan.lines.length}%` }} />
+          <b>
+            {learn.plan.lines.filter((l) => learn.done.has(l.id)).length}/{learn.plan.lines.length}
+          </b>
+        </button>
+      ) : (
+        <button className="study-progress" onClick={nextOpen} aria-label={`Offen: zur nächsten nicht angesehenen Stellung (${seenCount} von ${order.length} angesehen)`}>
+          <i style={{ width: `${order.length ? (100 * seenCount) / order.length : 0}%` }} />
+          <b>
+            {seenCount}/{order.length}
+          </b>
+          <Icon name="next" />
+        </button>
+      )}
+      <div className="seg small study-mode" role="group" aria-label="Modus">
+        <button aria-pressed={!learning} onClick={() => learn?.setOn(false)}>Lesen</button>
+        <button aria-pressed={learning} onClick={() => learn?.setOn(true, currentKey)} title="Geführt Linie für Linie durch die Studie">
+          Lernen
+        </button>
+      </div>
     </div>
   );
 
@@ -689,7 +731,7 @@ function StudyEditor({ id }: { id: string }) {
 
   const tabs = (
     <div className="seg small bs-tabs" role="tablist" aria-label="Bereich">
-      <button role="tab" aria-selected={tab === 'moves'} aria-pressed={tab === 'moves'} onClick={() => { setTab('moves'); setSnap((x) => (x === 'min' ? 'full' : x)); }}>Züge</button>
+      <button role="tab" aria-selected={tab === 'moves'} aria-pressed={tab === 'moves'} onClick={() => { setTab('moves'); setSnap((x) => (x === 'min' ? 'full' : x)); }}>{learning ? 'Plan' : 'Züge'}</button>
       <button role="tab" aria-selected={tab === 'chapters'} aria-pressed={tab === 'chapters'} onClick={() => { setTab('chapters'); setSnap((x) => (x === 'min' ? 'full' : x)); }}>
         Kapitel ({tree.chapters.filter((c) => active.has(c.index)).length}/{tree.chapters.length})
       </button>
@@ -704,11 +746,12 @@ function StudyEditor({ id }: { id: string }) {
             {head}
             {crumbs}
             {board}
-            {controls}
-            {commentBlock ?? <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>}
+            {learning && learn ? <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} /> : controls}
+            {learning && learn && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />}
+            {commentBlock ?? (!learning && <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>)}
           </section>
           <BottomSheet anchorRef={boardRef} snap={snap} onSnap={setSnap} header={tabs}>
-            {tab === 'moves' ? movesPanel : chaptersPanel}
+            {tab === 'moves' ? (learning && learn ? <LearnPlan learn={learn} tree={tree} notation={notation} /> : movesPanel) : chaptersPanel}
             {commitBar}
           </BottomSheet>
         </>
@@ -718,11 +761,25 @@ function StudyEditor({ id }: { id: string }) {
             {head}
             {crumbs}
             {board}
-            {controls}
+            {learning && learn ? <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} /> : controls}
           </section>
           <section className="col-panel">
             {tabs}
-            <div className="study-panel">{tab === 'moves' ? movesPanel : chaptersPanel}</div>
+            <div className="study-panel">
+              {tab === 'moves' ? (
+                learning && learn ? (
+                  <>
+                    <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />
+                    {commentBlock}
+                    <LearnPlan learn={learn} tree={tree} notation={notation} />
+                  </>
+                ) : (
+                  movesPanel
+                )
+              ) : (
+                chaptersPanel
+              )}
+            </div>
             {commitBar}
           </section>
         </>

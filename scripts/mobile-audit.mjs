@@ -210,6 +210,28 @@ async function run(scheme) {
   await sd.locator('textarea').fill(STUDY);
   await sd.getByPlaceholder('z. B. Anti-Sizilianer').fill('Anti-Sizilianer');
   await sd.getByRole('button', { name: 'Als Studie speichern' }).tap();
+  // Lernmodus (Standard): Hauptlinie durchgehen, verstanden, nächster Abzweig, Plan
+  await page.waitForSelector('.learn-controls');
+  await page.waitForTimeout(400);
+  await shot('study-learn-start');
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: /^Weiter/ }).tap();
+  await page.waitForTimeout(300);
+  await shot('study-learn-mid');
+  for (let i = 0; i < 20 && !(await page.getByRole('button', { name: 'Verstanden', exact: true }).isVisible()); i++) await page.getByRole('button', { name: /^Weiter/ }).tap();
+  await shot('study-learn-end');
+  await page.getByRole('button', { name: 'Verstanden', exact: true }).tap();
+  await page.waitForTimeout(300);
+  const lineInfo = await page.locator('.learn-of').innerText();
+  console.log(`${scheme}: Lernmodus nach „Verstanden“: ${lineInfo}`);
+  await shot('study-learn-branch');
+  await page.getByRole('tab', { name: 'Plan' }).tap();
+  await page.waitForTimeout(500);
+  await shot('study-learn-plan');
+  await page.locator('.bs-grip').tap();
+  await page.waitForTimeout(400);
+  // zurück in den Lesen-Modus, Grundstellung
+  await page.getByRole('button', { name: 'Lesen' }).tap();
+  await page.locator('.crumbs').getByRole('button', { name: 'Start' }).tap();
   await page.waitForSelector('.var-chips'); // Sheet ist in Studien eingeklappt – Brett, Varianten, Text frei
   const tapIn = async (loc) => {
     await loc.evaluate((el) => el.scrollIntoView({ block: 'nearest' }));

@@ -884,3 +884,52 @@ details.explain > p { margin: 2px 0 8px; line-height: 1.6; max-width: 70ch; anim
 .evalbar.flip .evalbar-num.w { bottom: auto; top: 5px; }
 .evalbar.flip .evalbar-num.b { top: auto; bottom: 5px; }
 @media (min-width: 900px) { .evalbar { width: 22px; } .evalbar-num { font-size: 10px; } .board-row { gap: 8px; } }
+
+/* ---------- Studien: Lernmodus (StudyLearn.tsx) ---------- */
+.study-mode { flex: none; }
+.study-mode button { padding: 4px 10px; min-height: 32px; }
+button.study-progress { border: 0; cursor: pointer; color: inherit; gap: 4px; }
+button.study-progress .ico { position: relative; width: 13px; height: 13px; color: var(--muted); }
+.study-m .study-head { gap: 6px; }
+.crumbs button.ctx { opacity: 0.5; cursor: default; }
+.crumbs button.ctx:hover { background: transparent; color: var(--muted); }
+.learn-controls { gap: 8px; }
+.learn-go { flex: 1; min-height: 48px; font-size: 15px; border-radius: 16px; }
+.learn-count { flex: none; min-width: 44px; text-align: center; font: 700 13px var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+.learn-card { margin-top: 12px; padding: 12px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--card-b); box-shadow: var(--shadow); animation: rise 0.3s var(--ease-out); }
+.learn-meta { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: -6px -6px 0 0; }
+.learn-of { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.learn-meta .rowmenu { margin-left: auto; }
+.tag.lvl0 { color: var(--acc); border-color: color-mix(in srgb, var(--acc) 45%, transparent); background: var(--acc-soft); }
+.tag.lvl1 { color: var(--me); border-color: color-mix(in srgb, var(--me) 45%, transparent); }
+.tag.lvl2 { color: var(--opp); border-color: color-mix(in srgb, var(--opp) 45%, transparent); }
+.tag.lvl3 { color: var(--muted); }
+.learn-text { margin: 6px 0 2px; font-size: 15px; line-height: 1.55; }
+.learn-text .hint { font-size: 12.5px; margin: 0; }
+.learn-end { margin: 8px 0 2px; font-size: 14.5px; line-height: 1.5; }
+.learn-end .row-actions { margin: 10px 0 0; }
+.learn-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.learn-alts small { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; margin-right: 2px; }
+.learn-alts .var-chip { min-height: 36px; padding: 4px 12px; font-size: 13.5px; }
+.study-m .learn-card + .study-comment { margin-top: 10px; }
+/* Plan */
+.learn-plan { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.learn-sum { margin: 0; font-size: 15px; }
+.learn-sum b { font: 800 22px var(--display); color: var(--me); margin-right: 2px; }
+.lvl-rows { display: flex; flex-direction: column; gap: 6px; }
+.lvl-row { display: grid; grid-template-columns: 120px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
+.lvl-row small { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.learn-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.learn-opts .check { margin: 0; }
+.line-list { list-style: none; margin: 0; padding: 0; }
+.line-row { width: 100%; display: flex; align-items: center; gap: 12px; background: none; border: 0; border-bottom: 1px solid var(--line-soft); padding: 8px 6px; border-radius: 10px; text-align: left; cursor: pointer; color: inherit; min-height: 52px; transition: background-color 0.15s; }
+.line-row:hover { background: var(--panel2); }
+.line-row.cur { background: var(--acc-soft); }
+.line-row .ln { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 999px; background: var(--panel2); font: 700 12px var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+.line-row.done .ln { background: var(--me-soft); color: var(--me); }
+.line-row .lt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.line-row .lt b { font: 600 14px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-row.done .lt b { color: var(--muted); }
+.line-row .lt small { color: var(--muted); font-size: 12px; }
+.learn-alts.own { border-top-style: dashed; }
+.learn-alts.own .var-chip { opacity: 0.85; border-style: dashed; }

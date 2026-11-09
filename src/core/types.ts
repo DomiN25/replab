@@ -124,6 +124,10 @@ export interface Study {
   seen?: string[];
   /** zuletzt angesehene Stellung als Zugweg – dort geht es beim nächsten Öffnen weiter */
   lastPath?: { key: string; uci: string }[];
+  /** Lernmodus: als verstanden markierte Linien (Linien-IDs, siehe core/studyLines.ts) */
+  linesDone?: string[];
+  /** Lernmodus: an/aus (fehlt = an), aktuelle Linie + Schritt, Reihenfolge, eigene Züge selbst spielen */
+  learn?: { on?: boolean; line: string; step: number; order?: 'skeleton' | 'study'; selfPlay?: boolean };
   createdAt: number;
   updatedAt: number;
 }

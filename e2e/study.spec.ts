@@ -1,5 +1,6 @@
 // E2E: Lichess-Studie per Link (ohne Orientation-Header, Schwarz-Sicht) → Farbe erkannt, Import, Sprung zur Studie.
 import { test, expect } from '@playwright/test';
+import { move } from './helpers';
 
 const STUDY = `[Event "tbg: Kapitel 1"]
 [StudyName "tbg"]
@@ -73,6 +74,39 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(dlg.getByPlaceholder('z. B. Anti-Sizilianer')).toHaveValue('tbg');
   await expect(dlg).toContainText('erkannt: Schwarz');
   await dlg.getByRole('button', { name: 'Als Studie speichern' }).click();
+
+  // Lernmodus ist Standard: Linie 1 = Hauptlinie (beide Kapitel, 8 Züge), danach der erste Abzweig 2.c3
+  const card = page.locator('.learn-card');
+  await expect(card).toContainText('Linie 1 von 9');
+  await expect(card).toContainText('Hauptlinie');
+  for (let i = 0; i < 8; i++) await page.getByRole('button', { name: /^Weiter/ }).click();
+  await expect(card).toContainText('Ende der Linie');
+  await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
+  await expect(card).toContainText('Linie 2 von 9');
+  await expect(card).toContainText('Statt 2.Sf3');
+  await expect(card).toContainText('2.c3');
+  await expect(page.locator('.study-progress')).toHaveText('1/9');
+  // Abweichen an der Abzweigstelle: 2.Sc3 statt 2.c3
+  await card.locator('.learn-alts .var-chip', { hasText: '2.Sc3' }).click();
+  await expect(page.locator('.crumbs')).toContainText('Sc3');
+  await expect(card).toContainText('Nebenlinie');
+  await expect(page.locator('.learn-count')).toHaveText('1/4'); // 2.Sc3 Sc6 3.Lb5 Sd4, Schritt 1
+
+  // Eigene Züge selbst spielen: richtiger Zug → weiter, Gegnerzug kommt von allein; falscher Zug → Pfeil + Hinweis
+  await page.getByLabel('Eigene Züge selbst spielen').check();
+  await expect(page.getByRole('button', { name: /^Zeigen/ })).toBeVisible();
+  await move(page, 'b8c6');
+  await expect(page.locator('.learn-count')).toHaveText('3/4'); // 2…Sc6 gespielt, 3.Lb5 automatisch
+  await move(page, 'a7a6');
+  await expect(page.locator('.toast')).toContainText('Die Linie spielt hier 3…Sd4');
+  await expect(page.locator('.learn-count')).toHaveText('3/4');
+  await page.getByRole('button', { name: /^Zug spielen/ }).click();
+  await expect(page.getByRole('button', { name: 'Verstanden', exact: true })).toBeVisible();
+  await page.getByLabel('Eigene Züge selbst spielen').uncheck();
+
+  // Lesen-Modus, zurück zur Grundstellung
+  await page.getByRole('button', { name: 'Lesen' }).click();
+  await page.locator('.crumbs').getByRole('button', { name: 'Start' }).click();
 
   // Editor: Start → 1.e4 → 1…c5 (eigener Zug, wird übernommen)
   const moves = page.locator('.study-moves');
