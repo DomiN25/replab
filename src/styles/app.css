@@ -1,6 +1,6 @@
-/* RepLab – Stil „Ozean“ (hell + dunkel). Farben nur als Variablen; Bedeutungen bleiben:
-   Mint/Grün = eigener Zug, Bernstein = Gegnerzug, Rot = Lücke, Blau (--acc) = Bedienung.
-   Hell/Dunkel: System (Standard) oder fest über <html data-theme>; Brett über <html data-board> (siehe ui/theme.ts). */
+/* RepLab â€“ Stil â€žOzeanâ€œ (hell + dunkel). Farben nur als Variablen; Bedeutungen bleiben:
+   Mint/GrÃ¼n = eigener Zug, Bernstein = Gegnerzug, Rot = LÃ¼cke, Blau (--acc) = Bedienung.
+   Hell/Dunkel: System (Standard) oder fest Ã¼ber <html data-theme>; Brett Ã¼ber <html data-board> (siehe ui/theme.ts). */
 :root {
   --bg: #eaf2f8;
   --blobs: radial-gradient(40% 30% at 12% 12%, #bfe0f5 0, transparent 70%), radial-gradient(35% 30% at 90% 22%, #c9f0ec 0, transparent 70%),
@@ -69,7 +69,7 @@
   color-scheme: dark;
 }
 
-/* Brett-Paletten (hell/dunkel unabhängig vom App-Schema) */
+/* Brett-Paletten (hell/dunkel unabhÃ¤ngig vom App-Schema) */
 :root {
   --sq-l: #e6eff6; --sq-d: #86a9c6;
   --hl-last: rgba(255, 196, 60, 0.45); --hl-sel: rgba(11, 138, 101, 0.42); --dest: rgba(16, 38, 66, 0.26); --coord: rgba(16, 38, 66, 0.6);
@@ -133,7 +133,7 @@ a { color: var(--acc); }
 .badge { font: 600 11px var(--body); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .badge.tief { color: var(--on-me); background: var(--me); border-color: var(--me); }
 .badge.mittel { color: var(--me); border-color: var(--me); }
-.badge.prüfen { color: var(--opp); border-color: var(--opp); }
+.badge.prÃ¼fen { color: var(--opp); border-color: var(--opp); }
 /* Druck-Feedback */
 :is(.btn, .tile, .chip, .seg button, .nav-bottom button, .recent-list button, .gapfam button, .brand, .board-pick, .picker-row, .rowmenu .dots):active:not(:disabled) { scale: 0.97; transition-duration: 0.06s; }
 .btn.icon:active:not(:disabled) { scale: 0.9; }
@@ -158,8 +158,8 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
 .row-actions input { flex: 1; min-width: 160px; }
 
 /* ---------- Kopf & Navigation ----------
-   Kopf: Wortmarke (beim Scrollen bzw. in „Bauen“ der Seitentitel) · Status nur bei Problemen · Repertoire-Pille · Zahnrad.
-   Unten am Handy: fünf Reiter mit Zählern (Lücken rot, fällige Wiederholungen blau). */
+   Kopf: Wortmarke (beim Scrollen bzw. in â€žBauenâ€œ der Seitentitel) Â· Status nur bei Problemen Â· Repertoire-Pille Â· Zahnrad.
+   Unten am Handy: fÃ¼nf Reiter mit ZÃ¤hlern (LÃ¼cken rot, fÃ¤llige Wiederholungen blau). */
 .topbar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 8px 16px; min-height: 56px;
   padding-top: calc(8px + env(safe-area-inset-top)); background: color-mix(in srgb, var(--bg) 78%, transparent);
@@ -224,8 +224,8 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
 .nav-badge.gap { background: var(--gap); color: var(--on-gap); }
 @keyframes pillIn { from { scale: 0.6 1; opacity: 0.4; } }
 main { padding: 14px 16px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom)); max-width: 1680px; margin: 0 auto; }
-/* Seitenwechsel: neue Seite gleitet leicht aus der Wechselrichtung herein („geteilte Achse“).
-   Seiten mit Bottom-Sheet: nur die Brettspalte gleitet (ein verschobener Container würde das feste Sheet mitreißen). */
+/* Seitenwechsel: neue Seite gleitet leicht aus der Wechselrichtung herein (â€žgeteilte Achseâ€œ).
+   Seiten mit Bottom-Sheet: nur die Brettspalte gleitet (ein verschobener Container wÃ¼rde das feste Sheet mitreiÃŸen). */
 main > * { animation: fadeIn 0.24s var(--ease-out); }
 main[data-enter='next'] > :not(:has(.bsheet)), main[data-enter='next'] > * > .col-board { animation: pageNext 0.3s var(--ease-out); }
 main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .col-board { animation: pagePrev 0.3s var(--ease-out); }
@@ -263,7 +263,7 @@ main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .co
   background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 16px; box-shadow: var(--shadow-lg); font-size: 14px; font-weight: 500;
   overflow: hidden; animation: toastIn 0.34s var(--ease-pop);
 }
-.toast { pointer-events: none; } /* Kurzmeldung schluckt keine Klicks (lag z. B. über der unteren Brettreihe) – nur ihre Knöpfe sind bedienbar */
+.toast { pointer-events: none; } /* Kurzmeldung schluckt keine Klicks (lag z. B. Ã¼ber der unteren Brettreihe) â€“ nur ihre KnÃ¶pfe sind bedienbar */
 .toast button { pointer-events: auto; border: 0; background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; font: 700 14px var(--body); padding: 8px 12px; margin: -6px -8px -6px 4px; border-radius: 10px; cursor: pointer; min-height: 40px; flex: none; }
 .toast button:active { background: color-mix(in srgb, var(--bg) 30%, transparent); }
 .toast.has-action::after { animation-duration: 7s; }
@@ -341,7 +341,7 @@ main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .co
   .col-side { grid-column: 1 / -1; }
 }
 @media (min-width: 1360px) {
-  /* Kandidaten-Spalte bekommt Vorrang (vorher 326 px bei 1440 px → Aktionen nur per Querscrollen erreichbar) */
+  /* Kandidaten-Spalte bekommt Vorrang (vorher 326 px bei 1440 px â†’ Aktionen nur per Querscrollen erreichbar) */
   .builder { grid-template-columns: minmax(360px, 480px) minmax(470px, 1fr) minmax(320px, 420px); }
   .col-side { grid-column: auto; position: sticky; top: 74px; }
   .col-board { position: sticky; top: 74px; }
@@ -387,7 +387,7 @@ main:has(.builder-m) { padding-top: 6px; padding-bottom: 8px; }
 .bs-grip:hover::before, .bsheet.dragging .bs-grip::before { background: var(--muted); }
 .bs-tabs { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; }
 .bs-tabs button { justify-content: center; min-height: 28px; padding: 3px 10px; }
-/* Inhalt im Sheet etwas dichter: Kopf der Kandidaten und Lückentour */
+/* Inhalt im Sheet etwas dichter: Kopf der Kandidaten und LÃ¼ckentour */
 .bs-body .turn { font-size: 16px; }
 .bs-body .guide { padding: 10px 12px; }
 .bs-body .guide-head { gap: 6px; }
@@ -412,7 +412,7 @@ cg-board square.move-dest:hover { background: var(--dest); }
 cg-board square.check { background: radial-gradient(ellipse at center, rgba(255, 60, 60, 0.9) 0%, rgba(200, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0) 70%); }
 cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation: sqFlash 0.7s var(--ease-out); }
 @keyframes sqFlash { 0% { background-color: rgba(46, 204, 140, 0.9); } }
-/* Koordinaten im Brett: Ziffern oben links, Buchstaben unten rechts im Feld (chessground setzt sie sonst außerhalb) */
+/* Koordinaten im Brett: Ziffern oben links, Buchstaben unten rechts im Feld (chessground setzt sie sonst auÃŸerhalb) */
 .cg-wrap coords { font: 600 10px var(--body); color: var(--coord); opacity: 1; text-shadow: none; }
 .cg-wrap coords.ranks { left: 3px; top: 2px; }
 .cg-wrap coords.files { left: 0; bottom: 1px; height: auto; text-transform: none; text-align: right; }
@@ -429,7 +429,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .answer.missing .lbl { color: var(--gap); font-weight: 600; }
 .answer .mv { font: 800 28px/1 var(--display); letter-spacing: -0.02em; color: var(--me); animation: popIn 0.32s var(--ease-pop); }
 .table-wrap { overflow-x: auto; }
-/* Zu schmale Kandidaten-Spalte (z. B. 900–1100 px): Nebenspalten weglassen statt quer scrollen */
+/* Zu schmale Kandidaten-Spalte (z. B. 900â€“1100 px): Nebenspalten weglassen statt quer scrollen */
 .col-panel { container-type: inline-size; }
 @container (max-width: 460px) { .ctable .hide-s { display: none; } }
 .ctable { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -470,7 +470,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .pv .ev { font: 700 13px var(--display); min-width: 52px; text-align: right; color: var(--eng); font-variant-numeric: tabular-nums; }
 .pv .line { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 
-/* Galaxie & Liste – die Galaxie bleibt eine dunkle „Sternenkarte“, auch im hellen Schema */
+/* Galaxie & Liste â€“ die Galaxie bleibt eine dunkle â€žSternenkarteâ€œ, auch im hellen Schema */
 .side-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .galaxy-svg { width: 100%; height: auto; display: block; max-width: 640px; margin: 0 auto; touch-action: manipulation; background: radial-gradient(circle at 50% 50%, #142338 0, #0b111d 70%); border-radius: 18px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
 .galaxy-svg path { transition: stroke 0.15s; }
@@ -494,7 +494,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .tree-row .st { width: 18px; text-align: center; color: var(--muted); flex: none; }
 .tree-row .st-gap { color: var(--gap); }
 
-/* Lücken */
+/* LÃ¼cken */
 .gap-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 10px; }
 .gapfam { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px 8px 18px; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--gap) 80%, transparent), var(--shadow); position: relative; animation: rise 0.45s var(--ease-out) backwards; }
 .gapfam:nth-child(2) { animation-delay: 40ms; } .gapfam:nth-child(3) { animation-delay: 80ms; } .gapfam:nth-child(4) { animation-delay: 120ms; } .gapfam:nth-child(n + 5) { animation-delay: 160ms; }
@@ -538,13 +538,13 @@ button.tile:hover:not(:disabled) { translate: 0 -2px; box-shadow: var(--shadow-l
 .resume .row-actions { margin: 0; }
 .focus { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 14px 18px; box-shadow: var(--shadow); margin-bottom: 12px; }
 .trainer { max-width: 620px; margin: 0 auto; }
-/* Desktop: Brett + Rückmeldung + „Weiter“ passen ohne Scrollen ins Fenster (auch 1280×720) */
+/* Desktop: Brett + RÃ¼ckmeldung + â€žWeiterâ€œ passen ohne Scrollen ins Fenster (auch 1280Ã—720) */
 @media (min-width: 900px) { .trainer { max-width: min(620px, calc(100vh - 250px)); min-width: 360px; } }
 .train-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .progress { flex: 1; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line-soft); }
 .progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--acc), var(--me)); border-radius: 4px; transition: width 0.45s var(--ease-out); }
 .train-top .count { color: var(--muted); font-family: var(--display); font-size: 13px; }
-/* Feedback am Brett: Ring leuchtet grün/rot (nur box-shadow, kein Verschieben des Bretts) */
+/* Feedback am Brett: Ring leuchtet grÃ¼n/rot (nur box-shadow, kein Verschieben des Bretts) */
 .trainer[data-phase='right'] .cg-wrap, .trainer[data-phase='fixed'] .cg-wrap { animation: glowOk 0.9s var(--ease-out); }
 .trainer[data-phase='wrong'] .cg-wrap { box-shadow: 0 0 0 3px var(--gap), 0 16px 36px -8px rgba(20, 40, 70, 0.28); animation: glowBad 0.6s var(--ease-out); }
 @keyframes glowOk { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 140, 0.9); } 35% { box-shadow: 0 0 0 5px rgba(46, 204, 140, 0.75), 0 0 32px 4px rgba(46, 204, 140, 0.45); } }
@@ -560,7 +560,7 @@ button.tile:hover:not(:disabled) { translate: 0 -2px; box-shadow: var(--shadow-l
 .train-feedback .bad.big { animation: shake 0.42s var(--ease-out); }
 .train-feedback .btn.big { margin-top: 6px; }
 @keyframes shake { 20% { translate: -7px 0; } 40% { translate: 6px 0; } 60% { translate: -4px 0; } 80% { translate: 2px 0; } }
-/* Fokus-Modus am Handy: während einer Sitzung keine Kopf- und Navigationsleiste (Beenden führt zurück) */
+/* Fokus-Modus am Handy: wÃ¤hrend einer Sitzung keine Kopf- und Navigationsleiste (Beenden fÃ¼hrt zurÃ¼ck) */
 @media (max-width: 899px) {
   .app:has(.trainer) .topbar, .app:has(.trainer) .nav-bottom { display: none; }
   .app:has(.trainer) main { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
@@ -674,7 +674,7 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 .study-progress i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--me-soft); transition: width 0.4s var(--ease-out); }
 .study-progress b { position: relative; font: 700 12px var(--display); font-variant-numeric: tabular-nums; }
 .study-head .btn.small { flex: none; }
-/* Lichess-artig: nächste Züge als Leiste unter dem Brett */
+/* Lichess-artig: nÃ¤chste ZÃ¼ge als Leiste unter dem Brett */
 .study-controls { gap: 6px; }
 .study-controls .btn.icon { flex: none; }
 .var-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; scroll-snap-type: x proximity; }
@@ -689,7 +689,7 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 .var-chip i { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
 .var-chips .hint { align-self: center; margin: 0 6px; }
 
-/* Geführter Aufbau */
+/* GefÃ¼hrter Aufbau */
 .mode-switch { margin-bottom: 10px; }
 .guide { border: 1px solid color-mix(in srgb, var(--gap) 25%, transparent); background: var(--gap-soft); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; animation: rise 0.35s var(--ease-out); }
 .guide-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -702,7 +702,7 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 .chip.sib.answered { color: var(--me); }
 .chip.sib.on { box-shadow: inset 0 0 0 1px var(--ink); }
 
-/* Zeilenmenü (⋯) in der Kandidatentabelle */
+/* ZeilenmenÃ¼ (â‹¯) in der Kandidatentabelle */
 .rowmenu { position: relative; display: inline-block; }
 .rowmenu .dots { background: none; border: 0; color: var(--muted); font-size: 18px; line-height: 1; padding: 6px 10px; min-height: 36px; border-radius: 999px; cursor: pointer; transition: background-color 0.15s, scale 0.18s var(--ease-out); }
 .rowmenu .dots:hover, .rowmenu .dots[aria-expanded='true'] { background: var(--panel2); color: var(--ink); }
@@ -723,7 +723,7 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 }
 .big-nums b.muted-num { color: var(--muted); }
 
-/* „Mehr“: aufklappbare Einstellungsgruppen */
+/* â€žMehrâ€œ: aufklappbare Einstellungsgruppen */
 details.fold { padding: 0; }
 details.fold > summary { list-style: none; display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding: 16px 18px; cursor: pointer; border-radius: var(--radius); }
 details.fold > summary::-webkit-details-marker { display: none; }
@@ -747,12 +747,12 @@ details.fold > summary:hover h2 { color: var(--ink); }
 .sh-line { font: 600 14px var(--display); }
 .sh-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
 .sh-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-/* Desktop: Zug tippen + Kürzel */
+/* Desktop: Zug tippen + KÃ¼rzel */
 .move-input { margin-left: auto; width: 170px; min-height: 40px; border-radius: 999px; font-size: 14px; }
 .kbd-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--panel-solid); color: var(--ink); }
 
-/* Lückenliste: Zeile mit ⋯-Menü, „alle anzeigen“ */
+/* LÃ¼ckenliste: Zeile mit â‹¯-MenÃ¼, â€žalle anzeigenâ€œ */
 .gapfam .gaprow { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line-soft); }
 .gapfam li.gaprow:last-child { border-bottom: 0; }
 .gapfam .gaprow > .gap-go { flex: 1; min-width: 0; border-bottom: 0; }
@@ -774,14 +774,14 @@ kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line
 .klegend span { display: inline-flex; align-items: center; gap: 5px; }
 .klegend i { display: inline-block; width: 12px; height: 8px; border-radius: 3px; }
 .klegend-n { margin-left: auto; }
-/* Handy: Kurzmeldungen oben – unten liegen Navigation und Sheet */
+/* Handy: Kurzmeldungen oben â€“ unten liegen Navigation und Sheet */
 @media (max-width: 899px) {
   .toast { bottom: auto; top: calc(64px + env(safe-area-inset-top)); animation-name: toastDown; }
   .app:has(.trainer) .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
 }
 @keyframes toastDown { from { opacity: 0; translate: 0 -16px; scale: 0.96; } }
 
-/* P3: Touch-Ziele, Status nicht nur über Farbe, Ladeanzeige */
+/* P3: Touch-Ziele, Status nicht nur Ã¼ber Farbe, Ladeanzeige */
 .builder-m .crumbs button, .study-m .crumbs button { min-height: 36px; padding: 4px 9px; }
 .st-gap-label { display: inline-flex; align-items: center; gap: 3px; font: 600 11px var(--body); letter-spacing: 0.02em; color: var(--gap); }
 .st-gap-label .ico { width: 13px; height: 13px; }
@@ -809,14 +809,14 @@ main:has(.study-m) { padding-bottom: calc(var(--nav-h) + 80px + env(safe-area-in
 .study-m .study-head .back-label { display: none; }
 .study-m .study-head .btn.small { min-height: 38px; }
 
-/* ---------- Design-Runde 11/2026: Listen, Erklärungen, ruhigere Seiten ---------- */
-/* Große Seitentitel (iOS-artig); beim Scrollen übernimmt die Kopfleiste den Titel */
+/* ---------- Design-Runde 11/2026: Listen, ErklÃ¤rungen, ruhigere Seiten ---------- */
+/* GroÃŸe Seitentitel (iOS-artig); beim Scrollen Ã¼bernimmt die Kopfleiste den Titel */
 @media (max-width: 899px) {
   .page h1 { font-size: 30px; margin: 2px 0 12px; }
   .page-head { align-items: center; }
 }
 .page-lead { color: var(--muted); font-size: 15px; margin: -4px 0 10px; max-width: 60ch; }
-/* Erklärtexte einklappbar statt Textwand */
+/* ErklÃ¤rtexte einklappbar statt Textwand */
 details.explain { margin: 10px 0 4px; color: var(--muted); font-size: 13.5px; }
 details.explain > summary { list-style: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--acc); font-weight: 600; font-size: 13.5px; min-height: 40px; padding: 0 2px; border-radius: 10px; }
 details.explain > summary::-webkit-details-marker { display: none; }
@@ -824,7 +824,7 @@ details.explain > summary .ico { width: 17px; height: 17px; }
 details.explain[open] > summary { color: var(--ink); }
 details.explain > p { margin: 2px 0 8px; line-height: 1.6; max-width: 70ch; animation: fadeIn 0.2s var(--ease-out); }
 
-/* Gruppierte Listenzeilen (Einstellungen → Daten) */
+/* Gruppierte Listenzeilen (Einstellungen â†’ Daten) */
 .list { display: flex; flex-direction: column; margin: 0 -8px; }
 .list-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 10px 10px; background: none; border: 0; border-radius: 14px; color: var(--ink); text-align: left; cursor: pointer; font: inherit; position: relative; transition: background-color 0.15s, scale 0.18s var(--ease-out); }
 .list-row + .list-row::before { content: ''; position: absolute; top: 0; left: 50px; right: 10px; height: 1px; background: var(--line-soft); }
@@ -852,7 +852,7 @@ details.explain > p { margin: 2px 0 8px; line-height: 1.6; max-width: 70ch; anim
 .rowmenu-pop button.danger { color: var(--gap); }
 .rowmenu-pop button + button.danger { border-top: 1px solid var(--line-soft); border-radius: 0 0 10px 10px; }
 
-/* Training: ruhige Kachel, wenn nichts fällig ist; Hauptkachel immer zuerst */
+/* Training: ruhige Kachel, wenn nichts fÃ¤llig ist; Hauptkachel immer zuerst */
 .tile.calm { background: var(--panel); }
 .tile.calm b { color: var(--me); }
 .tile.calm:disabled { opacity: 1; }
@@ -860,12 +860,27 @@ details.explain > p { margin: 2px 0 8px; line-height: 1.6; max-width: 70ch; anim
 .train-cards { grid-auto-flow: dense; }
 .tile b .ico { vertical-align: 0; }
 
-/* Studienliste: Lösch-Knopf zurückhaltender, Zeilen wie Listenkarten */
+/* Studienliste: LÃ¶sch-Knopf zurÃ¼ckhaltender, Zeilen wie Listenkarten */
 .study-item .btn.danger.ghost { border-color: transparent; color: var(--muted); }
 .study-item .btn.danger.ghost:hover { color: var(--gap); border-color: color-mix(in srgb, var(--gap) 40%, transparent); }
 
-/* Karten: Überschriften etwas leiser, Zahlen kräftiger */
+/* Karten: Ãœberschriften etwas leiser, Zahlen krÃ¤ftiger */
 .card h2 { letter-spacing: 0.08em; font-size: 11.5px; }
 .big-nums b { font-size: 44px; }
 .gapfam h2 .btn { width: auto; flex: none; flex-direction: row; border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; min-height: 34px; background: var(--panel-solid); }
 .gapfam h2 > span:first-child, .gapfam h2 > :first-child { min-width: 0; }
+
+/* Bewertungsbalken links neben dem Brett (EvalBar.tsx): WeiÃŸ von unten, dreht sich mit dem Brett */
+.board-row { display: flex; align-items: stretch; gap: 6px; }
+.board-row > .board-wrap { flex: 1; min-width: 0; }
+.evalbar { position: relative; flex: none; width: 18px; border-radius: 7px; overflow: hidden; background: #333d4a; box-shadow: 0 0 0 1px rgba(20, 35, 55, 0.16), 0 2px 6px rgba(20, 40, 70, 0.14); }
+.evalbar-white { position: absolute; left: 0; right: 0; bottom: 0; background: #f4f5f7; transition: height 0.5s var(--ease-out); }
+.evalbar.flip .evalbar-white { bottom: auto; top: 0; }
+.evalbar::after { content: ''; position: absolute; left: 0; right: 0; top: calc(50% - 1px); height: 2px; background: rgba(128, 140, 155, 0.45); }
+.evalbar.loading .evalbar-white { opacity: 0.6; }
+.evalbar-num { position: absolute; left: 0; right: 0; z-index: 1; text-align: center; font: 700 9px/1 var(--display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.evalbar-num.w { bottom: 5px; color: #2a3340; }
+.evalbar-num.b { top: 5px; color: #eef1f5; }
+.evalbar.flip .evalbar-num.w { bottom: auto; top: 5px; }
+.evalbar.flip .evalbar-num.b { top: auto; bottom: 5px; }
+@media (min-width: 900px) { .evalbar { width: 22px; } .evalbar-num { font-size: 10px; } .board-row { gap: 8px; } }

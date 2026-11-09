@@ -7,7 +7,8 @@ import { BottomSheet, type SheetSnap } from './BottomSheet';
 import { Icon } from './Icon';
 import { Modal, trapFocus } from './Modal';
 import { useBackClose } from './backClose';
-import { useMediaQuery } from './hooks';
+import { useEngine, useMediaQuery } from './hooks';
+import { EvalBar } from './EvalBar';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { buildStudyTree, cutKey, guessColor, pgnOrientation, planImport, studyStart, type ExistingEntry } from '../core/pgn';
@@ -361,6 +362,8 @@ function StudyEditor({ id }: { id: string }) {
     update({ seen: seen.includes(currentKey) ? seen : [...seen, currentKey], lastPath: path });
   }, [currentKey, path, tree]); // eslint-disable-line react-hooks/exhaustive-deps
   const node = currentKey ? tree?.nodes.get(currentKey) : undefined;
+  const evalOn = useApp((s) => s.settings.ui.evalBar !== false);
+  const engineSt = useEngine(node?.fen ?? '', evalOn && !!node);
   const view = node && st ? nodeView(node, st, active, existing) : undefined;
   const lastStep = path[path.length - 1];
   const lastMove = lastStep && tree ? tree.nodes.get(lastStep.key)?.moves.find((m) => m.uci === lastStep.uci) : undefined;
@@ -462,7 +465,10 @@ function StudyEditor({ id }: { id: string }) {
   );
 
   const board = (
-    <Board fen={node.fen} orientation={st.color} lastMove={uciSquares(lastStep?.uci)} shapes={shapes} onMove={go} movable="turn" />
+    <div className="board-row">
+      {evalOn && <EvalBar fen={engineSt.fen} lines={engineSt.lines} depth={engineSt.depth} orientation={st.color} />}
+      <Board fen={node.fen} orientation={st.color} lastMove={uciSquares(lastStep?.uci)} shapes={shapes} onMove={go} movable="turn" />
+    </div>
   );
   const nextMoves = view.moves.filter((m) => m.status !== 'cut');
   const controls = (

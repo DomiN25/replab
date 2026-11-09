@@ -1,29 +1,20 @@
 // Wischen zwischen den Hauptseiten am Handy (Start ↔ Bauen ↔ Lücken ↔ Training ↔ Studien).
 // Die Seite folgt dem Finger; ab ~28 % Breite oder schnellem Wisch wechselt sie, sonst federt sie zurück.
-// Nicht auf Brett, Sheet, quer scrollenden Leisten, Eingaben oder in einer laufenden Trainingssitzung –
-// dort haben Gesten schon eine Bedeutung. Rand-Wische gehören der Android-Zurück-Geste.
+// Geht überall in der App (Kopf, Inhalt, Sheet, Navigation) – außer dort, wo Gesten schon etwas bedeuten:
+// - Brett: nur auf freien Feldern. chessground ruft bei Absicht zum Ziehen (Figur, Auswahl, Figur in der Nähe)
+//   preventDefault auf; solche Gesten bleiben beim Brett.
+// - Zugleiste unter dem Brett (Wischen = Zug vor/zurück), quer scrollende Leisten, Eingaben, Dialoge,
+//   aufgezogenes Sheet, laufende Trainingssitzung. Rand-Wische gehören der Android-Zurück-Geste.
 import { useEffect, type RefObject } from 'react';
 
-const BLOCK = [
-  '.cg-wrap',
-  '.bsheet',
-  '.board-controls',
-  '.crumbs',
-  '.var-chips',
-  '.galaxy-svg',
-  '.table-wrap',
-  '.modal-backdrop',
-  'input',
-  'select',
-  'textarea',
-  '[data-noswipe]',
-].join(',');
+const BLOCK = ['.board-controls', '.bsheet.full', '.modal-backdrop', '.rowmenu-pop', 'input', 'select', 'textarea', '[data-noswipe]'].join(',');
 const EDGE = 24; // px am Bildschirmrand: System-Geste
 const LOCK = 10; // px, ab denen die Richtung feststeht
 
 /** Liegt das Ziel in einem Element, das selbst quer scrollt? */
 function inHorizontalScroller(el: HTMLElement | null, stop: HTMLElement): boolean {
   for (let n = el; n && n !== stop; n = n.parentElement) {
+    if (n instanceof SVGElement) continue;
     if (n.scrollWidth > n.clientWidth + 2) {
       const ox = getComputedStyle(n).overflowX;
       if (ox === 'auto' || ox === 'scroll') return true;
@@ -42,11 +33,13 @@ function movers(main: HTMLElement): HTMLElement[] {
   return [...page.querySelectorAll<HTMLElement>(':scope > .col-board'), sheet];
 }
 
-export function useSwipeNav(mainRef: RefObject<HTMLElement>, opts: { prev?: () => void; next?: () => void; enabled: boolean }) {
+/** rootRef: Bereich, in dem gewischt werden kann (ganze App); mainRef: Seiteninhalt, der mitwandert. */
+export function useSwipeNav(rootRef: RefObject<HTMLElement>, mainRef: RefObject<HTMLElement>, opts: { prev?: () => void; next?: () => void; enabled: boolean }) {
   const { prev, next, enabled } = opts;
   useEffect(() => {
+    const root = rootRef.current;
     const main = mainRef.current;
-    if (!main || !enabled || !matchMedia('(max-width: 899px)').matches) return;
+    if (!root || !main || !enabled || !matchMedia('(max-width: 899px)').matches) return;
     let s: { x: number; y: number; t: number; dir?: 'h' | 'v'; dx: number; els: HTMLElement[] } | undefined;
 
     const reset = (els: HTMLElement[], animate: boolean) => {
@@ -64,7 +57,8 @@ export function useSwipeNav(mainRef: RefObject<HTMLElement>, opts: { prev?: () =
       const t = e.touches[0];
       const target = e.target as HTMLElement;
       if (t.clientX < EDGE || t.clientX > innerWidth - EDGE) return;
-      if (target.closest(BLOCK) || inHorizontalScroller(target, main)) return;
+      if (e.defaultPrevented) return; // Brett will ziehen (Figur/Auswahl in der Nähe)
+      if (!(target instanceof Element) || target.closest(BLOCK) || inHorizontalScroller(target as HTMLElement, root)) return;
       if (document.querySelector('.modal-backdrop, .trainer')) return;
       s = { x: t.clientX, y: t.clientY, t: performance.now(), dx: 0, els: [] };
     };
@@ -116,15 +110,15 @@ export function useSwipeNav(mainRef: RefObject<HTMLElement>, opts: { prev?: () =
       }, 130);
     };
 
-    main.addEventListener('touchstart', onStart, { passive: true });
-    main.addEventListener('touchmove', onMove, { passive: false });
-    main.addEventListener('touchend', onEnd, { passive: true });
-    main.addEventListener('touchcancel', onEnd, { passive: true });
+    root.addEventListener('touchstart', onStart, { passive: true });
+    root.addEventListener('touchmove', onMove, { passive: false });
+    root.addEventListener('touchend', onEnd, { passive: true });
+    root.addEventListener('touchcancel', onEnd, { passive: true });
     return () => {
-      main.removeEventListener('touchstart', onStart);
-      main.removeEventListener('touchmove', onMove);
-      main.removeEventListener('touchend', onEnd);
-      main.removeEventListener('touchcancel', onEnd);
+      root.removeEventListener('touchstart', onStart);
+      root.removeEventListener('touchmove', onMove);
+      root.removeEventListener('touchend', onEnd);
+      root.removeEventListener('touchcancel', onEnd);
     };
-  }, [mainRef, prev, next, enabled]);
+  }, [rootRef, mainRef, prev, next, enabled]);
 }

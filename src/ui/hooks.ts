@@ -52,6 +52,8 @@ export function useExplorer(fen: string, source: 'lichess' | 'masters'): Explore
 }
 
 export interface EngineState {
+  /** Stellung, zu der lines gehören */
+  fen: string;
   lines: EngineLine[];
   depth: number;
   running: boolean;
@@ -63,24 +65,24 @@ export function useEngine(fen: string, enabled: boolean): EngineState {
   const depthSetting = useApp((s) => s.settings.engine.depth);
   const multipv = useApp((s) => s.settings.engine.multipv);
   const target = effectiveDepth(depthSetting);
-  const [st, setSt] = useState<EngineState>({ lines: [], depth: 0, running: false, target });
+  const [st, setSt] = useState<EngineState>({ fen, lines: [], depth: 0, running: false, target });
   const handle = useRef<{ cancel: () => void } | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
-    setSt({ lines: [], depth: 0, running: false, target });
+    setSt({ fen, lines: [], depth: 0, running: false, target });
     if (!enabled) return;
     const posKey = posKeyOf(fen);
     const timer = setTimeout(async () => {
       const cached = await repo.getEngine(posKey);
       if (!alive) return;
       if (cached && cached.depth >= target && cached.lines.length >= Math.min(multipv, cached.lines.length)) {
-        setSt({ lines: cached.lines, depth: cached.depth, running: false, target });
+        setSt({ fen, lines: cached.lines, depth: cached.depth, running: false, target });
         return;
       }
       setSt((s) => ({ ...s, running: true }));
       const h = engine().analyse(fen, { depth: target, multipv }, (lines, depth) => {
-        if (alive) setSt({ lines, depth, running: true, target });
+        if (alive) setSt({ fen, lines, depth, running: true, target });
       });
       handle.current = h;
       const res = await h.done;

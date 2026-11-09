@@ -406,6 +406,9 @@ export function SettingsView() {
           <input type="checkbox" checked={settings.ui.notation === 'de'} onChange={(e) => upd((s) => (s.ui.notation = e.target.checked ? 'de' : 'en'))} /> Deutsche Notation (S, L, T, D, K)
         </label>
         <label className="check">
+          <input type="checkbox" checked={settings.ui.evalBar !== false} onChange={(e) => upd((s) => (s.ui.evalBar = e.target.checked))} /> Bewertungsbalken neben dem Brett (Stockfish, beim Bauen und in Studien)
+        </label>
+        <label className="check">
           <input type="checkbox" checked={settings.ui.showReach} onChange={(e) => upd((s) => (s.ui.showReach = e.target.checked))} /> Erreichwahrscheinlichkeit anzeigen
         </label>
         <label className="check">

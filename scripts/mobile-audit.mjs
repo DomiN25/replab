@@ -76,6 +76,14 @@ async function run(scheme) {
   const ctx = await browser.newContext({ ...devices['Pixel 7'], colorScheme: scheme });
   const page = await ctx.newPage();
   const errors = [];
+  /** Wischgeste ausführen und prüfen, ob die erwartete Seite kommt. */
+  const expectSwipe = async (label, y, x0, x1, hash) => {
+    await swipe(page, y, x0, x1);
+    await page.waitForTimeout(550);
+    const h = await page.evaluate(() => location.hash);
+    console.log(`${scheme}: Wischen ${label} → ${h}${h === hash ? ' ok' : ' FEHLT'}`);
+    if (h !== hash) errors.push(`Wischen ${label}: erwartet ${hash}, ist ${h}`);
+  };
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await mockExplorer(page);
@@ -147,6 +155,9 @@ async function run(scheme) {
   await move(page, 'd2d4');
   await page.waitForSelector('[data-testid="outside"]');
   await shot('build-outside');
+  // Wischen auf freien Brettfeldern (Reihe 5, g5 → b5): Bauen → Lücken
+  const cg = await page.locator('.cg-wrap').boundingBox();
+  await expectSwipe('Bauen, Brett', cg.y + (cg.height * 3.5) / 8, cg.x + (cg.width * 6.5) / 8, cg.x + cg.width / 8, '#/gaps');
 
   await nav('Lücken');
   await shot('gaps', true);
@@ -223,6 +234,16 @@ async function run(scheme) {
   const progress = await page.locator('.study-progress').innerText();
   console.log(`${scheme}: Studie Fortschritt ${progress}`);
   await shot('study-next-open');
+  // Wischen im Studienmodus: auf dem Text unter dem Brett und am eingeklappten Sheet → Training, zurück
+  const txt = await page.locator('.study-comment, .study-nocomment').first().boundingBox();
+  await expectSwipe('Studie, Text', txt.y + txt.height / 2, 60, 360, '#/train');
+  await nav('Studien');
+  await page.waitForSelector('.var-chips');
+  await page.waitForTimeout(400);
+  const bh = await page.locator('.bs-head').boundingBox();
+  await expectSwipe('Studie, Sheet-Kopf', bh.y + 8, 60, 360, '#/train');
+  await nav('Studien');
+  await page.waitForSelector('.var-chips');
   await page.getByRole('tab', { name: /Kapitel/ }).tap();
   await shot('study-chapters');
   await nav('Studien');

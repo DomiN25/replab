@@ -27,7 +27,7 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
   const [dragTop, setDragTop] = useState<number | undefined>();
   const headRef = useRef<HTMLDivElement>(null);
   useBackClose(snap === 'full', () => onSnap(tops.peekUseful ? 'peek' : 'min'));
-  const drag = useRef<{ y0: number; top0: number; t0: number; moved: boolean; id: number } | undefined>(undefined);
+  const drag = useRef<{ x0: number; y0: number; top0: number; t0: number; moved: boolean; id: number } | undefined>(undefined);
 
   const measure = useCallback(() => {
     const vh = window.innerHeight;
@@ -73,14 +73,19 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
 
   // Ziehen: Touch über Touch-Events (Chrome bricht Pointer-Events beim Wischen teils mit pointercancel ab,
   // Touch-Events laufen weiter), Maus/Stift über Pointer-Events mit Capture.
-  const start = (y: number, id: number) => {
-    drag.current = { y0: y, top0: restTop, t0: performance.now(), moved: false, id };
+  const start = (y: number, id: number, x = 0) => {
+    drag.current = { x0: x, y0: y, top0: restTop, t0: performance.now(), moved: false, id };
   };
-  const moveTo = (y: number, id: number): boolean => {
+  const moveTo = (y: number, id: number, x?: number): boolean => {
     const d = drag.current;
     if (!d || d.id !== id) return false;
     const dy = y - d.y0;
     if (!d.moved) {
+      const dx = x === undefined ? 0 : x - d.x0;
+      if (Math.abs(dx) >= DRAG_START && Math.abs(dx) > Math.abs(dy)) {
+        drag.current = undefined; // waagerecht: Seitenwechsel (swipeNav), nicht das Sheet ziehen
+        return false;
+      }
       if (Math.abs(dy) < DRAG_START) return false;
       d.moved = true;
     }
@@ -134,11 +139,11 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
         onTouchStart={(e) => {
           if (e.touches.length !== 1) return cancel();
           lastY.current = e.touches[0].clientY;
-          start(lastY.current, TOUCH);
+          start(lastY.current, TOUCH, e.touches[0].clientX);
         }}
         onTouchMove={(e) => {
           lastY.current = e.touches[0].clientY;
-          moveTo(lastY.current, TOUCH);
+          moveTo(lastY.current, TOUCH, e.touches[0].clientX);
         }}
         onTouchEnd={(e) => {
           // Griff per Touch selbst umschalten: Chrome lässt den Klick direkt nach einem Wischen manchmal aus.

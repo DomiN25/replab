@@ -10,6 +10,7 @@ import { TreeList } from './TreeList';
 import { Modal } from './Modal';
 import { GuideBar, startGuide, stopGuide } from './GuideBar';
 import { useEngine, useExplorer, useMediaQuery } from './hooks';
+import { EvalBar } from './EvalBar';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import {
   back,
@@ -80,7 +81,10 @@ export function Builder() {
 
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
-  const engineSt = useEngine(fen, engineOn);
+  const evalOn = settings.ui.evalBar !== false;
+  const engineRaw = useEngine(fen, engineOn || evalOn); // Balken braucht die Engine auch, wenn die Linien aus sind
+  // „Stockfish aus“ heißt weiterhin: keine Engine-Linien, -Pfeile oder -Kandidaten – nur der Balken rechnet
+  const engineSt = useMemo(() => (engineOn ? engineRaw : { ...engineRaw, lines: [], depth: 0, running: false }), [engineOn, engineRaw]);
 
   // Fokus der Galaxie: aktuelle Stellung, falls sie Kinder hat, sonst ihr Elternknoten.
   // Außerhalb des Repertoires: tiefster bekannter Vorfahr auf dem Weg.
@@ -301,7 +305,12 @@ export function Builder() {
       <button aria-pressed={guideActive} onClick={() => startGuide()}>Lückentour</button>
     </div>
   );
-  const board = <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />;
+  const board = (
+    <div className="board-row">
+      {evalOn && <EvalBar fen={engineRaw.fen} lines={engineRaw.lines} depth={engineRaw.depth} orientation={orientation} />}
+      <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
+    </div>
+  );
   const navButtons = (
     <>
       <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>

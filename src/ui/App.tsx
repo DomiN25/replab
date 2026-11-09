@@ -49,6 +49,7 @@ export function App() {
   const [picker, setPicker] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  const appRef = useRef<HTMLDivElement>(null);
   const rep = repertoires.find((r) => r.id === repId);
 
   // Kopfleiste: Trennlinie und kleiner Seitentitel erst beim Scrollen (große Überschrift ist dann weg)
@@ -79,7 +80,7 @@ export function App() {
   const idx = NAV.findIndex((n) => n.v === view);
   const prev = useCallback(() => idx > 0 && navTo(NAV[idx - 1].v), [idx]);
   const next = useCallback(() => idx >= 0 && idx < NAV.length - 1 && navTo(NAV[idx + 1].v), [idx]);
-  useSwipeNav(mainRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0 });
+  useSwipeNav(appRef, mainRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0 });
 
   if (!loaded)
     return (
@@ -98,7 +99,7 @@ export function App() {
     ) : null;
 
   return (
-    <div className={`app view-${view}`}>
+    <div className={`app view-${view}`} ref={appRef}>
       <header className={`topbar ${scrolled ? 'scrolled' : ''} ${view !== 'home' && (scrolled || view === 'build') ? 'show-title' : ''}`}>
         <button className="brand" onClick={() => navTo('home')} aria-label="Start">
           <span className="brand-word">

@@ -173,6 +173,8 @@ export interface Settings {
     structuresLink?: string;
     /** Lücken ab dieser Erreichbarkeit gelten als „wichtig“ (Hauptzahl, Standardfilter, Lückentour); seltenere bleiben sichtbar */
     gapMinReach: number;
+    /** Bewertungsbalken (Stockfish) neben dem Brett beim Bauen und in Studien; fehlt = an */
+    evalBar?: boolean;
   };
   updatedAt: number;
 }
