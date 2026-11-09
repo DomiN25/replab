@@ -79,6 +79,7 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   const card = page.locator('.learn-card');
   await expect(card).toContainText('Linie 1/9');
   await expect(card).toContainText('Hauptlinie');
+  await page.getByLabel('Abfrage alle n Linien').selectOption('2'); // Standard 3 – hier 2, damit es schneller kommt
   for (let i = 0; i < 8; i++) await page.getByRole('button', { name: /^Weiter/ }).click();
   await expect(card).toContainText('Ende der Linie');
   await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
@@ -92,7 +93,21 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(card).toContainText('Linie 1/9');
   await expect(page.locator('.learn-count')).toHaveText('8/8');
   await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
+
+  // Zwischenabfrage kommt nach 2 „Verstanden“ von selbst; Karten = eigene Züge der Hauptlinie (c5, Sc6, e5, Ld6)
+  const chk = page.locator('.check-card');
+  await expect(chk).toContainText('Dein Zug?');
+  await expect(chk).toContainText('1/4');
+  await move(page, 'c7c5'); // richtig
+  await expect(chk).toContainText('Richtig');
+  await expect(chk).toContainText('2/4');
+  await move(page, 'a7a6'); // falsch → richtiger Zug wird gezeigt
+  await expect(chk).toContainText('Richtig ist 2…Sc6');
+  await chk.getByRole('button', { name: /^Weiter/ }).click();
+  await expect(chk).toContainText('3/4');
+  await chk.getByRole('button', { name: 'Beenden' }).click();
   await expect(card).toContainText('Linie 2/9');
+  await expect(page.locator('.check-chip')).toHaveText('Abfrage (2)'); // zwei noch neu, zwei bewertet
   // Abweichen an der Abzweigstelle: 2.Sc3 statt 2.c3
   await card.locator('.learn-alts .var-chip', { hasText: '2.Sc3' }).click();
   await expect(page.locator('.crumbs')).toContainText('Sc3');
@@ -170,6 +185,7 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await page.getByRole('button', { name: 'Zum Repertoire hinzufügen' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Übernehmen' }).click();
   await expect(page).toHaveURL(/#\/build/);
+  await expect(page.locator('.toast')).toContainText('Lernstand von 2 Stellungen mitgenommen');
   await expect(page.locator('.crumbs')).toContainText('c5');
 
   // Studie bleibt in der Liste, mit Vermerk

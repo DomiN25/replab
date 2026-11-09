@@ -9,7 +9,8 @@ import { Modal, trapFocus } from './Modal';
 import { useBackClose } from './backClose';
 import { useEngine, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
-import { LearnCard, LearnControls, LearnPlan, useLearn } from './StudyLearn';
+import { CheckPanel, LearnCard, LearnControls, LearnPlan, useLearn } from './StudyLearn';
+import { adoptable } from '../core/studyCards';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { buildStudyTree, cutKey, guessColor, pgnOrientation, planImport, studyStart, type ExistingEntry } from '../core/pgn';
@@ -368,6 +369,7 @@ function StudyEditor({ id }: { id: string }) {
   const view = node && st ? nodeView(node, st, active, existing) : undefined;
   const learn = useLearn({ tree, st, active, existing, update, setPath });
   const learning = !!learn?.on;
+  const checking = learning && !!learn?.check;
   const lastStep = path[path.length - 1];
   const lastMove = lastStep && tree ? tree.nodes.get(lastStep.key)?.moves.find((m) => m.uci === lastStep.uci) : undefined;
   const excluded = tree && st ? firstExcluded(tree, path, st, active, existing) : undefined;
@@ -378,6 +380,7 @@ function StudyEditor({ id }: { id: string }) {
   }, [currentKey]);
 
   const go = (uci: string) => {
+    if (checking && learn) return learn.checkMove(uci);
     if (learning && learn) {
       if (!learn.play(uci)) toast('Dieser Zug gehört zu keiner Linie, die du lernst (nicht gewählt oder entfernt).', 'info');
       return;
@@ -385,8 +388,9 @@ function StudyEditor({ id }: { id: string }) {
     if (!currentKey || !view?.moves.some((m) => m.uci === uci)) return toast('Dieser Zug kommt in der Studie hier nicht vor.', 'info');
     setPath((p) => [...p, { key: currentKey, uci }]);
   };
-  const back = () => (learning && learn ? learn.prev() : setPath((p) => p.slice(0, -1)));
+  const back = () => (checking ? undefined : learning && learn ? learn.prev() : setPath((p) => p.slice(0, -1)));
   const forward = () => {
+    if (checking && learn) return learn.check?.phase === 'wrong' ? learn.checkNext() : undefined;
     if (learning && learn) return learn.atEnd ? undefined : learn.next();
     const next = view?.moves.find((m) => m.status === 'chosen') ?? view?.moves.find((m) => m.status === 'opp') ?? view?.moves[0];
     if (next) go(next.uci);
@@ -435,6 +439,13 @@ function StudyEditor({ id }: { id: string }) {
   const target = repertoires.find((r) => r.id === targetId);
   // Nicht alle Fortsetzungen zeichnen (bei 12 Gegnerzügen unlesbar): gewählter Zug + die häufigsten (meiste Kapitel)
   const learnShape = (): DrawShape[] => {
+    const c = learn?.check;
+    if (c) {
+      const it = c.items[c.i];
+      if (c.finished || !it || c.phase === 'ask') return [];
+      const sq = uciSquares(it.uci)!;
+      return [{ orig: sq[0], dest: sq[1], brush: c.phase === 'wrong' ? 'wrong' : 'mine' }];
+    }
     const e = learn?.expected;
     if (!e || (learn.quiz && !learn.hint)) return [];
     const sq = uciSquares(e.uci)!;
@@ -452,12 +463,18 @@ function StudyEditor({ id }: { id: string }) {
   const commit = async () => {
     if (!plan || !target) return;
     await repo.applyImport(target.id, plan, 'pgn');
+    // Lernstand aus den Studien-Abfragen in die neuen Repertoire-Karten übernehmen (vorhandener bleibt unangetastet)
+    const adopt = adoptable(st.cards, plan.entries.map((e) => ({ posKey: e.posKey, uci: e.uci })));
+    const adopted = adopt.length ? await repo.adoptStudySrs(target.id, adopt) : 0;
     const entries = plan.stats.newEntries + plan.stats.replaced;
     update({ added: [...(st.added ?? []), { repertoireId: target.id, at: Date.now(), entries }] });
     await reloadRepertoires();
     if (useApp.getState().repId !== target.id) await selectRepertoire(target.id);
     else await loadRepData();
-    toast(`Übernommen in „${target.name}“: +${plan.stats.newEntries} Einträge${plan.stats.replaced ? `, ${plan.stats.replaced} ersetzt` : ''}`, 'ok');
+    toast(
+      `Übernommen in „${target.name}“: +${plan.stats.newEntries} Einträge${plan.stats.replaced ? `, ${plan.stats.replaced} ersetzt` : ''}${adopted ? ` · Lernstand von ${adopted} Stellungen mitgenommen` : ''}`,
+      'ok',
+    );
     setLine(lineFromUcis(studyStart(st.pgn, st.color)));
     setView('build');
   };
@@ -746,9 +763,17 @@ function StudyEditor({ id }: { id: string }) {
             {head}
             {crumbs}
             {board}
-            {learning && learn ? <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} /> : controls}
-            {learning && learn && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />}
-            {commentBlock ?? (!learning && <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>)}
+            {checking && learn ? (
+              <CheckPanel learn={learn} tree={tree} notation={notation} />
+            ) : learning && learn ? (
+              <>
+                <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} />
+                <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />
+              </>
+            ) : (
+              controls
+            )}
+            {!checking && (commentBlock ?? (!learning && <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>))}
           </section>
           <BottomSheet anchorRef={boardRef} snap={snap} onSnap={setSnap} header={tabs}>
             {tab === 'moves' ? (learning && learn ? <LearnPlan learn={learn} tree={tree} notation={notation} /> : movesPanel) : chaptersPanel}
@@ -761,7 +786,13 @@ function StudyEditor({ id }: { id: string }) {
             {head}
             {crumbs}
             {board}
-            {learning && learn ? <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} /> : controls}
+            {checking && learn ? (
+              <CheckPanel learn={learn} tree={tree} notation={notation} />
+            ) : learning && learn ? (
+              <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} />
+            ) : (
+              controls
+            )}
           </section>
           <section className="col-panel">
             {tabs}
@@ -769,8 +800,8 @@ function StudyEditor({ id }: { id: string }) {
               {tab === 'moves' ? (
                 learning && learn ? (
                   <>
-                    <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />
-                    {commentBlock}
+                    {!checking && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} />}
+                    {!checking && commentBlock}
                     <LearnPlan learn={learn} tree={tree} notation={notation} />
                   </>
                 ) : (

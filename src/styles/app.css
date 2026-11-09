@@ -976,3 +976,16 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .learn-card:has(.learn-end) { border-color: color-mix(in srgb, var(--me) 45%, transparent); background: linear-gradient(140deg, var(--me-soft), var(--panel)); }
 .learn-end-title { display: inline-flex; align-items: center; gap: 6px; color: var(--me); font: 700 16px var(--display); }
 .learn-next { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+/* Zwischenabfrage im Lernmodus */
+.learn-progress.check i.on { background: var(--me); }
+.check-card { border-color: color-mix(in srgb, var(--acc) 40%, transparent); }
+.check-card.wrong { border-color: color-mix(in srgb, var(--gap) 50%, transparent); background: linear-gradient(140deg, var(--gap-soft), var(--panel)); }
+.check-card.right, .check-card.finished { border-color: color-mix(in srgb, var(--me) 45%, transparent); background: linear-gradient(140deg, var(--me-soft), var(--panel)); }
+.check-card .check-end { margin-left: auto; }
+.check-big { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px; font: 700 20px var(--display); letter-spacing: -0.01em; }
+.check-big .ico { width: 22px; height: 22px; stroke-width: 2.6; }
+.check-big.ok { color: var(--me); animation: popIn 0.3s var(--ease-pop); }
+.check-big.bad { color: var(--gap); animation: shake 0.42s var(--ease-out); }
+.check-card .btn { margin-top: 8px; }
+.check-card .learn-go { width: 100%; }
+.check-chip { min-height: 32px; border-color: color-mix(in srgb, var(--acc) 45%, transparent); color: var(--acc); }

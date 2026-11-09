@@ -265,6 +265,23 @@ export class Repo {
     return this.db.reviews.where('at').aboveOrEqual(ts).toArray();
   }
 
+  /**
+   * Lernstand aus einer Studie übernehmen: nur in Karten, die noch keinen Lernstand haben (neu) und denselben Zug
+   * üben. Vorhandener Lernstand wird nie überschrieben. Liefert die Anzahl übernommener Karten.
+   */
+  async adoptStudySrs(repId: string, items: { posKey: string; uci: string; srs: SrsState }[]): Promise<number> {
+    let n = 0;
+    await this.db.transaction('rw', [this.db.cards], async () => {
+      for (const it of items) {
+        const card = await this.db.cards.where('[repertoireId+posKey]').equals([repId, it.posKey]).first();
+        if (!card || card.uci !== it.uci || card.srs.state !== 0) continue;
+        await this.db.cards.put({ ...card, srs: it.srs, updatedAt: Date.now() });
+        n++;
+      }
+    });
+    return n;
+  }
+
   // ------------------------------------------------------------ Import
   async applyImport(repId: string, plan: ImportPlan, source: RepertoireMove['source']): Promise<void> {
     const now = Date.now();

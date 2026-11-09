@@ -1,5 +1,6 @@
 // Lernmodus der Studien: geführt Linie für Linie durch die Studie (Algorithmus in core/studyLines.ts).
-// Zustand liegt in der Studie (learn, linesDone) und wird mit ihr gespeichert und synchronisiert.
+// Zustand liegt in der Studie (learn, linesDone, cards) und wird mit ihr gespeichert und synchronisiert.
+// Zwischenabfragen: „Verstanden“ legt Lernkarten an (core/studyCards.ts); alle n Linien kommt eine kurze Abfrage.
 // Die Studienansicht (Studies.tsx) zeichnet Brett und Zugleiste; dieser Baustein liefert Zustand, Aktionen,
 // die Bedienleiste unter dem Brett, die Linienkarte und den Plan.
 import { useEffect, useMemo, useState } from 'react';
@@ -8,12 +9,26 @@ import { cutKey, type ExistingEntry, type StudyTree } from '../core/pgn';
 import type { NodeView, PathStep } from '../core/study';
 import { buildLinePlan, levelName, lineForMove, nextOpenLine, type LineOrder, type LinePlan, type StudyLine } from '../core/studyLines';
 import type { Study } from '../core/types';
+import { addLineCards, checkCount, linePositions, pickCheck, type CheckItem } from '../core/studyCards';
+import { ratingFor, Scheduler } from '../core/srs';
+import { useApp } from './store';
 import { Icon } from './Icon';
 import { RowMenu } from './RowMenu';
 import { toast } from './store';
 import { buzz } from './theme';
 
 type LearnState = NonNullable<Study['learn']>;
+
+/** Laufende Zwischenabfrage (nicht gespeichert – eine Runde ist kurz) */
+export interface CheckRun {
+  items: CheckItem[];
+  i: number;
+  t0: number;
+  /** ask = Zug gesucht, wrong = falsch (Pfeil zeigt den richtigen), right = richtig */
+  phase: 'ask' | 'wrong' | 'right';
+  right: number;
+  finished: boolean;
+}
 
 export interface Learn {
   on: boolean;
@@ -49,6 +64,19 @@ export interface Learn {
   removeLine: (i: number) => void;
   /** Zug am Brett/aus der Leiste; liefert false, wenn der Zug zu keiner Linie gehört */
   play: (uci: string) => boolean;
+  // Zwischenabfragen
+  check?: CheckRun;
+  checkOn: boolean;
+  checkEvery: number;
+  /** Anzahl abfragbarer Karten (neu oder fällig) */
+  checkAvailable: number;
+  startCheck: () => void;
+  checkMove: (uci: string) => void;
+  checkGiveUp: () => void;
+  checkNext: () => void;
+  endCheck: () => void;
+  setCheckOn: (b: boolean) => void;
+  setCheckEvery: (n: number) => void;
 }
 
 export function useLearn(p: {
@@ -69,6 +97,15 @@ export function useLearn(p: {
   const on = !!st && st.learn?.on !== false; // Standard: Lernen
   const selfPlay = !!st?.learn?.selfPlay;
   const [hint, setHint] = useState(false);
+  const [check, setCheck] = useState<CheckRun | undefined>();
+  const srsSet = useApp((s) => s.settings.srs);
+  const scheduler = useMemo(() => new Scheduler(srsSet.desiredRetention), [srsSet.desiredRetention]);
+  // Stellungen, die das Ziel-Repertoire schon mit demselben Zug hat, übt das normale Training
+  const inRep = (key: string, uci: string) => existing.get(key)?.uci === uci;
+  const checkAvailable = useMemo(
+    () => (plan && st?.cards ? checkCount(st.cards, plan, Date.now(), inRep) : 0),
+    [plan, st?.cards, existing], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   let idx = -1;
   let step = 0;
@@ -78,10 +115,16 @@ export function useLearn(p: {
   }
   const line = idx >= 0 ? plan!.lines[idx] : undefined;
   const learnPath = useMemo(() => (line ? [...line.start, ...line.steps.slice(0, step)] : []), [line, step]);
-  // Brett folgt der Lernposition
+  // Brett folgt der Lernposition – während einer Abfrage der abgefragten Stellung
+  const checkItem = check && !check.finished ? check.items[check.i] : undefined;
   useEffect(() => {
-    if (on && line) setPath(learnPath);
-  }, [on, learnPath]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!on) return;
+    if (checkItem) setPath(checkItem.path);
+    else if (line) setPath(learnPath);
+  }, [on, learnPath, checkItem]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!on) setCheck(undefined);
+  }, [on]);
   useEffect(() => setHint(false), [line, step]);
   const atEndNow = !!line && step >= line.steps.length;
   useEffect(() => {
@@ -110,10 +153,22 @@ export function useLearn(p: {
   const setLearn = setLearnRaw;
   const history = st.learn?.back ?? [];
   /** Sprung in eine andere Linie; die aktuelle Position kommt in den Verlauf (für „Zurück“) */
-  const jump = (id: string, s: number, extra: Partial<Study> = {}) => {
+  const jump = (id: string, s: number, extra: Partial<Study> = {}, learnExtra: Partial<LearnState> = {}) => {
     const back = id === line.id ? history : [...history, { line: line.id, step }].slice(-30);
-    update({ ...extra, learn: { ...st.learn, on: true, line: id, step: s, back } });
+    update({ ...extra, learn: { ...st.learn, ...learnExtra, on: true, line: id, step: s, back } });
   };
+  const checkOn = st.learn?.checkOn !== false;
+  const checkEvery = st.learn?.checkEvery ?? 3;
+  const startRun = (items: CheckItem[]) => setCheck({ items, i: 0, t0: Date.now(), phase: 'ask', right: 0, finished: false });
+  /** Karte bewerten und speichern */
+  const rate = (item: CheckItem, correct: boolean) => {
+    const card = st.cards?.[item.key];
+    if (!card) return;
+    const rating = ratingFor(correct, Date.now() - (check?.t0 ?? Date.now()), srsSet);
+    update({ cards: { ...st.cards, [item.key]: { ...card, srs: scheduler.review(card.srs, rating, Date.now()) } } });
+  };
+  const checkNext = () =>
+    setCheck((c) => (!c ? c : c.i + 1 < c.items.length ? { ...c, i: c.i + 1, phase: 'ask', t0: Date.now() } : { ...c, finished: true }));
   const goto = (i: number, s = 0) => jump(lines[i].id, s);
   const nextIdx = nextOpenLine(plan, new Set(done).add(line.id), idx);
 
@@ -187,7 +242,13 @@ export function useLearn(p: {
       const n = nextOpenLine(plan, ids, idx);
       const prevDone = st.linesDone ?? [];
       const here = { line: line.id, step };
-      jump(n !== undefined ? lines[n].id : line.id, 0, { linesDone: [...ids] });
+      // eigene Stellungen der Linie werden Lernkarten; alle n Linien eine kurze Abfrage
+      const now = Date.now();
+      const cards = addLineCards(st.cards ?? {}, linePositions(tree!, line, st.color), line.id, now, inRep);
+      const since = (st.learn?.sinceCheck ?? 0) + 1;
+      const items = checkOn && since >= checkEvery ? pickCheck(cards, plan, now, { skip: inRep }) : [];
+      jump(n !== undefined ? lines[n].id : line.id, 0, { linesDone: [...ids], cards }, { sinceCheck: items.length ? 0 : since });
+      if (items.length) startRun(items);
       // Rückgängig: Markierung entfernen und zurück ans Ende dieser Linie
       const undo = { label: 'Zurück', run: () => update({ linesDone: prevDone, learn: { ...st.learn, on: true, ...here, back: history } }) };
       if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok', undo);
@@ -219,6 +280,42 @@ export function useLearn(p: {
       if (step === 0 && line.id === 'main') return toast('Die erste Hauptlinie lässt sich nicht entfernen – einzelne Züge im Lesen-Modus.', 'info');
       cutAt(s, step === 0);
     },
+    check,
+    checkOn,
+    checkEvery,
+    checkAvailable,
+    startCheck: () => {
+      const items = pickCheck(st.cards ?? {}, plan, Date.now(), { skip: inRep });
+      if (!items.length) return toast('Gerade nichts abzufragen – Karten entstehen mit „Verstanden“.', 'info');
+      setLearn({ sinceCheck: 0 });
+      startRun(items);
+    },
+    checkMove: (uci) => {
+      if (!check || check.finished) return;
+      const item = check.items[check.i];
+      if (check.phase === 'right') return;
+      if (uci === item.uci) {
+        if (check.phase === 'ask') rate(item, true);
+        setCheck({ ...check, phase: 'right', right: check.right + (check.phase === 'ask' ? 1 : 0) });
+        buzz(15);
+        setTimeout(checkNext, check.phase === 'ask' ? 700 : 450);
+        return;
+      }
+      if (check.phase === 'ask') {
+        rate(item, false);
+        buzz([40, 60, 40]);
+        setCheck({ ...check, phase: 'wrong' });
+      }
+    },
+    checkGiveUp: () => {
+      if (!check || check.finished || check.phase !== 'ask') return;
+      rate(check.items[check.i], false);
+      setCheck({ ...check, phase: 'wrong' });
+    },
+    checkNext,
+    endCheck: () => setCheck(undefined),
+    setCheckOn: (b) => setLearn({ checkOn: b }),
+    setCheckEvery: (n) => setLearn({ checkEvery: n }),
     play: (uci) => {
       if (expected && uci === expected.uci) {
         setLearn({ line: line.id, step: step + 1 });
@@ -310,6 +407,68 @@ export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Lear
   );
 }
 
+// ------------------------------------------------------------ Zwischenabfrage
+
+export function CheckPanel({ learn, tree, notation }: { learn: Learn; tree: StudyTree; notation: 'de' | 'en' }) {
+  const c = learn.check!;
+  const item = c.items[c.i];
+  const n = c.items.length;
+  const correctSan = item ? sanAt(tree, { key: item.key, uci: item.uci }, notation) : '';
+  return (
+    <>
+      <div className="learn-progress check" aria-hidden>
+        {c.items.map((_, i) => (
+          <i key={i} className={i < c.i || c.finished ? 'on' : ''} />
+        ))}
+      </div>
+      <div className={`learn-card check-card ${c.finished ? 'finished' : c.phase}`} role="status">
+        <div className="learn-meta">
+          <span className="tag lvl0">Abfrage</span>
+          <span className="learn-of">{c.finished ? `${n} Stellungen` : `${c.i + 1}/${n}${item?.fresh ? ' · neu gelernt' : ' · Wiederholung'}`}</span>
+          {!c.finished && (
+            <button className="btn small ghost check-end" onClick={learn.endCheck}>
+              Beenden
+            </button>
+          )}
+        </div>
+        {c.finished ? (
+          <>
+            <p className="check-big ok">
+              <Icon name="check" /> {c.right} von {n} richtig
+            </p>
+            <p className="hint">Falsche Stellungen kommen bald wieder, sichere seltener. Beim Übernehmen ins Repertoire geht dieser Lernstand mit.</p>
+            <button className="btn primary learn-go" onClick={learn.endCheck}>
+              Weiter lernen <Icon name="next" />
+            </button>
+          </>
+        ) : c.phase === 'ask' ? (
+          <>
+            <p className="check-big">Dein Zug?</p>
+            <p className="hint">Spiel den Zug aus der Studie am Brett.</p>
+            <button className="btn" onClick={learn.checkGiveUp}>
+              Weiß ich nicht
+            </button>
+          </>
+        ) : c.phase === 'wrong' ? (
+          <>
+            <p className="check-big bad">
+              <Icon name="x" /> Richtig ist {correctSan}
+            </p>
+            <p className="hint">Spiel ihn nach – die Stellung kommt bald wieder.</p>
+            <button className="btn" onClick={learn.checkNext}>
+              Weiter <Icon name="next" />
+            </button>
+          </>
+        ) : (
+          <p className="check-big ok">
+            <Icon name="check" /> Richtig
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ------------------------------------------------------------ Linienkarte (Abzweig, Ende, Abweichen)
 
 export function LearnCard({
@@ -351,6 +510,11 @@ export function LearnCard({
           {tree.chapters[line.chapter]?.name ? `${tree.chapters[line.chapter].name} · ` : ''}Linie {idx + 1}/{total}
         </span>
         {done.has(line.id) && <span className="tag ok">verstanden</span>}
+        {learn.checkAvailable > 0 && (
+          <button className="btn small check-chip" onClick={learn.startCheck} title="Gelernte Stellungen abfragen">
+            Abfrage ({learn.checkAvailable})
+          </button>
+        )}
         <RowMenu label="Aktionen für diese Linie">
           {!atEnd && <button onClick={learn.cutRest}>{step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier nicht interessant (Rest entfernen)'}</button>}
           <button onClick={learn.skip}>Linie überspringen (später)</button>
@@ -555,6 +719,23 @@ export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: Study
         <label className="check">
           <input type="checkbox" checked={learn.selfPlay} onChange={(e) => learn.setSelfPlay(e.target.checked)} /> Eigene Züge selbst spielen
         </label>
+        <label className="check">
+          <input type="checkbox" checked={learn.checkOn} onChange={(e) => learn.setCheckOn(e.target.checked)} /> Zwischendurch abfragen
+        </label>
+        {learn.checkOn && (
+          <label className="field inline">
+            <span>alle</span>
+            <select value={learn.checkEvery} onChange={(e) => learn.setCheckEvery(Number(e.target.value))} aria-label="Abfrage alle n Linien">
+              <option value={2}>2 Linien</option>
+              <option value={3}>3 Linien</option>
+              <option value={5}>5 Linien</option>
+              <option value={8}>8 Linien</option>
+            </select>
+          </label>
+        )}
+        <button className="btn small" onClick={learn.startCheck} disabled={!learn.checkAvailable}>
+          Jetzt abfragen ({learn.checkAvailable})
+        </button>
       </div>
 
       <h3 className="learn-h">Nächste Linien</h3>

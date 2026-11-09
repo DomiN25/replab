@@ -224,6 +224,15 @@ async function run(scheme) {
   const lineInfo = await page.locator('.learn-of').innerText();
   console.log(`${scheme}: Lernmodus nach „Verstanden“: ${lineInfo}`);
   await shot('study-learn-branch');
+  // Zwischenabfrage (manuell gestartet): Frage, dann falscher Zug → richtiger wird gezeigt
+  await page.locator('.check-chip').tap();
+  await page.waitForSelector('.check-card');
+  await page.waitForTimeout(300);
+  await shot('study-check-ask');
+  await move(page, 'a2a3');
+  await page.waitForTimeout(400);
+  await shot('study-check-wrong');
+  await page.locator('.check-card').getByRole('button', { name: 'Beenden' }).tap();
   await page.getByRole('tab', { name: 'Plan' }).tap();
   await page.waitForTimeout(500);
   await shot('study-learn-plan');

@@ -135,7 +135,13 @@ export interface Study {
     selfPlay?: boolean;
     /** Verlauf für „Zurück“ über Liniengrenzen (zuletzt besuchte Positionen, max. 30) */
     back?: { line: string; step: number }[];
+    /** Zwischenabfragen an (fehlt = an), alle n verstandenen Linien (Standard 3), Zähler seit der letzten */
+    checkOn?: boolean;
+    checkEvery?: number;
+    sinceCheck?: number;
   };
+  /** Lernkarten der Studie (posKey → Zug + FSRS-Stand); gehen bei der Übernahme ins Repertoire mit (core/studyCards.ts) */
+  cards?: Record<string, { uci: string; srs: SrsState; line?: string }>;
   createdAt: number;
   updatedAt: number;
 }
