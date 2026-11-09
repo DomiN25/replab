@@ -31,7 +31,7 @@ export async function fetchStudyPgn(ref: StudyRef, token?: string): Promise<stri
   // Ungültiger/zu schwacher Token: öffentliche Studie trotzdem ohne Token versuchen
   if ((r.status === 401 || r.status === 403) && token) r = await fetch(studyPgnUrl(ref));
   if (r.status === 404) throw new Error('Studie nicht gefunden – ist sie privat oder der Link falsch?');
-  if (r.status === 401 || r.status === 403) throw new Error('Studie ist privat – auf Lichess öffentlich oder „nicht gelistet“ stellen.');
+  if (r.status === 401 || r.status === 403) throw new Error('Studie lässt sich nicht laden: privat oder der Autor hat den Export gesperrt. Eigene Studien auf Lichess öffentlich/„nicht gelistet“ stellen und Export erlauben.');
   if (r.status === 429) throw new Error('Lichess-Limit erreicht – bitte in einer Minute erneut versuchen.');
   if (!r.ok) throw new Error(`Lichess antwortet mit HTTP ${r.status}`);
   const text = await r.text();
