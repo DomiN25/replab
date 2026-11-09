@@ -79,35 +79,38 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   const card = page.locator('.learn-card');
   await expect(card).toContainText('Linie 1/9');
   await expect(card).toContainText('Hauptlinie');
-  await page.getByLabel('Abfrage alle n Linien').selectOption('2'); // Standard 3 – hier 2, damit es schneller kommt
+  await page.getByLabel('Abfrage-Takt').selectOption('often'); // ab Lernlast 4 – die Hauptlinie hat 4 eigene Stellungen
   for (let i = 0; i < 8; i++) await page.getByRole('button', { name: /^Weiter/ }).click();
   await expect(card).toContainText('Ende der Linie');
   await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
-  await expect(card).toContainText('Linie 2/9');
-  await expect(card).toContainText('Statt 2.Sf3');
-  await expect(card).toContainText('2.c3');
-  await expect(page.locator('.study-progress')).toHaveText('1/9');
-  // Zurück am Linienanfang → Ende der vorigen Linie; Kurzmeldung bietet ebenfalls „Zurück“
   await expect(page.locator('.toast')).toContainText('Linie 1 verstanden');
-  await page.getByRole('button', { name: 'Zug zurück' }).click();
-  await expect(card).toContainText('Linie 1/9');
-  await expect(page.locator('.learn-count')).toHaveText('8/8');
-  await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
 
-  // Zwischenabfrage kommt nach 2 „Verstanden“ von selbst; Karten = eigene Züge der Hauptlinie (c5, Sc6, e5, Ld6)
+  // Abfrage kommt nach Lernlast: 4 neue Stellungen (c5, Sc6, e5, Ld6) → Runde mit 4; falsch Beantwortetes kommt am Ende wieder
   const chk = page.locator('.check-card');
   await expect(chk).toContainText('Dein Zug?');
   await expect(chk).toContainText('1/4');
   await move(page, 'c7c5'); // richtig
   await expect(chk).toContainText('Richtig');
   await expect(chk).toContainText('2/4');
-  await move(page, 'a7a6'); // falsch → richtiger Zug wird gezeigt
+  await move(page, 'a7a6'); // falsch → richtiger Zug wird gezeigt, Runde wird länger
   await expect(chk).toContainText('Richtig ist 2…Sc6');
   await chk.getByRole('button', { name: /^Weiter/ }).click();
-  await expect(chk).toContainText('3/4');
+  await expect(chk).toContainText('3/5');
   await chk.getByRole('button', { name: 'Beenden' }).click();
+
   await expect(card).toContainText('Linie 2/9');
+  await expect(card).toContainText('Statt 2.Sf3');
+  await expect(card).toContainText('2.c3');
+  await expect(page.locator('.study-progress')).toHaveText('1/9');
   await expect(page.locator('.check-chip')).toHaveText('Abfrage (2)'); // zwei noch neu, zwei bewertet
+  await expect(page.locator('.learn-loadinfo')).toContainText('neu gelernt: 2 Stellungen');
+  // Zurück am Linienanfang → Ende der vorigen Linie
+  await page.getByRole('button', { name: 'Zug zurück' }).click();
+  await expect(card).toContainText('Linie 1/9');
+  await expect(page.locator('.learn-count')).toHaveText('8/8');
+  await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
+  await expect(card).toContainText('Linie 2/9'); // Lernlast 2 < 4 → keine neue Abfrage
+  await expect(chk).toHaveCount(0);
   // Abweichen an der Abzweigstelle: 2.Sc3 statt 2.c3
   await card.locator('.learn-alts .var-chip', { hasText: '2.Sc3' }).click();
   await expect(page.locator('.crumbs')).toContainText('Sc3');

@@ -9,7 +9,7 @@ import { cutKey, type ExistingEntry, type StudyTree } from '../core/pgn';
 import type { NodeView, PathStep } from '../core/study';
 import { buildLinePlan, levelName, lineForMove, nextOpenLine, type LineOrder, type LinePlan, type StudyLine } from '../core/studyLines';
 import type { Study } from '../core/types';
-import { addLineCards, checkCount, linePositions, pickCheck, type CheckItem } from '../core/studyCards';
+import { addLineCards, buildRound, CHECK_LOAD, checkCount, freshLoad, linePositions, type CheckItem, type CheckPace } from '../core/studyCards';
 import { ratingFor, Scheduler } from '../core/srs';
 import { useApp } from './store';
 import { Icon } from './Icon';
@@ -67,7 +67,9 @@ export interface Learn {
   // Zwischenabfragen
   check?: CheckRun;
   checkOn: boolean;
-  checkEvery: number;
+  checkPace: CheckPace;
+  /** Lernlast seit der letzten Abfrage und Schwellwert (für die Anzeige im Plan) */
+  checkLoad: { load: number; fresh: number; threshold: number };
   /** Anzahl abfragbarer Karten (neu oder fällig) */
   checkAvailable: number;
   startCheck: () => void;
@@ -76,7 +78,7 @@ export interface Learn {
   checkNext: () => void;
   endCheck: () => void;
   setCheckOn: (b: boolean) => void;
-  setCheckEvery: (n: number) => void;
+  setCheckPace: (p: CheckPace) => void;
 }
 
 export function useLearn(p: {
@@ -102,6 +104,10 @@ export function useLearn(p: {
   const scheduler = useMemo(() => new Scheduler(srsSet.desiredRetention), [srsSet.desiredRetention]);
   // Stellungen, die das Ziel-Repertoire schon mit demselben Zug hat, übt das normale Training
   const inRep = (key: string, uci: string) => existing.get(key)?.uci === uci;
+  const loadInfo = useMemo(
+    () => (plan && st?.cards ? freshLoad(st.cards, plan, inRep) : { load: 0, fresh: [] }),
+    [plan, st?.cards, existing], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const checkAvailable = useMemo(
     () => (plan && st?.cards ? checkCount(st.cards, plan, Date.now(), inRep) : 0),
     [plan, st?.cards, existing], // eslint-disable-line react-hooks/exhaustive-deps
@@ -158,7 +164,8 @@ export function useLearn(p: {
     update({ ...extra, learn: { ...st.learn, ...learnExtra, on: true, line: id, step: s, back } });
   };
   const checkOn = st.learn?.checkOn !== false;
-  const checkEvery = st.learn?.checkEvery ?? 3;
+  const checkPace: CheckPace = st.learn?.checkPace ?? 'normal';
+  const threshold = CHECK_LOAD[checkPace];
   const startRun = (items: CheckItem[]) => setCheck({ items, i: 0, t0: Date.now(), phase: 'ask', right: 0, finished: false });
   /** Karte bewerten und speichern */
   const rate = (item: CheckItem, correct: boolean) => {
@@ -242,12 +249,12 @@ export function useLearn(p: {
       const n = nextOpenLine(plan, ids, idx);
       const prevDone = st.linesDone ?? [];
       const here = { line: line.id, step };
-      // eigene Stellungen der Linie werden Lernkarten; alle n Linien eine kurze Abfrage
+      // eigene Stellungen der Linie werden Lernkarten; abgefragt wird, sobald die Lernlast (Anzahl neuer
+      // Stellungen, verwechselbare zählen mehr) den Schwellwert erreicht – Rundengröße passend zum Gelernten
       const now = Date.now();
       const cards = addLineCards(st.cards ?? {}, linePositions(tree!, line, st.color), line.id, now, inRep);
-      const since = (st.learn?.sinceCheck ?? 0) + 1;
-      const items = checkOn && since >= checkEvery ? pickCheck(cards, plan, now, { skip: inRep }) : [];
-      jump(n !== undefined ? lines[n].id : line.id, 0, { linesDone: [...ids], cards }, { sinceCheck: items.length ? 0 : since });
+      const items = checkOn && freshLoad(cards, plan, inRep).load >= threshold ? buildRound(cards, plan, now, { skip: inRep }) : [];
+      jump(n !== undefined ? lines[n].id : line.id, 0, { linesDone: [...ids], cards });
       if (items.length) startRun(items);
       // Rückgängig: Markierung entfernen und zurück ans Ende dieser Linie
       const undo = { label: 'Zurück', run: () => update({ linesDone: prevDone, learn: { ...st.learn, on: true, ...here, back: history } }) };
@@ -282,12 +289,12 @@ export function useLearn(p: {
     },
     check,
     checkOn,
-    checkEvery,
+    checkPace,
+    checkLoad: { load: loadInfo.load, fresh: loadInfo.fresh.length, threshold },
     checkAvailable,
     startCheck: () => {
-      const items = pickCheck(st.cards ?? {}, plan, Date.now(), { skip: inRep });
+      const items = buildRound(st.cards ?? {}, plan, Date.now(), { skip: inRep, manual: true });
       if (!items.length) return toast('Gerade nichts abzufragen – Karten entstehen mit „Verstanden“.', 'info');
-      setLearn({ sinceCheck: 0 });
       startRun(items);
     },
     checkMove: (uci) => {
@@ -304,18 +311,19 @@ export function useLearn(p: {
       if (check.phase === 'ask') {
         rate(item, false);
         buzz([40, 60, 40]);
-        setCheck({ ...check, phase: 'wrong' });
+        setCheck({ ...check, phase: 'wrong', items: requeue(check.items, item) });
       }
     },
     checkGiveUp: () => {
       if (!check || check.finished || check.phase !== 'ask') return;
-      rate(check.items[check.i], false);
-      setCheck({ ...check, phase: 'wrong' });
+      const item = check.items[check.i];
+      rate(item, false);
+      setCheck({ ...check, phase: 'wrong', items: requeue(check.items, item) });
     },
     checkNext,
     endCheck: () => setCheck(undefined),
     setCheckOn: (b) => setLearn({ checkOn: b }),
-    setCheckEvery: (n) => setLearn({ checkEvery: n }),
+    setCheckPace: (pace) => setLearn({ checkPace: pace }),
     play: (uci) => {
       if (expected && uci === expected.uci) {
         setLearn({ line: line.id, step: step + 1 });
@@ -333,6 +341,11 @@ export function useLearn(p: {
       return true;
     },
   };
+}
+
+/** Falsch beantwortet → einmal ans Ende der Runde (danach nicht erneut) */
+function requeue(items: CheckItem[], item: CheckItem): CheckItem[] {
+  return item.retry ? items : [...items, { ...item, retry: true }];
 }
 
 /** posKey am Ende eines Pfads */
@@ -424,7 +437,9 @@ export function CheckPanel({ learn, tree, notation }: { learn: Learn; tree: Stud
       <div className={`learn-card check-card ${c.finished ? 'finished' : c.phase}`} role="status">
         <div className="learn-meta">
           <span className="tag lvl0">Abfrage</span>
-          <span className="learn-of">{c.finished ? `${n} Stellungen` : `${c.i + 1}/${n}${item?.fresh ? ' · neu gelernt' : ' · Wiederholung'}`}</span>
+          <span className="learn-of">
+            {c.finished ? `${n} Abfragen` : `${c.i + 1}/${n}${item?.retry ? ' · noch einmal' : item?.fresh ? ' · neu gelernt' : ' · Wiederholung'}`}
+          </span>
           {!c.finished && (
             <button className="btn small ghost check-end" onClick={learn.endCheck}>
               Beenden
@@ -717,14 +732,20 @@ export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: Study
         </label>
         {learn.checkOn && (
           <label className="field inline">
-            <span>alle</span>
-            <select value={learn.checkEvery} onChange={(e) => learn.setCheckEvery(Number(e.target.value))} aria-label="Abfrage alle n Linien">
-              <option value={2}>2 Linien</option>
-              <option value={3}>3 Linien</option>
-              <option value={5}>5 Linien</option>
-              <option value={8}>8 Linien</option>
+            <span>Takt</span>
+            <select value={learn.checkPace} onChange={(e) => learn.setCheckPace(e.target.value as CheckPace)} aria-label="Abfrage-Takt">
+              <option value="often">häufig (ab ca. {CHECK_LOAD.often} neuen Stellungen)</option>
+              <option value="normal">normal (ab ca. {CHECK_LOAD.normal})</option>
+              <option value="rare">selten (ab ca. {CHECK_LOAD.rare})</option>
             </select>
           </label>
+        )}
+        {learn.checkOn && (
+          <p className="hint learn-loadinfo">
+            Seit der letzten Abfrage neu gelernt: <b>{learn.checkLoad.fresh}</b> {learn.checkLoad.fresh === 1 ? 'Stellung' : 'Stellungen'}
+            {learn.checkLoad.load > learn.checkLoad.fresh && ' (teils leicht verwechselbar – zählen mehr)'}. Abfrage ab Lernlast {learn.checkLoad.threshold}, gerade{' '}
+            {Math.round(learn.checkLoad.load * 10) / 10}.
+          </p>
         )}
         <button className="btn small" onClick={learn.startCheck} disabled={!learn.checkAvailable}>
           Jetzt abfragen ({learn.checkAvailable})

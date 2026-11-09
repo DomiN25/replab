@@ -135,8 +135,10 @@ export interface Study {
     selfPlay?: boolean;
     /** Verlauf für „Zurück“ über Liniengrenzen (zuletzt besuchte Positionen, max. 30) */
     back?: { line: string; step: number }[];
-    /** Zwischenabfragen an (fehlt = an), alle n verstandenen Linien (Standard 3), Zähler seit der letzten */
+    /** Zwischenabfragen an (fehlt = an); Takt nach Lernlast (core/studyCards.ts CHECK_LOAD), Standard „normal“ */
     checkOn?: boolean;
+    checkPace?: 'often' | 'normal' | 'rare';
+    /** veraltet (früher „alle n Linien“) – wird ignoriert */
     checkEvery?: number;
     sinceCheck?: number;
   };

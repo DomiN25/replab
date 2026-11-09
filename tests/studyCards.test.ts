@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildStudyTree, cutKey, type ExistingEntry } from '../src/core/pgn';
 import { activeChapters } from '../src/core/study';
 import { buildLinePlan } from '../src/core/studyLines';
-import { addLineCards, adoptable, cardPath, checkCount, linePositions, pickCheck, type StudyCards } from '../src/core/studyCards';
+import { addLineCards, adoptable, buildRound, cardPath, checkCount, confusable, freshLoad, linePositions, pickCheck, type StudyCards } from '../src/core/studyCards';
 import { Scheduler } from '../src/core/srs';
 import type { Study } from '../src/core/types';
 import { keyAfter } from './helpers';
@@ -64,5 +64,51 @@ describe('Studien-Lernkarten', () => {
       { posKey: 'c', uci: 'g1f3' }, // anderer Zug übernommen
     ]);
     expect(res.map((r) => r.posKey)).toEqual(['a']);
+  });
+});
+
+describe('Lernlast und Rundengröße', () => {
+  // Zwei Nebenlinien, die lange gleich laufen und spät abweichen (verwechselbar), plus eine frühe Abweichung
+  const P2 = `[Event "K"]
+
+1. e4 e5 (1... c5 2. Nf3) 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 (5... b5 6. Bb3 Bc5) 6. Re1 b5 7. Bb3 d6 *
+`;
+  const t2 = buildStudyTree(P2);
+  const s2: Study = { ...st, pgn: P2 };
+  const p2 = buildLinePlan(t2, s2, activeChapters(t2, s2), noRep);
+
+  it('verwechselbar: langer gemeinsamer Weg mit später Abweichung, nicht innerhalb derselben Linie', () => {
+    const main = [...p2.lines[0].start, ...p2.lines[0].steps];
+    const side = p2.lines.find((l) => l.steps[0].uci === 'b7b5')!;
+    const sidePath = [...side.start, ...side.steps];
+    expect(confusable(main.slice(0, 12), sidePath.slice(0, 11))).toBe(true); // 6.Te1 vs 6.Lb3 nach 5…b5
+    expect(confusable(main.slice(0, 4), main.slice(0, 8))).toBe(false); // gleiche Linie
+    const early = p2.lines.find((l) => l.steps[0].uci === 'c7c5')!;
+    expect(confusable(main.slice(0, 12), [...early.start, ...early.steps])).toBe(false); // früh getrennt
+  });
+
+  it('Last zählt verwechselbare Stellungen höher; Runde wächst mit dem Gelernten', () => {
+    let cards: StudyCards = {};
+    for (const l of p2.lines) cards = addLineCards(cards, linePositions(t2, l, 'white'), l.id, 0);
+    const { load, fresh } = freshLoad(cards, p2);
+    expect(fresh.length).toBe(Object.keys(cards).length);
+    expect(load).toBeGreaterThan(fresh.length); // es gibt verwechselbare Stellungen
+    expect(buildRound(cards, p2, 0)).toHaveLength(Math.min(15, fresh.length));
+    // nur eine Linie gelernt → kleinere Last, kleinere Runde
+    const one = addLineCards({}, linePositions(t2, p2.lines[0], 'white'), 'main', 0);
+    expect(freshLoad(one, p2).load).toBeLessThan(load);
+    expect(buildRound(one, p2, 0).length).toBeLessThan(buildRound(cards, p2, 0).length);
+  });
+
+  it('fällige Wiederholungen im Verhältnis zu den neuen', () => {
+    const sch = new Scheduler(0.9);
+    let cards: StudyCards = {};
+    for (const l of p2.lines) cards = addLineCards(cards, linePositions(t2, l, 'white'), l.id, 0);
+    // alle bis auf zwei bewertet (später fällig), zwei bleiben neu
+    const keys = Object.keys(cards);
+    for (const k of keys.slice(2)) cards[k] = { ...cards[k], srs: sch.review(cards[k].srs, 3, 0) };
+    const round = buildRound(cards, p2, 400 * DAY);
+    expect(round.filter((i) => i.fresh)).toHaveLength(2);
+    expect(round.filter((i) => !i.fresh)).toHaveLength(Math.min(3, keys.length - 2)); // max(3, 2/2)
   });
 });
