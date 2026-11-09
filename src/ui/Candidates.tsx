@@ -372,7 +372,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         <td className="act">
           <div className="rowmenu">
             <button className="dots" aria-label={`Aktionen für ${c.san}`} aria-expanded={menu === c.uci} onClick={() => setMenu(menu === c.uci ? undefined : c.uci)}>
-              ⋯
+              <Icon name="dots" />
             </button>
             {menu === c.uci && (
               <div className="rowmenu-pop" role="menu" onClick={() => setMenu(undefined)}>

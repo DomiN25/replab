@@ -63,6 +63,14 @@ async function move(page, uci) {
   await tapSquare(page, uci.slice(2, 4));
 }
 
+/** Waagerechte Touch-Wischgeste über CDP (Playwright selbst kann nur tippen). */
+async function swipe(page, y, x0, x1) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+  for (let i = 1; i <= 12; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + ((x1 - x0) * i) / 12, y }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+
 async function run(scheme) {
   const browser = await chromium.launch({ channel: 'msedge' });
   const ctx = await browser.newContext({ ...devices['Pixel 7'], colorScheme: scheme });
@@ -221,8 +229,22 @@ async function run(scheme) {
   await nav('Studien');
   await shot('studies-list');
 
-  await nav('Mehr');
-  await page.getByRole('button', { name: /löschen/i }).first().click().catch(() => {});
+  // Repertoire-Auswahl (Pille oben rechts)
+  await page.locator('.rep-select').click();
+  await page.getByRole('dialog').waitFor();
+  await shot('rep-picker');
+  await page.keyboard.press('Escape');
+  // Wischen zwischen Seiten: Studien → (nach rechts wischen) Training
+  await swipe(page, 300, 50, 360);
+  await page.waitForTimeout(500);
+  const afterSwipe = await page.evaluate(() => location.hash);
+  console.log(`${scheme}: Wischen Studien → ${afterSwipe}`);
+  if (afterSwipe !== '#/train') errors.push(`Wischen: erwartet #/train, ist ${afterSwipe}`);
+  await page.getByRole('button', { name: 'Einstellungen' }).click();
+  await page.waitForTimeout(300);
+  await shot('settings-top');
+  await page.locator('.rep-list li').first().getByRole('button', { name: /Aktionen/ }).click();
+  await page.getByRole('menuitem', { name: /Löschen/ }).or(page.locator('.rowmenu-pop button.danger')).first().click().catch(() => {});
   if (await page.getByRole('dialog').isVisible()) await shot('modal');
 
   console.log(`${scheme}: ${n} Screenshots, Fehler: ${errors.length ? errors.join(' | ') : 'keine'}`);

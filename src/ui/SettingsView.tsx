@@ -10,6 +10,7 @@ import { SyncSettings } from './SyncSettings';
 import type { Color, Settings } from '../core/types';
 import { BOARD_THEMES, useAppearance, type ThemeMode } from './theme';
 import { Icon, type IconName } from './Icon';
+import { RowMenu } from './RowMenu';
 
 const MODES: { id: ThemeMode; label: string; icon: IconName }[] = [
   { id: 'auto', label: 'System', icon: 'auto' },
@@ -95,7 +96,7 @@ export function SettingsView() {
 
   return (
     <div className="page settings">
-      <h1>Mehr</h1>
+      <h1>Einstellungen</h1>
 
       <section className="card">
         <h2>Repertoires</h2>
@@ -106,13 +107,15 @@ export function SettingsView() {
               <input
                 className="rep-name"
                 defaultValue={r.name}
-                aria-label="Name"
+                aria-label={`Name von ${r.name} (antippen zum Umbenennen)`}
                 onBlur={(e) => e.target.value.trim() && e.target.value !== r.name && void repo.renameRepertoire(r.id, e.target.value.trim()).then(reloadRepertoires)}
               />
-              {r.isMain ? <span className="badge tief">Haupt</span> : <button className="btn small ghost" onClick={() => void repo.setMain(r.id).then(reloadRepertoires)}>als Haupt</button>}
-              <button className="btn small ghost" onClick={() => void selectRepertoire(r.id)} disabled={r.id === rep?.id}>öffnen</button>
+              {r.id === rep?.id && <span className="tag rep">aktiv</span>}
+              {r.isMain && <span className="tag ok">Haupt</span>}
+              <RowMenu label={`Aktionen für ${r.name}`}>
+              <button onClick={() => void selectRepertoire(r.id)} disabled={r.id === rep?.id}>Öffnen</button>
+              {!r.isMain && <button onClick={() => void repo.setMain(r.id).then(reloadRepertoires)}>Als Hauptrepertoire</button>}
               <button
-                className="btn small ghost"
                 onClick={() =>
                   setConfirm({
                     title: `„${r.name}“ leeren?`,
@@ -126,10 +129,10 @@ export function SettingsView() {
                   })
                 }
               >
-                leeren
+                Leeren …
               </button>
               <button
-                className="btn small danger ghost"
+                className="danger"
                 onClick={() =>
                   setConfirm({
                     title: `„${r.name}“ löschen?`,
@@ -143,12 +146,13 @@ export function SettingsView() {
                   })
                 }
               >
-                löschen
+                Löschen …
               </button>
+              </RowMenu>
             </li>
           ))}
         </ul>
-        <div className="row-actions">
+        <div className="row-actions rep-new">
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name, z. B. Zweitwaffe 1.d4" aria-label="Name des neuen Repertoires" />
           <select value={newColor} onChange={(e) => setNewColor(e.target.value as Color)} aria-label="Farbe">
             <option value="white">Weiß</option>
@@ -162,21 +166,34 @@ export function SettingsView() {
 
       <section className="card">
         <h2>Daten</h2>
-        <div className="row-actions wrap">
+        <div className="list">
           <button
-            className="btn primary"
+            className="list-row"
             onClick={() => {
               useApp.setState({ studyId: undefined, studyAdd: true });
               setView('studies');
             }}
           >
-            Studie hinzufügen (erst ansehen)
+            <Icon name="book" />
+            <span><b>Studie hinzufügen</b><small>erst ansehen und zuschneiden, dann übernehmen</small></span>
+            <Icon name="next" className="chev" />
           </button>
-          <button className="btn" onClick={() => setImportPreset({ text: '', name: '' })}>PGN direkt ins Repertoire</button>
-          <button className="btn" disabled={!rep || !graph} onClick={() => rep && graph && downloadPgn(rep, graph, moves, marks)}>PGN exportieren ({rep?.name ?? '–'})</button>
-          <button className="btn" onClick={() => void downloadBackup()}>JSON-Sicherung exportieren</button>
-          <label className="btn file">
-            JSON-Sicherung einspielen
+          <button className="list-row" onClick={() => setImportPreset({ text: '', name: '' })}>
+            <Icon name="upload" />
+            <span><b>PGN direkt ins Repertoire</b><small>Datei oder Text, mit Konfliktabfrage</small></span>
+            <Icon name="next" className="chev" />
+          </button>
+          <button className="list-row" disabled={!rep || !graph} onClick={() => rep && graph && downloadPgn(rep, graph, moves, marks)}>
+            <Icon name="download" />
+            <span><b>PGN exportieren</b><small>{rep?.name ?? '–'}</small></span>
+          </button>
+          <button className="list-row" onClick={() => void downloadBackup()}>
+            <Icon name="download" />
+            <span><b>JSON-Sicherung exportieren</b><small>alles außer Lichess-Token und Caches</small></span>
+          </button>
+          <label className="list-row">
+            <Icon name="upload" />
+            <span><b>JSON-Sicherung einspielen</b><small>ersetzt die Daten in diesem Browser (mit Rückfrage)</small></span>
             <input type="file" accept="application/json,.json" onChange={(e) => void importBackup(e.target.files?.[0])} hidden />
           </label>
         </div>
@@ -214,7 +231,6 @@ export function SettingsView() {
           </button>
         </div>
         )}
-        <p className="hint">Die Sicherung enthält keinen Lichess-Token und keine Datenbank-/Engine-Caches.</p>
       </section>
 
       <details className="card fold" open={lichessOpen}>

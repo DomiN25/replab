@@ -110,7 +110,8 @@ test('Sync: PC → Drive → Handy, Änderung am Handy → PC', async ({ browser
 
   // PC: Repertoire löschen → Handy übernimmt die Löschung (kein Wiederauferstehen)
   pc.once('dialog', (d) => void d.accept());
-  await pc.locator('.rep-list li').first().getByRole('button', { name: 'löschen' }).click();
+  await pc.locator('.rep-list li').first().getByRole('button', { name: /Aktionen/ }).click();
+  await pc.locator('.rowmenu-pop button.danger').click();
   await pc.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click();
   await expect.poll(() => g.snapshot()?.repertoires?.length, { timeout: 15000 }).toBe(0);
   await phone.getByTestId('sync-btn').click();

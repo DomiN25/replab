@@ -133,7 +133,6 @@ export function Trainer() {
     <div className="page trainer-setup">
       <header className="page-head">
         <h1>Training</h1>
-        <p className="sub">{rep.name}</p>
       </header>
       {stored && (
         <div className="resume card">
@@ -185,13 +184,14 @@ export function Trainer() {
         </div>
       )}
       <div className="train-cards">
-        <button className="tile primary" disabled={!due.length} onClick={() => start('due', due)}>
-          <b>{due.length}</b>
-          <span>fällig – Wiederholen</span>
-          {pool.reviewsToday > 0 && <small>heute schon {pool.reviewsToday}</small>}
+        {/* Nichts fällig: ruhige Kachel statt einer ausgegrauten Hauptkachel; dann ist „neu lernen“ der Hauptweg */}
+        <button className={`tile ${due.length ? 'primary' : 'calm'}`} disabled={!due.length} onClick={() => start('due', due)}>
+          {due.length ? <b>{due.length}</b> : <b><Icon name="check" /></b>}
+          <span>{due.length ? 'fällig – wiederholen' : 'Nichts fällig'}</span>
+          {pool.reviewsToday > 0 ? <small>heute schon {pool.reviewsToday} wiederholt</small> : !due.length && forecast.tomorrow > 0 ? <small>morgen wieder {forecast.tomorrow}</small> : null}
         </button>
         {fresh.length > 0 || !extraNew.length ? (
-          <button className="tile" disabled={!fresh.length} onClick={() => start('new', fresh)}>
+          <button className={`tile ${!due.length && fresh.length ? 'primary' : ''}`} disabled={!fresh.length} onClick={() => start('new', fresh)}>
             <b>{fresh.length}</b>
             <span>neu lernen</span>
             <small>
@@ -235,13 +235,18 @@ export function Trainer() {
           <input type="checkbox" checked={!!focus.onlyWeak} onChange={(e) => setFocus({ ...focus, onlyWeak: e.target.checked })} /> nur schwache Stellungen (Wissen rot, R &lt; 0,7)
         </label>
       </section>
-      <p className="hint">
+      <details className="explain">
+        <summary>
+          <Icon name="info" /> So funktioniert das Training
+        </summary>
+        <p>
         Karteikarten-Prinzip (FSRS, wie Anki): Jede Stellung ist eine Karte. Weißt du sie, kommt sie in immer größeren Abständen wieder (Tage, Wochen, Monate),
         vergisst du sie, kommt sie bald wieder. Die Abstände werden so gewählt, dass du dich mit {Math.round(settings.srs.desiredRetention * 100)} % Wahrscheinlichkeit
         erinnerst (Behaltensziel in den Einstellungen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
         Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Neue Karten:{' '}
         {settings.srs.newOrder === 'line' ? 'Linie für Linie' : 'wichtigste (häufigste) Stellungen zuerst'}. Funktioniert offline.
-      </p>
+        </p>
+      </details>
     </div>
   );
 }

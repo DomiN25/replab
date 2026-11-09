@@ -242,7 +242,7 @@ function GapMenu({ id }: { id: number }) {
   return (
     <span className="rowmenu" ref={ref}>
       <button className="dots" aria-label="Aktionen für diese Lücke" aria-expanded={open} onClick={() => setOpen(!open)}>
-        ⋯
+        <Icon name="dots" />
       </button>
       {open && (
         <span className="rowmenu-pop">

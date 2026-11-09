@@ -28,8 +28,10 @@ test('PGN-Dateien laden: Farbe aus Datei, Konflikt per Dialog', async ({ page })
   await expect(dlg).toHaveCount(0);
 
   // Zwei Hauptrepertoires mit passender Farbe
-  const opts = await page.locator('.rep-select option').allInnerTexts();
+  await page.locator('.rep-select').click();
+  const opts = await page.getByRole('dialog').locator('.picker-row').allInnerTexts();
   expect(opts.some((o) => o.includes('Hauptrepertoire Weiß'))).toBe(true);
   expect(opts.some((o) => o.includes('Hauptrepertoire Schwarz'))).toBe(true);
+  await page.keyboard.press('Escape');
   await expect(page.locator('.dash')).toBeVisible();
 });
