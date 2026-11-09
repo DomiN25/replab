@@ -65,7 +65,7 @@ export function App() {
           >
             <span className="lbl">Lücken: </span>
             <b data-testid="gap-count">{gaps?.important ?? '…'}</b>
-            {graphBusy && <span className="spin" aria-hidden>◌</span>}
+            {graphBusy && <Icon name="loader" className="spin" />}
           </button>
         )}
         {sync.connected && (
@@ -77,7 +77,7 @@ export function App() {
             onClick={() => void syncNow(true)}
           >
             <Icon name="cloud" />
-            {sync.status === 'syncing' ? <i className="spin">◌</i> : sync.status === 'needs-auth' || sync.dirty ? <i>!</i> : sync.status === 'error' ? <i>×</i> : <i>✓</i>}
+            {sync.status === 'syncing' ? <Icon name="loader" className="spin" /> : sync.status === 'needs-auth' || sync.dirty ? <i>!</i> : sync.status === 'error' ? <i>×</i> : <i>✓</i>}
           </button>
         )}
         <button

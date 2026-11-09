@@ -5,6 +5,7 @@ import { pathIds } from '../core/graph';
 import { displaySan, moveNumberPrefix } from '../core/chess';
 import { knowledgeOf } from '../core/srs';
 import { KNOWLEDGE_COLORS } from './knowledge';
+import { Icon } from './Icon';
 
 interface Props {
   graph: Graph;
@@ -68,7 +69,7 @@ export function TreeList({ graph, currentId, notation, showReach, rOf, onSelect 
           const hasKids = n.children.length > 0;
           const isOpen = open.has(n.id);
           const status =
-            n.status === 'transposition' ? '⇄' : canon.status === 'gap' ? '●' : canon.status === 'end' ? '■' : canon.needsData ? '…' : '';
+            n.status === 'transposition' ? '⇄' : canon.status === 'gap' ? <Icon name="gap" /> : canon.status === 'end' ? '■' : canon.needsData ? '…' : '';
           const know = n.by === 'me' ? knowledgeOf(rOf(parent.posKey)) : undefined;
           const ownName = n.name && n.name !== parent.name ? n.name : '';
           return (

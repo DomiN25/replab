@@ -359,7 +359,15 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         <td className="num">{pct(c.share)}</td>
         <td className="num hide-s" title={c.games ? c.games.toLocaleString('de-DE') : undefined}>{c.games ? compactCount(c.games) : '–'}</td>
         <td className="num">{formatEval(myCp)}</td>
-        <td className={`st ${st.cls}`} title={st.cls === 'ok' ? 'beantwortet' : st.cls === 'end' ? 'Ende-Marker' : 'Lücke'}>{st.icon}</td>
+        <td className={`st ${st.cls}`} title={st.cls === 'ok' ? 'beantwortet' : st.cls === 'end' ? 'Ende-Marker' : 'Lücke'}>
+          {st.cls === 'gap' && st.icon ? (
+            <span className="st-gap-label">
+              <Icon name="gap" /> Lücke
+            </span>
+          ) : (
+            st.icon
+          )}
+        </td>
         {settings.ui.showReach && <td className="num reach hide-s">{st.reach ? `≈ ${(st.reach * 100).toFixed(1).replace(".", ",")} %` : ''}</td>}
         <td className="act">
           <div className="rowmenu">

@@ -57,7 +57,7 @@ Priorität: **P1** = stört die Kernnutzung oder kann Daten/Arbeit kosten · **P
 32. **Kurzmeldungen verdecken Inhalt** am Handy (liegen über Sheet/Liste, z. B. über „wird übernommen“-Markierung); bei langen Texten zweizeilig.
 33. **Topbar am Handy:** Repertoire-Name wird abgeschnitten („Hauptreper…“); Status-Punkt (Lichess-Datenbank) ohne Erklärung, Tooltip am Handy nicht erreichbar; Farbsymbole ○/● als Textzeichen im Auswahlfeld.
 
-## P3 – Feinschliff
+## P3 – Feinschliff (umgesetzt am 09.11.2026)
 
 34. Zugleiste (Crumbs) am Handy nur 30 px hoch – unter der 44-px-Empfehlung für Touch.
 35. Galaxie am Handy: Beschriftungen sehr klein, schmale Segmente kaum treffbar; Legende in 12 px.
@@ -87,5 +87,5 @@ Priorität: **P1** = stört die Kernnutzung oder kann Daten/Arbeit kosten · **P
 - P1 und P2 umgesetzt (Commits 1d33c1d, a5f4639, 72754a9, 531e4ca, c3f7283, e769e30 und Paket F).
 - Bewusst nicht/teilweise: Topbar-Repertoirename bleibt abgeschnitten (Auswahlfeld), Farbsymbole ○/● im Auswahlfeld bleiben (Optionen können keine SVG). Eröffnungsnamen: nur häufige Begriffe übersetzt, Eigennamen bleiben.
 - Neu beobachtet: Kapitel-Reiter einer großen Studie (26 Kapitel) braucht beim Öffnen ~0,26 s (PC, Entwicklungsmodus) – am Handy ggf. spürbar; ggf. in einen Worker verlagern.
-- Offen: P3 (Touch-Ziele Zugleiste, Galaxie am Handy, Farbschwäche, Einstellungs-Rückmeldung, leere Zustände, Begriffe „Linie durchspielen“/„Lückentour“).
+- P3 umgesetzt: Zugleiste 36 px, Galaxie-Schrift am Handy ×1,5, Lücke mit Symbol + Wort, Speichern-Rückmeldung/Begrenzung in „Mehr“, Ladeanzeige als Icon, leere Zustände mit Aktion (Studien, Training), „Linie üben“ erklärt. Punkt 36 (Esc/Fokus-Fang) bereits mit P2/A erledigt.
 

@@ -49,19 +49,25 @@ function StudyList() {
     <div className="page studies">
       <header className="page-head">
         <h1>Studien</h1>
-        <div className="tools">
-          <button className="btn primary" onClick={() => setAdding(true)}>
-            <Icon name="plus" /> Studie hinzufügen
-          </button>
-        </div>
+        {!!list?.length && (
+          <div className="tools">
+            <button className="btn primary" onClick={() => setAdding(true)}>
+              <Icon name="plus" /> Studie hinzufügen
+            </button>
+          </div>
+        )}
       </header>
       <p className="hint">
         Hier liegen Studien, bevor sie ins Repertoire kommen: ansehen, nicht gewünschte Äste entfernen, bei mehreren eigenen Zügen einen wählen – und erst dann
         übernehmen. Nur die übernommenen Stellungen werden Lernkarten. Studien samt Bearbeitung und Fortschritt sind in der JSON-Sicherung und – wenn verbunden – im Google-Drive-Sync.
       </p>
       {list === undefined ? null : list.length === 0 ? (
-        <div className="empty card">
-          Noch keine Studie. Füge eine per Lichess-Link, Datei oder eingefügtem PGN hinzu.
+        <div className="empty card empty-cta">
+          <Icon name="book" />
+          <p>Noch keine Studie. Füge eine per Lichess-Link, Datei oder eingefügtem PGN hinzu – du kannst sie erst ansehen und zuschneiden.</p>
+          <button className="btn primary big" onClick={() => setAdding(true)}>
+            <Icon name="plus" /> Studie hinzufügen
+          </button>
         </div>
       ) : (
         <ul className="study-list">
@@ -556,7 +562,7 @@ function StudyEditor({ id }: { id: string }) {
                       {size > 1 && ` · ${size} Stellungen`}
                     </small>
                   </span>
-                  {m.comment && <span className="smove-comment">{m.comment}</span>}
+                  {m.comment && <span className="smove-comment" title={m.comment}>{m.comment}</span>}
                 </button>
                 <span className="smove-acts">
                   {view.mine && m.status === 'alt' && (

@@ -7,7 +7,7 @@ import type { Graph, GNode } from '../core/graph';
 import { displaySan, moveNumberPrefix } from '../core/chess';
 import { knowledgeOf } from '../core/srs';
 import { knowledgeAgg, KNOWLEDGE_COLORS } from './knowledge';
-import { prefersReducedMotion } from './hooks';
+import { prefersReducedMotion, useMediaQuery } from './hooks';
 
 const PAL = ['#46e3ad', '#5aa9ff', '#f5b54a', '#c38bff', '#ff7aa8', '#7be0ff', '#ffd166', '#9be86f', '#ff9f5a', '#b8c4ff'];
 const R = 300;
@@ -78,6 +78,7 @@ const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 
 
 export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelect, onBack, outside }: GalaxyProps) {
   const target = useMemo(() => layoutGalaxy(graph, focusId), [graph, focusId]);
+  const narrow = useMediaQuery('(max-width: 899px)');
   // Segmente sind an ihren Graphen gebunden: Knoten-IDs gelten nur für den Graphen, aus dem sie stammen.
   const [frame, setFrameRaw] = useState<{ arcs: (ArcDatum & { o: number })[]; graph: Graph }>({ arcs: target.map((a) => ({ ...a, o: 1 })), graph });
   const setFrame = (f: { arcs: (ArcDatum & { o: number })[] }) => setFrameRaw({ ...f, graph });
@@ -181,6 +182,8 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
   const center = focusId === 0 ? 'Start' : label(focus);
   const sub = focus.name ?? '';
 
+  // Am Handy wird die Grafik ~0,6× verkleinert dargestellt → Schrift entsprechend größer, nur Beschriftungen, die passen
+  const scale = narrow ? 1.5 : 1;
   return (
     <svg className="galaxy-svg" viewBox={`${-R - 10} ${-R - 10} ${2 * R + 20} ${2 * R + 20}`} role="img" aria-label="Repertoire-Galaxie">
       <defs>
@@ -224,7 +227,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
         {arcs.map((d) => {
           if (d.id < 0) return null;
           const len = (d.x1 - d.x0) * ((d.y0 + d.y1) / 2) * RING;
-          if (len < 24 || d.y1 - d.y0 < 0.6) return null;
+          if (len < 24 * scale || d.y1 - d.y0 < 0.6) return null;
           const n = graph.nodes[d.id];
           const ang = ((d.x0 + d.x1) / 2) * (180 / Math.PI);
           const rad = ((d.y0 + d.y1) / 2) * RING;
@@ -234,7 +237,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
               key={'t' + d.key}
               transform={`rotate(${ang - 90}) translate(${rad},0) rotate(${ang < 180 ? 0 : 180})`}
               dy="0.35em"
-              fontSize={len > 60 ? 13 : 11}
+              fontSize={(len > 60 * scale ? 13 : 11) * scale}
               fill={n.by === 'me' && mode === 'family' ? '#08121a' : '#e9eef6'}
               opacity={d.o}
             >
@@ -262,11 +265,11 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
         <text textAnchor="middle" dy="-0.15em" fontFamily="Sora, sans-serif" fontWeight={700} fontSize={22} fill="#46e3ad">
           {center}
         </text>
-        <text textAnchor="middle" dy="1.5em" fontSize={10} fill="#8e9db4">
+        <text textAnchor="middle" dy="1.5em" fontSize={10 * scale} fill="#8e9db4">
           {truncate(outside ? 'außerhalb' : sub, 18)}
         </text>
         {focusId !== 0 && (
-          <text textAnchor="middle" dy="2.9em" fontSize={9} fill="#8e9db4">
+          <text textAnchor="middle" dy="2.9em" fontSize={9 * scale} fill="#8e9db4">
             ↺ zurück
           </text>
         )}

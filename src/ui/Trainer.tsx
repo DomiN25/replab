@@ -166,6 +166,24 @@ export function Trainer() {
           </div>
         </div>
       )}
+      {cardList.length === 0 && (
+        <div className="empty card empty-cta">
+          <Icon name="train" />
+          <p>Noch nichts zu lernen: Lernkarten entstehen aus deinen eigenen Zügen. Lege Züge beim Bauen fest oder übernimm eine Studie.</p>
+          <div className="row-actions center">
+            <button className="btn primary" onClick={() => setView('build')}>Zum Bauen</button>
+            <button
+              className="btn"
+              onClick={() => {
+                useApp.setState({ studyId: undefined, studyAdd: true });
+                setView('studies');
+              }}
+            >
+              Studie hinzufügen
+            </button>
+          </div>
+        </div>
+      )}
       <div className="train-cards">
         <button className="tile primary" disabled={!due.length} onClick={() => start('due', due)}>
           <b>{due.length}</b>
@@ -193,8 +211,8 @@ export function Trainer() {
         )}
         <button className="tile" disabled={!graph} onClick={startLine}>
           <b><Icon name="tree" /></b>
-          <span>Linie durchspielen</span>
-          <small>zufällige Linie im Fokus, in Zugreihenfolge</small>
+          <span>Linie üben</span>
+          <small>eine zufällige Linie deines Repertoires von vorn durchspielen – nur Fehler zählen</small>
         </button>
       </div>
       {forecast.learned > 0 && (

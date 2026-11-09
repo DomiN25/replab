@@ -1,5 +1,5 @@
 // Einstellungen (F10), Repertoire-Verwaltung, Import/Export.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { repo, type BackupFile } from '../data/repo';
 import { currentRep, loadRepData, reloadRepertoires, saveSettings, selectRepertoire, setView, toast, useApp } from './store';
 import { ImportDialog, type ImportPreset } from './ImportDialog';
@@ -44,9 +44,22 @@ export function SettingsView() {
   const upd = (fn: (s: Settings) => void) => {
     const s = structuredClone(settings);
     fn(s);
-    void saveSettings(s);
+    const msg = clamped.current ?? 'Gespeichert';
+    clamped.current = undefined;
+    if (JSON.stringify(s) === JSON.stringify(settings)) {
+      if (msg !== 'Gespeichert') toast(msg, 'info'); // begrenzt, aber gleicher Wert wie vorher
+      return; // sonst: nichts geändert → keine Meldung
+    }
+    void saveSettings(s).then(() => toast(msg, 'ok'));
   };
-  const num = (v: string, min: number, max: number) => Math.min(max, Math.max(min, Number(v) || min));
+  // Eingabe außerhalb des erlaubten Bereichs: begrenzen und das sagen (statt still zu korrigieren)
+  const clamped = useRef<string | undefined>(undefined);
+  const num = (v: string, min: number, max: number) => {
+    const raw = Number(v);
+    const val = Math.min(max, Math.max(min, Number.isFinite(raw) && v.trim() !== '' ? raw : min));
+    clamped.current = val !== raw ? `Gespeichert – erlaubt ist ${min} bis ${max}, also ${val}` : undefined;
+    return val;
+  };
 
   const create = async () => {
     if (!newName.trim()) return;
