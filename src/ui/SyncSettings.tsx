@@ -15,7 +15,7 @@ export function SyncSettings() {
     <section className="card" id="sync">
       <h2>Sync über Google Drive</h2>
       <p className="hint">
-        Repertoire, Lernstand und Einstellungen werden in einer Datei im <b>versteckten App-Ordner</b> deines Google Drives gespeichert (Berechtigung
+        Repertoire, Lernstand, Studien und Einstellungen werden in einer Datei im <b>versteckten App-Ordner</b> deines Google Drives gespeichert (Berechtigung
         „drive.appdata“: RepLab sieht keine anderen Dateien). Beim Start wird geladen, nach Änderungen hochgeladen; bei Konflikten gewinnt pro Zug/Karte der neuere
         Stand. Der Lichess-Token wird nie synchronisiert.
       </p>

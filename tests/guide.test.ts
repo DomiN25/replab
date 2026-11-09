@@ -181,3 +181,11 @@ describe('Geführter Aufbau: nächste Lücke', () => {
     expect(gp.sans).toEqual(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Nf6']);
   });
 });
+
+describe('Lücken nach Wichtigkeit', () => {
+  it('wichtig ab Mindest-Erreichbarkeit, Rest selten', async () => {
+    const { gapCounts } = await import('../src/core/graph');
+    expect(gapCounts(g, 0.3)).toEqual({ important: 2, rare: 2, total: 4 }); // c5 40 %, …Sc6 40 % · e6 10 %, …Sf6 10 %
+    expect(gapCounts(g, 0)).toEqual({ important: 4, rare: 0, total: 4 });
+  });
+});

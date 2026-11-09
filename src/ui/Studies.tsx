@@ -51,7 +51,7 @@ function StudyList() {
       </header>
       <p className="hint">
         Hier liegen Studien, bevor sie ins Repertoire kommen: ansehen, nicht gewünschte Äste entfernen, bei mehreren eigenen Zügen einen wählen – und erst dann
-        übernehmen. Nur die übernommenen Stellungen werden Lernkarten. Studien bleiben auf diesem Gerät (kein Sync).
+        übernehmen. Nur die übernommenen Stellungen werden Lernkarten. Studien samt Bearbeitung und Fortschritt sind in der JSON-Sicherung und – wenn verbunden – im Google-Drive-Sync.
       </p>
       {list === undefined ? null : list.length === 0 ? (
         <div className="empty card">

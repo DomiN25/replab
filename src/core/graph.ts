@@ -269,6 +269,12 @@ export interface GapInfo {
   viaTrap: boolean;
 }
 
+/** Lücken nach Wichtigkeit: ab Mindest-Erreichbarkeit „wichtig“, darunter „selten“. */
+export function gapCounts(g: Graph, minReach: number): { important: number; rare: number; total: number } {
+  const important = minReach > 0 ? g.gaps.filter((id) => g.nodes[id].reach >= minReach).length : g.gaps.length;
+  return { important, rare: g.gaps.length - important, total: g.gaps.length };
+}
+
 export type GapSort = 'depth' | 'reach' | 'name';
 
 export function gapList(g: Graph, sort: GapSort = 'depth'): GapInfo[] {

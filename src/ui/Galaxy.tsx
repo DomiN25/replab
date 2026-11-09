@@ -202,7 +202,7 @@ export function Galaxy({ graph, focusId, currentId, mode, rOf, notation, onSelec
           const n = d.id >= 0 ? graph.nodes[d.id] : undefined;
           const isPath = n && (onPath.has(n.id) || n.id === currentId);
           const title = n
-            ? `${label(n)}${n.name ? ' – ' + n.name : ''}${n.share !== undefined && n.by === 'opp' ? ` · ${(n.share * 100).toFixed(1)} %` : ''}${statusText(graph, n)}`
+            ? `${label(n)}${n.name ? ' – ' + n.name : ''}${n.share !== undefined && n.by === 'opp' ? ` · ${(n.share * 100).toFixed(1).replace(".", ",")} %` : ''}${statusText(graph, n)}`
             : `Rest: ${d.rest!.ids.map((i) => label(graph.nodes[i])).join(', ')}`;
           return (
             <path

@@ -28,8 +28,7 @@ test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
   await page.getByRole('button', { name: /Stockfish an/ }).click();
 
   // 1.e4 festlegen
-  await move(page, 'e2e4');
-  await page.getByRole('dialog').getByRole('button', { name: 'Festlegen' }).click();
+  await move(page, 'e2e4'); // eigener neuer Zug → direkt festgelegt
   await expect(page.getByTestId('gap-count')).toHaveText('2');
 
   // Pfeile: durchgehend (nicht gestrichelt), ohne Zahlen, Dicke nach Häufigkeit (60 % dicker als 40 %)
@@ -48,7 +47,6 @@ test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
 
   // Zug am Brett → festlegen → bleibt im Ast (Offene Spiele): 2…Sc6 kommt vor 1…c5
   await move(page, 'g1f3');
-  await page.getByRole('dialog').getByRole('button', { name: 'Festlegen' }).click();
   await expect(guide.locator('.guide-line')).toContainText('1.e4 e5 2.Sf3 Sc6');
 
   // Ende hier → weiter zu 2…Sf6 (gleicher Ast); andere Gegnerzüge werden angezeigt

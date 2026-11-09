@@ -90,7 +90,7 @@ export function watchChanges(
   const fire = () => {
     if (!isSuppressed()) setTimeout(onChange, 0);
   };
-  for (const t of ['repertoires', 'moves', 'marks', 'cards', 'reviews', 'settings', 'tombstones']) {
+  for (const t of ['repertoires', 'moves', 'marks', 'cards', 'reviews', 'settings', 'tombstones', 'studies']) {
     const table = db.table(t);
     table.hook('creating', fire);
     table.hook('updating', fire);

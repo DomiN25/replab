@@ -22,6 +22,8 @@ export interface Toast {
   id: number;
   text: string;
   kind: 'ok' | 'err' | 'info';
+  /** optionaler Knopf in der Meldung, z. B. „Rückgängig“ */
+  action?: { label: string; run: () => void };
 }
 
 export interface AppState {
@@ -110,12 +112,19 @@ export function explorerParams(source: 'lichess' | 'masters' = 'lichess'): Explo
 // ------------------------------------------------------------ Hilfen
 
 let toastSeq = 0;
-export function toast(text: string, kind: Toast['kind'] = 'info') {
+export function toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action']) {
   const id = ++toastSeq;
-  set({ toast: { id, text, kind } });
-  setTimeout(() => {
-    if (get().toast?.id === id) set({ toast: undefined });
-  }, kind === 'err' ? 6000 : 3200);
+  set({ toast: { id, text, kind, action } });
+  setTimeout(
+    () => {
+      if (get().toast?.id === id) set({ toast: undefined });
+    },
+    action ? 7000 : kind === 'err' ? 6000 : 3200,
+  );
+}
+
+export function dismissToast() {
+  set({ toast: undefined });
 }
 
 export function currentRep(): Repertoire | undefined {

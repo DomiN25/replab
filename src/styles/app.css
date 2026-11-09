@@ -223,6 +223,11 @@ main > * { animation: fadeIn 0.24s var(--ease-out); }
   background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 16px; box-shadow: var(--shadow-lg); font-size: 14px; font-weight: 500;
   overflow: hidden; animation: toastIn 0.34s var(--ease-pop);
 }
+.toast { pointer-events: none; } /* Kurzmeldung schluckt keine Klicks (lag z. B. über der unteren Brettreihe) – nur ihre Knöpfe sind bedienbar */
+.toast button { pointer-events: auto; border: 0; background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; font: 700 14px var(--body); padding: 8px 12px; margin: -6px -8px -6px 4px; border-radius: 10px; cursor: pointer; min-height: 40px; flex: none; }
+.toast button:active { background: color-mix(in srgb, var(--bg) 30%, transparent); }
+.toast.has-action::after { animation-duration: 7s; }
+.toast > span { min-width: 0; }
 .toast::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); flex: none; }
 .toast.ok::before { background: var(--me); }
 .toast.err::before { background: var(--gap); }
@@ -292,11 +297,12 @@ main > * { animation: fadeIn 0.24s var(--ease-out); }
 .col-board, .col-panel, .col-side { min-width: 0; }
 .col-panel, .col-side { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
 @media (min-width: 900px) {
-  .builder { grid-template-columns: minmax(340px, 520px) minmax(0, 1fr); }
+  .builder { grid-template-columns: minmax(320px, 460px) minmax(0, 1fr); }
   .col-side { grid-column: 1 / -1; }
 }
 @media (min-width: 1360px) {
-  .builder { grid-template-columns: minmax(380px, 560px) minmax(360px, 1fr) minmax(380px, 540px); }
+  /* Kandidaten-Spalte bekommt Vorrang (vorher 326 px bei 1440 px → Aktionen nur per Querscrollen erreichbar) */
+  .builder { grid-template-columns: minmax(360px, 480px) minmax(470px, 1fr) minmax(320px, 420px); }
   .col-side { grid-column: auto; position: sticky; top: 74px; }
   .col-board { position: sticky; top: 74px; }
 }
@@ -383,6 +389,9 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .answer.missing .lbl { color: var(--gap); font-weight: 600; }
 .answer .mv { font: 800 28px/1 var(--display); letter-spacing: -0.02em; color: var(--me); animation: popIn 0.32s var(--ease-pop); }
 .table-wrap { overflow-x: auto; }
+/* Zu schmale Kandidaten-Spalte (z. B. 900–1100 px): Nebenspalten weglassen statt quer scrollen */
+.col-panel { container-type: inline-size; }
+@container (max-width: 460px) { .ctable .hide-s { display: none; } }
 .ctable { width: 100%; border-collapse: collapse; font-size: 14px; }
 .ctable th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 6px 6px; border-bottom: 1px solid var(--line); }
 .ctable td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; transition: background-color 0.15s; }
@@ -404,7 +413,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .trap { margin-left: 4px; color: var(--opp); cursor: help; }
 .trap .ico, .trap-ico { color: var(--opp); fill: color-mix(in srgb, var(--opp) 30%, transparent); }
 .notice .ico { color: var(--opp); margin-right: 2px; }
-.wdl { display: inline-flex; width: 80px; height: 10px; border-radius: 5px; overflow: hidden; vertical-align: middle; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); }
+.wdl { display: inline-flex; width: 64px; height: 10px; border-radius: 5px; overflow: hidden; vertical-align: middle; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); }
 .wdl i { display: block; height: 100%; }
 .wdl .w { background: #f3f5f8; }
 .wdl .d { background: #8d99ad; }
@@ -483,8 +492,15 @@ button.tile:hover:not(:disabled) { translate: 0 -2px; box-shadow: var(--shadow-l
 }
 .trainer-done .train-cards { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 .trainer-done .tile { align-items: center; text-align: center; min-height: 0; }
+.resume { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; border-color: color-mix(in srgb, var(--acc) 40%, transparent); background: linear-gradient(140deg, var(--acc-soft), var(--panel)); animation: rise 0.4s var(--ease-out); }
+.resume > div:first-child { display: flex; flex-direction: column; }
+.resume b { font: 700 16px var(--display); }
+.resume small { color: var(--muted); }
+.resume .row-actions { margin: 0; }
 .focus { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 14px 18px; box-shadow: var(--shadow); margin-bottom: 12px; }
 .trainer { max-width: 620px; margin: 0 auto; }
+/* Desktop: Brett + Rückmeldung + „Weiter“ passen ohne Scrollen ins Fenster (auch 1280×720) */
+@media (min-width: 900px) { .trainer { max-width: min(620px, calc(100vh - 250px)); min-width: 360px; } }
 .train-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .progress { flex: 1; height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line-soft); }
 .progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--acc), var(--me)); border-radius: 4px; transition: width 0.45s var(--ease-out); }
@@ -664,3 +680,4 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .done-check :is(circle, path) { stroke-dashoffset: 0; }
 }
+.big-nums b.muted-num { color: var(--muted); }

@@ -105,7 +105,7 @@ export type FsrsRating = 1 | 2 | 3 | 4;
 
 /**
  * Studie im Studien-Reiter: Original-PGN bleibt unverändert, Bearbeitungen liegen daneben.
- * Erst „Zum Repertoire hinzufügen“ erzeugt Einträge und Karten. Nur lokal (nicht im Sync).
+ * Erst „Zum Repertoire hinzufügen“ erzeugt Einträge und Karten. Im Sync und in der JSON-Sicherung enthalten.
  */
 export interface Study {
   id: string;
@@ -166,7 +166,14 @@ export interface Settings {
     /** Neue Karten erst ab dieser Erreichbarkeit einführen (0 = alle) – gegen 1000 neue Stellungen nach Importen. */
     newMinReach: number;
   };
-  ui: { notation: 'de' | 'en'; showReach: boolean; showTraps: boolean; structuresLink?: string };
+  ui: {
+    notation: 'de' | 'en';
+    showReach: boolean;
+    showTraps: boolean;
+    structuresLink?: string;
+    /** Lücken ab dieser Erreichbarkeit gelten als „wichtig“ (Hauptzahl, Standardfilter, Lückentour); seltenere bleiben sichtbar */
+    gapMinReach: number;
+  };
   updatedAt: number;
 }
 
@@ -175,6 +182,6 @@ export const DEFAULT_SETTINGS: Settings = {
   explorer: { speeds: ['rapid', 'classical'], ratings: [1800, 2000], minShare: 0.05, minGames: 20 },
   engine: { depth: 18, multipv: 5, nearBestCp: 50, trapLossCp: 100, trapMinShare: 0.1 },
   srs: { desiredRetention: 0.9, newPerDay: 10, maxReviewsPerDay: 200, contextPlies: 4, easyMs: 4000, hardMs: 15000, newOrder: 'reach', newMinReach: 0 },
-  ui: { notation: 'de', showReach: true, showTraps: true },
+  ui: { notation: 'de', showReach: true, showTraps: true, gapMinReach: 0.005 },
   updatedAt: 0,
 };

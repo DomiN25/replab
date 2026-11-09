@@ -25,9 +25,9 @@ const STRATEGIES: GuideStrategy[] = ['branch', 'shallow', 'line'];
 function loadPrefs(): Pick<GuideState, 'strategy' | 'minReach'> {
   try {
     const p = JSON.parse(localStorage.getItem('replab.guide') ?? '{}');
-    return { strategy: STRATEGIES.includes(p.strategy) ? p.strategy : 'branch', minReach: Number(p.minReach) || 0 };
+    return { strategy: STRATEGIES.includes(p.strategy) ? p.strategy : 'branch', minReach: p.minReach !== undefined ? Number(p.minReach) || 0 : useApp.getState().settings.ui.gapMinReach };
   } catch {
-    return { strategy: 'branch', minReach: 0 };
+    return { strategy: 'branch', minReach: useApp.getState().settings.ui.gapMinReach };
   }
 }
 
@@ -197,7 +197,7 @@ export function GuideBar() {
           <p className="guide-line">
             <span>{formatLine(sans, notation) || 'Grundstellung'}</span>
             {gapNode?.share !== undefined && <small> · Gegner spielt das in {(gapNode.share * 100).toFixed(0)} %</small>}
-            {showReach && gapNode && gapNode.reach > 0 && <small> · erreicht ≈ {(gapNode.reach * 100).toFixed(1)} %</small>}
+            {showReach && gapNode && gapNode.reach > 0 && <small> · erreicht ≈ {(gapNode.reach * 100).toFixed(1).replace(".", ",")} %</small>}
           </p>
           {waiting ? (
             <p className="hint">Lade die Gegnerzüge nach deinem neuen Zug …</p>

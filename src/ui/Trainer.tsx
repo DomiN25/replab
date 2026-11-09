@@ -15,6 +15,7 @@ import { prefersReducedMotion } from './hooks';
 import type { ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
 import { buzz } from './theme';
+import { activeSession, beginSession, clearSession, pauseSession, persistSession, resumeSession, storedSession, type SavedSession } from './trainingSession';
 
 type Phase = 'context' | 'ask' | 'right' | 'wrong' | 'fixed';
 
@@ -25,13 +26,14 @@ export function Trainer() {
   const settings = useApp((s) => s.settings);
   const [logs, setLogs] = useState<ReviewLog[]>([]);
   const [focus, setFocus] = useState<Focus>({});
-  const [session, setSession] = useState<Session | undefined>();
+  // Laufende Sitzung überlebt Reiterwechsel (Speicher) und Neuladen (localStorage → „Fortsetzen“)
+  const [saved, setSaved] = useState<SavedSession | undefined>(() => activeSession(rep?.id));
+  const [stored, setStored] = useState<SavedSession | undefined>(() => (activeSession(rep?.id) ? undefined : storedSession(rep?.id)));
   const [version, setVersion] = useState(0);
-  const startedAt = useRef(0);
 
   useEffect(() => {
     void repo.reviewsSince(Date.now() - 2 * 86400_000).then(setLogs);
-  }, [session, version]);
+  }, [saved, version]);
 
   const now = Date.now();
   const cardList = useMemo(() => [...cards.values()], [cards]);
@@ -56,8 +58,8 @@ export function Trainer() {
 
   const start = (mode: TrainingMode, items: SessionItem[]) => {
     if (!items.length) return;
-    startedAt.current = Date.now();
-    setSession(createSession(mode, items));
+    setStored(undefined);
+    setSaved(beginSession(rep.id, createSession(mode, items)));
   };
 
   const startLine = () => {
@@ -67,17 +69,23 @@ export function Trainer() {
     start('line', items);
   };
 
-  if (session) {
+  if (saved) {
     return (
       <Runner
-        key={startedAt.current}
-        session={session}
+        key={saved.startedAt}
+        saved={saved}
         onChange={() => setVersion((v) => v + 1)}
-        onExit={() => {
-          setSession(undefined);
+        onPause={() => {
+          pauseSession();
+          setStored(storedSession(rep.id));
+          setSaved(undefined);
           void loadRepData();
         }}
-        startedAt={startedAt.current}
+        onExit={() => {
+          clearSession();
+          setSaved(undefined);
+          void loadRepData();
+        }}
       />
     );
   }
@@ -88,6 +96,37 @@ export function Trainer() {
         <h1>Training</h1>
         <p className="sub">{rep.name}</p>
       </header>
+      {stored && (
+        <div className="resume card">
+          <div>
+            <b>Angefangene Sitzung</b>
+            <small>
+              {stored.session.mode === 'line' ? 'Linie' : stored.session.mode === 'new' ? 'Neu lernen' : 'Wiederholen'} · {stored.session.index} von{' '}
+              {stored.session.steps.length} erledigt · {stored.stats.right} richtig, {stored.stats.wrong} falsch
+            </small>
+          </div>
+          <div className="row-actions">
+            <button
+              className="btn primary"
+              onClick={() => {
+                setSaved(resumeSession(stored));
+                setStored(undefined);
+              }}
+            >
+              Fortsetzen
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => {
+                clearSession();
+                setStored(undefined);
+              }}
+            >
+              Verwerfen
+            </button>
+          </div>
+        </div>
+      )}
       <div className="train-cards">
         <button className="tile primary" disabled={!due.length} onClick={() => start('due', due)}>
           <b>{due.length}</b>
@@ -147,7 +186,9 @@ export function Trainer() {
 
 // ------------------------------------------------------------ Sitzung
 
-function Runner({ session, onExit, onChange, startedAt }: { session: Session; onExit: () => void; onChange: () => void; startedAt: number }) {
+function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onExit: () => void; onPause: () => void; onChange: () => void }) {
+  const session: Session = saved.session;
+  const startedAt = saved.startedAt;
   const rep = currentRep()!;
   const graph = useApp((s) => s.graph);
   const cards = useApp((s) => s.cards);
@@ -163,7 +204,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
   const askAt = useRef(0);
   const [nextDue, setNextDue] = useState<number | undefined>();
   const answered = useRef(false);
-  const stats = useRef({ right: 0, wrong: 0 });
+  const stats = useRef(saved.stats); // dasselbe Objekt wie in der gespeicherten Sitzung
   const scheduler = useMemo(() => new Scheduler(settings.srs.desiredRetention), [settings.srs.desiredRetention]);
   // Fokus-Modus am Handy: Brett ganz oben. Block-Körper nötig – scrollTo gibt in neuem Chromium ein Promise zurück,
   // das React sonst als Aufräumfunktion aufrufen würde (Absturz).
@@ -247,6 +288,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
     if (pendingAnswer.current === undefined) return;
     answer(session, pendingAnswer.current);
     pendingAnswer.current = undefined;
+    persistSession(saved);
     force((x) => x + 1);
     onChange();
   }, [onChange, session]);
@@ -326,6 +368,17 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
     }
   };
 
+  useEffect(
+    () => () => {
+      if (pendingAnswer.current !== undefined) {
+        answer(session, pendingAnswer.current);
+        pendingAnswer.current = undefined;
+      }
+      persistSession(saved);
+    },
+    [], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   // Enter = weiter
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -380,7 +433,7 @@ function Runner({ session, onExit, onChange, startedAt }: { session: Session; on
       data-orientation={rep.color}
     >
       <div className="train-top">
-        <button className="btn ghost small" onClick={onExit}>Beenden</button>
+        <button className="btn ghost small" onClick={onPause} title="Sitzung unterbrechen – später an derselben Stelle fortsetzen">Pause</button>
         <div className="progress" aria-label={`Fortschritt ${session.index} von ${session.steps.length}`}>
           <i style={{ width: `${progress * 100}%` }} />
         </div>

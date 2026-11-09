@@ -52,7 +52,7 @@ export class RepDB extends Dexie {
             if (!r.uid) r.uid = newId();
           });
       });
-    // v3: Studien-Reiter (nur lokal, nicht im Sync/Backup)
+    // v3: Studien-Reiter (im Sync und in der JSON-Sicherung)
     this.version(3).stores({ studies: 'id, updatedAt' });
   }
 }

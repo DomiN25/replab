@@ -323,7 +323,10 @@ export class Repo {
   }
 
   async deleteStudy(id: string): Promise<void> {
-    await this.db.studies.delete(id);
+    await this.db.transaction('rw', [this.db.studies, this.db.tombstones], async () => {
+      await this.db.studies.delete(id);
+      await this.tomb('studies', [id]); // sonst kehrt sie per Sync vom anderen Gerät zurück
+    });
   }
 
   async exportAll(): Promise<BackupFile> {
@@ -339,6 +342,7 @@ export class Repo {
       marks: await this.db.marks.toArray(),
       cards: await this.db.cards.toArray(),
       reviews: await this.db.reviews.toArray(),
+      studies: await this.db.studies.toArray(),
       settings: { ...settings, explorer },
     };
   }
@@ -363,6 +367,7 @@ export class Repo {
       marks: await this.db.marks.toArray(),
       cards: await this.db.cards.toArray(),
       reviews: (await this.db.reviews.toArray()).map(({ id: _id, ...r }) => r as ReviewLog),
+      studies: await this.db.studies.toArray(),
       settings,
       tombstones: await this.db.tombstones.toArray(),
     };
@@ -371,7 +376,7 @@ export class Repo {
   /** Änderungen aus dem Sync lokal anwenden (eine Transaktion). Token bleibt lokal. */
   async applySyncOps(ops: LocalOps): Promise<void> {
     const t = this.db;
-    await t.transaction('rw', [t.repertoires, t.moves, t.marks, t.cards, t.reviews, t.settings, t.tombstones], async () => {
+    await t.transaction('rw', [t.repertoires, t.moves, t.marks, t.cards, t.reviews, t.settings, t.tombstones, t.studies], async () => {
       const splitNk = (nk: string) => {
         const i = nk.indexOf('|');
         return [nk.slice(0, i), nk.slice(i + 1)] as [string, string];
@@ -381,7 +386,9 @@ export class Repo {
       for (const nk of ops.del.cards) await t.cards.where('[repertoireId+posKey]').equals(splitNk(nk)).delete();
       for (const nk of ops.del.marks) await t.marks.delete(splitNk(nk));
       for (const uid of ops.del.reviews) await t.reviews.where('uid').equals(uid).delete();
+      for (const id of ops.del.studies ?? []) await t.studies.delete(id);
       await t.repertoires.bulkPut(ops.put.repertoires);
+      if (ops.put.studies?.length) await t.studies.bulkPut(ops.put.studies);
       // Züge/Karten: gleiche Stellung kann lokal eine andere ID haben, daher erst ersetzen (eindeutiger Index)
       for (const m of ops.put.moves) {
         await t.moves.where('[repertoireId+posKey]').equals([m.repertoireId, m.posKey]).delete();
@@ -408,7 +415,7 @@ export class Repo {
     const reviews = b.reviews.map((r) => ({ ...r, uid: r.uid ?? newId() }));
     await this.db.transaction(
       'rw',
-      [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.settings, this.db.tombstones],
+      [this.db.repertoires, this.db.moves, this.db.marks, this.db.cards, this.db.reviews, this.db.settings, this.db.tombstones, this.db.studies],
       async () => {
         // Was lokal existiert, aber nicht in der Sicherung steht, gilt als gelöscht (auch für den Sync)
         const now = Date.now();
@@ -427,6 +434,12 @@ export class Repo {
         await this.db.cards.bulkPut(b.cards);
         await this.db.reviews.bulkPut(reviews.map(({ id: _id, ...r }) => r as ReviewLog));
         if (b.settings) await this.db.settings.put({ ...b.settings, id: 'settings', explorer: { ...b.settings.explorer, token } });
+        // Studien nur ersetzen, wenn die Sicherung welche enthält (ältere Sicherungen kennen sie nicht)
+        if (b.studies) {
+          await this.tomb('studies', gone(await this.db.studies.toArray(), b.studies, (x) => x.id), now);
+          await this.db.studies.clear();
+          await this.db.studies.bulkPut(b.studies);
+        }
       },
     );
   }
@@ -441,6 +454,8 @@ export interface BackupFile {
   marks: PositionMark[];
   cards: Card[];
   reviews: ReviewLog[];
+  /** Studien (ab 11/2026; ältere Sicherungen haben das Feld nicht → lokale Studien bleiben unberührt) */
+  studies?: Study[];
   settings?: Settings;
 }
 

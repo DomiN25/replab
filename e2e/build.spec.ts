@@ -33,16 +33,20 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   // Engine aus, damit die Engine-Regel das Ergebnis nicht verändert
   await page.getByRole('button', { name: /Stockfish an/ }).click();
 
+  // Neuer eigener Zug am Brett: direkt festgelegt (kein Dialog), Kurzmeldung mit „Rückgängig“
   await move(page, 'e2e4');
-  const dlg = page.getByRole('dialog');
-  await expect(dlg).toContainText('Als Repertoirezug festlegen?');
-  await dlg.getByRole('button', { name: 'Festlegen' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.toast')).toContainText('1.e4 festgelegt');
   await expect(page.getByTestId('gap-count')).toHaveText('2');
 
-  // 1…e5 ansehen, 2.Sf3 festlegen
+  // 1…e5 ansehen, 2.Sf3 festlegen – und einmal rückgängig machen
   await page.locator('.mvbtn.opp', { hasText: 'e5' }).click();
   await move(page, 'g1f3');
-  await dlg.getByRole('button', { name: 'Festlegen' }).click();
+  await expect(page.getByTestId('gap-count')).toHaveText('3');
+  await page.locator('.toast').getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByTestId('gap-count')).toHaveText('2');
+  await expect(page.locator('.crumbs .cur')).toHaveText('e5'); // Brett steht wieder vor der Entscheidung
+  await move(page, 'g1f3');
 
   // Lücke „1.e4 e5“ weg; neue Lücken nach 2.Sf3 (Sc6, Sf6) + weiterhin 1…c5
   await expect(page.getByTestId('gap-count')).toHaveText('3');

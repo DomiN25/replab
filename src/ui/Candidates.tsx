@@ -28,7 +28,7 @@ interface Props {
   onDeleteEntry: () => void;
 }
 
-const pct = (x?: number) => (x === undefined ? '–' : `${(x * 100).toFixed(x < 0.1 ? 1 : 0)} %`);
+const pct = (x?: number) => (x === undefined ? '–' : `${(x * 100).toFixed(x < 0.1 ? 1 : 0).replace(".", ",")} %`);
 
 function WdlBar({ w, d, l }: { w: number; d: number; l: number }) {
   const t = w + d + l || 1;
@@ -156,7 +156,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                     </button>
                   </td>
                   <td className="num">{pct(r.share)}</td>
-                  <td className="num hide-s">{r.games ? r.games.toLocaleString('de-DE') : '–'}</td>
+                  <td className="num hide-s" title={r.games ? r.games.toLocaleString('de-DE') : undefined}>{r.games ? compactCount(r.games) : '–'}</td>
                   <td className="hide-s">{r.games ? <WdlBar w={r.white} d={r.draws} l={r.black} /> : null}</td>
                   <td className="num">{formatEval(myCp, r.mate)}</td>
                   <td className="num hide-s">{r.deltaCp !== undefined ? (r.deltaCp === 0 ? '★' : `−${(r.deltaCp / 100).toFixed(2).replace('.', ',')}`) : ''}</td>
@@ -357,10 +357,10 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
           )}
         </td>
         <td className="num">{pct(c.share)}</td>
-        <td className="num hide-s">{c.games ? c.games.toLocaleString('de-DE') : '–'}</td>
+        <td className="num hide-s" title={c.games ? c.games.toLocaleString('de-DE') : undefined}>{c.games ? compactCount(c.games) : '–'}</td>
         <td className="num">{formatEval(myCp)}</td>
         <td className={`st ${st.cls}`} title={st.cls === 'ok' ? 'beantwortet' : st.cls === 'end' ? 'Ende-Marker' : 'Lücke'}>{st.icon}</td>
-        {settings.ui.showReach && <td className="num reach hide-s">{st.reach ? `≈ ${(st.reach * 100).toFixed(1)} %` : ''}</td>}
+        {settings.ui.showReach && <td className="num reach hide-s">{st.reach ? `≈ ${(st.reach * 100).toFixed(1).replace(".", ",")} %` : ''}</td>}
         <td className="act">
           <div className="rowmenu">
             <button className="dots" aria-label={`Aktionen für ${c.san}`} aria-expanded={menu === c.uci} onClick={() => setMenu(menu === c.uci ? undefined : c.uci)}>
@@ -486,4 +486,11 @@ function pvSans(fen: string, pv: string[]): string[] {
     }
   }
   return out;
+}
+
+/** Partienzahl kurz: 159 Mio. · 60 Tsd. · 842 (volle Zahl im Tooltip) – spart Breite in der Tabelle. */
+export function compactCount(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toLocaleString('de-DE', { maximumFractionDigits: n >= 1e7 ? 0 : 1 })} Mio.`;
+  if (n >= 1e4) return `${Math.round(n / 1e3).toLocaleString('de-DE')} Tsd.`;
+  return n.toLocaleString('de-DE');
 }

@@ -1,8 +1,8 @@
-// „Baustellen“: alle Lücken, gruppiert nach Eröffnungsfamilie (F3).
+// Lücken: gruppiert nach Eröffnungsfamilie (F3). Standard: nur wichtige (Mindest-Erreichbarkeit aus den Einstellungen).
 import { useMemo, useState } from 'react';
 import { gapList, groupGaps, type GapSort } from '../core/graph';
 import { formatLine, displaySan } from '../core/chess';
-import { deleteMyMoves, gotoNode, lichessToken, requestGraph, setView, toast, useApp, engine } from './store';
+import { deleteMyMoves, gotoNode, lichessToken, requestGraph, saveSettings, setView, toast, useApp, engine } from './store';
 import { Modal } from './Modal';
 import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
@@ -15,15 +15,9 @@ export function Gaps() {
   const settings = useApp((s) => s.settings);
   const scanQueued = useApp((s) => s.scanQueued);
   const status = useApp((s) => s.explorerStatus);
-  const [sort, setSort] = useState<GapSort>('depth');
+  const [sort, setSort] = useState<GapSort>('reach');
   const [onlyTraps, setOnlyTraps] = useState(false);
-  const [minReach, setMinReach] = useState<number>(() => {
-    try {
-      return Number(localStorage.getItem('replab.gapMinReach') ?? 0);
-    } catch {
-      return 0;
-    }
-  });
+  const minReach = settings.ui.gapMinReach;
   const [askOrphans, setAskOrphans] = useState(false);
   const [engineScan, setEngineScan] = useState<{ done: number; total: number } | undefined>();
   const notation = settings.ui.notation;
@@ -66,8 +60,8 @@ export function Gaps() {
     <div className="page gaps-page">
       <header className="page-head">
         <h1>
-          Baustellen <span className="count gap">{total}</span>
-          {shown !== total && <small className="shown"> {shown} angezeigt</small>}
+          Lücken <span className="count gap">{shown}</span>
+          {shown !== total && <small className="shown"> von {total} – seltenere ausgeblendet</small>}
         </h1>
         <div className="tools">
           <button
@@ -92,13 +86,9 @@ export function Gaps() {
             <select
               value={minReach}
               onChange={(e) => {
-                const v = Number(e.target.value);
-                setMinReach(v);
-                try {
-                  localStorage.setItem('replab.gapMinReach', String(v));
-                } catch {
-                  /* egal */
-                }
+                const s = structuredClone(settings);
+                s.ui.gapMinReach = Number(e.target.value);
+                void saveSettings(s);
               }}
             >
               <option value={0}>alle</option>
@@ -171,7 +161,7 @@ export function Gaps() {
                     <span className="meta">
                       {gp.viaTrap && settings.ui.showTraps && <span className="trap" title="Gegnerzug ist eine Chance (Fehler)"><Icon name="bolt" /></span>}
                       {gp.name && gp.name !== g.family && <span className="nm">{gp.name}</span>}
-                      {settings.ui.showReach && gp.reach > 0 && <span className="reach">≈ {(gp.reach * 100).toFixed(1)} %</span>}
+                      {settings.ui.showReach && gp.reach > 0 && <span className="reach">≈ {(gp.reach * 100).toFixed(1).replace(".", ",")} %</span>}
                     </span>
                   </button>
                 </li>

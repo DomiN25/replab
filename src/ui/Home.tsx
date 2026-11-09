@@ -12,6 +12,8 @@ import { ImportDialog, type ImportPreset } from './ImportDialog';
 import { downloadBackup, lastBackupAt } from './backup';
 import type { ReviewLog } from '../core/types';
 import type { BackupFile } from '../data/repo';
+import { gapCounts } from '../core/graph';
+import { pct } from './format';
 
 export function Home() {
   const rep = currentRep();
@@ -56,6 +58,8 @@ export function Home() {
   const pool = useMemo(() => buildPool(cardList, logs, settings, now, graph), [cardList, logs, settings, graph, now]);
   const dueCount = useMemo(() => dueItems(pool, settings, now, graph).length, [pool, settings, now, graph]);
   const newCount = useMemo(() => newItems(pool, settings, graph).length, [pool, settings, graph]);
+  const gapMin = settings.ui.gapMinReach;
+  const gapInfo = useMemo(() => (graph ? gapCounts(graph, gapMin) : undefined), [graph, gapMin]);
   const stats = useMemo(() => trainingStats(logs.filter((l) => l.repertoireId === rep?.id), now), [logs, rep, now]);
 
   // Wissensleiste pro Familie
@@ -180,10 +184,11 @@ export function Home() {
         <section className="card gaps">
           <h2>Lücken</h2>
           <div className="big-nums">
-            <div><b className="gap">{graph?.gaps.length ?? '…'}</b><span>offen</span></div>
-            {graph && graph.pending.length > 0 && <div><b>{graph.pending.length}</b><span>warten auf Daten</span></div>}
+            <div><b className="gap">{gapInfo ? gapInfo.important : '…'}</b><span>wichtig (≥ {pct(gapMin)})</span></div>
+            {gapInfo && gapInfo.rare > 0 && <div><b className="muted-num">{gapInfo.rare}</b><span>selten</span></div>}
+            {graph && graph.pending.length > 0 && <div><b className="muted-num">{graph.pending.length}</b><span>warten auf Daten</span></div>}
           </div>
-          <button className="btn big" onClick={() => setView('gaps')}>Baustellen ansehen</button>
+          <button className="btn big" onClick={() => setView('gaps')}>Lücken ansehen</button>
         </section>
 
         <section className="card stats">

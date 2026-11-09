@@ -87,7 +87,7 @@ export function TreeList({ graph, currentId, notation, showReach, rOf, onSelect 
                 {ownName && <span className="nm">{ownName}</span>}
               </button>
               {n.by === 'opp' && n.share !== undefined && <span className="sh">{(n.share * 100).toFixed(0)} %</span>}
-              {showReach && n.by === 'opp' && canon.reach > 0 && <span className="reach">≈ {(canon.reach * 100).toFixed(1)} %</span>}
+              {showReach && n.by === 'opp' && canon.reach > 0 && <span className="reach">≈ {(canon.reach * 100).toFixed(1).replace(".", ",")} %</span>}
               {know && <i className="kn" style={{ background: KNOWLEDGE_COLORS[know] }} title={`Wissen: ${know}`} />}
               {status && <span className={`st st-${canon.status}`} title={n.status === 'transposition' ? 'Zugumstellung – Klick springt zur ersten Fundstelle' : canon.status}>{status}</span>}
             </li>

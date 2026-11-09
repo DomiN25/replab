@@ -114,3 +114,69 @@ describe('Repo + Sync', () => {
     expect(await v2.tombstones.count()).toBe(0);
   });
 });
+
+describe('Studien im Sync und in der Sicherung', () => {
+  const PGN = '[Event "K1"]\n\n1. e4 c5 2. Nf3 (2. c3 e5) 2... Nc6 *';
+
+  it('PC → Drive → Handy, Bearbeitung am Handy zurück, Löschen bleibt gelöscht', async () => {
+    const pc = fresh();
+    const phone = fresh();
+    const st = await pc.createStudy({ name: 'Anti-Sizilianer', color: 'black', pgn: PGN });
+    let drive = mergeSnapshots(await pc.exportSnapshot(), undefined, 1).merged;
+    expect(drive.studies?.map((s) => s.name)).toEqual(['Anti-Sizilianer']);
+
+    const m1 = mergeSnapshots(await phone.exportSnapshot(), drive, 2);
+    await phone.applySyncOps(m1.local);
+    const onPhone = (await phone.getStudy(st.id))!;
+    expect(onPhone.pgn).toBe(PGN);
+
+    // Handy schneidet einen Ast weg und merkt sich den Fortschritt
+    await new Promise((res) => setTimeout(res, 5));
+    await phone.saveStudy({ ...onPhone, cuts: ['x c2c3'], seen: ['a', 'b'] });
+    drive = mergeSnapshots(await phone.exportSnapshot(), drive, 3).merged;
+    const m2 = mergeSnapshots(await pc.exportSnapshot(), drive, 4);
+    await pc.applySyncOps(m2.local);
+    expect((await pc.getStudy(st.id))!.cuts).toEqual(['x c2c3']);
+    expect((await pc.getStudy(st.id))!.seen).toEqual(['a', 'b']);
+
+    // PC löscht → Handy übernimmt, Studie kehrt nicht zurück
+    await new Promise((res) => setTimeout(res, 5));
+    await pc.deleteStudy(st.id);
+    drive = mergeSnapshots(await pc.exportSnapshot(), drive, 5).merged;
+    const m3 = mergeSnapshots(await phone.exportSnapshot(), drive, 6);
+    await phone.applySyncOps(m3.local);
+    expect(await phone.getStudy(st.id)).toBeUndefined();
+    const m4 = mergeSnapshots(await phone.exportSnapshot(), drive, 7);
+    expect(m4.remoteChanged).toBe(false);
+  });
+
+  it('alter Drive-Stand ohne Studien: lokale Studien bleiben und werden hochgeladen', async () => {
+    const pc = fresh();
+    await pc.createStudy({ name: 'S', color: 'white', pgn: PGN });
+    const old = { ...mergeSnapshots(await fresh().exportSnapshot(), undefined, 1).merged };
+    delete (old as { studies?: unknown }).studies;
+    const m = mergeSnapshots(await pc.exportSnapshot(), old, 2);
+    expect(m.remoteChanged).toBe(true);
+    expect(m.merged.studies).toHaveLength(1);
+    expect(m.local.del.studies).toEqual([]);
+  });
+
+  it('JSON-Sicherung enthält Studien; ältere Sicherung ohne Studien lässt lokale Studien stehen', async () => {
+    const a = fresh();
+    await a.createStudy({ name: 'S1', color: 'white', pgn: PGN });
+    const backup = await a.exportAll();
+    expect(backup.studies?.map((s) => s.name)).toEqual(['S1']);
+
+    const b = fresh();
+    await b.createStudy({ name: 'lokal', color: 'black', pgn: PGN });
+    await b.importAll(backup);
+    expect((await b.listStudies()).map((s) => s.name)).toEqual(['S1']);
+
+    const c = fresh();
+    await c.createStudy({ name: 'bleibt', color: 'black', pgn: PGN });
+    const { studies: _s, ...oldBackup } = backup;
+    void _s;
+    await c.importAll(oldBackup);
+    expect((await c.listStudies()).map((s) => s.name)).toEqual(['bleibt']);
+  });
+});

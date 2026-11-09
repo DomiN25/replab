@@ -1,12 +1,15 @@
+import { useMemo } from 'react';
 import { Builder } from './Builder';
 import { Gaps } from './Gaps';
 import { Home } from './Home';
 import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
 import { Studies } from './Studies';
-import { selectRepertoire, setView, useApp, type View } from './store';
+import { dismissToast, selectRepertoire, setView, useApp, type View } from './store';
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
+import { gapCounts } from '../core/graph';
+import { pct } from './format';
 
 const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'home', label: 'Start', icon: 'home' },
@@ -22,7 +25,10 @@ export function App() {
   const view = useApp((s) => s.view);
   const repertoires = useApp((s) => s.repertoires);
   const repId = useApp((s) => s.repId);
-  const gaps = useApp((s) => s.graph?.gaps.length);
+  const gapMin = useApp((s) => s.settings.ui.gapMinReach);
+  // Nicht im Store-Selektor berechnen: ein neues Objekt pro Aufruf lässt React endlos neu rendern
+  const graph = useApp((s) => s.graph);
+  const gaps = useMemo(() => (graph ? gapCounts(graph, gapMin) : undefined), [graph, gapMin]);
   const graphBusy = useApp((s) => s.graphBusy);
   const ex = useApp((s) => s.explorerStatus);
   const toast = useApp((s) => s.toast);
@@ -52,9 +58,13 @@ export function App() {
           </select>
         )}
         {repertoires.length > 0 && (
-          <button className="gap-chip" onClick={() => setView('gaps')} title="Lücken im Repertoire">
+          <button
+            className="gap-chip"
+            onClick={() => setView('gaps')}
+            title={gaps ? `${gaps.important} wichtige Lücken (≥ ${pct(gapMin)}) · ${gaps.total} insgesamt` : 'Lücken im Repertoire'}
+          >
             <span className="lbl">Lücken: </span>
-            <b data-testid="gap-count">{gaps ?? '…'}</b>
+            <b data-testid="gap-count">{gaps?.important ?? '…'}</b>
             {graphBusy && <span className="spin" aria-hidden>◌</span>}
           </button>
         )}
@@ -97,8 +107,19 @@ export function App() {
         ))}
       </nav>
       {toast && (
-        <div key={toast.id} className={`toast ${toast.kind}`} role="status">
-          {toast.text}
+        <div key={toast.id} className={`toast ${toast.kind} ${toast.action ? 'has-action' : ''}`} role="status">
+          <span>{toast.text}</span>
+          {toast.action && (
+            <button
+              onClick={() => {
+                const run = toast.action!.run;
+                dismissToast();
+                run();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </div>

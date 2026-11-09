@@ -186,12 +186,36 @@ export function Builder() {
   }, [rep, cursor, line, moves, settings.ui.notation]);
 
   const commit = async (c: PendingCommit, resetHistory: boolean) => {
-    const changing = !!moves.get(posKeyOf(c.fen)) && moves.get(posKeyOf(c.fen))!.uci !== c.uci;
+    const prev = moves.get(posKeyOf(c.fen));
+    const changing = !!prev && prev.uci !== c.uci;
     await ensureReachable();
     await setMyMove(c.fen, c.uci, c.san, resetHistory);
-    toast(`${displaySan(c.san, settings.ui.notation)} festgelegt`, 'ok');
-    if (changing) setOrphanCheck(true);
     if (c.playAfter) playMove(c.uci);
+    if (changing) {
+      toast(`${displaySan(c.san, settings.ui.notation)} festgelegt`, 'ok');
+      setOrphanCheck(true);
+      return;
+    }
+    // Neuer Zug: ohne Rückfrage, dafür rückgängig machbar (nur dieser Eintrag samt neuer Karte)
+    const key = posKeyOf(c.fen);
+    toast(`${moveNumberPrefix(plyOfFen(c.fen))}${displaySan(c.san, settings.ui.notation)} festgelegt`, 'ok', {
+      label: 'Rückgängig',
+      run: () => {
+        void deleteMyMoves([key]).then(() => {
+          const st = useApp.getState();
+          // Brett steht noch eine Stellung weiter? → zurück an die Stelle der Entscheidung
+          if (c.playAfter && st.cursor > 0 && posKeyOf(st.line[st.cursor - 1].fen) === key) back();
+          toast('Rückgängig gemacht', 'info');
+        });
+      },
+    });
+  };
+
+  /** Neuer eigener Zug: direkt festlegen (Rückgängig in der Meldung). Dialog nur, wenn etwas zu bedenken ist. */
+  const decide = (c: PendingCommit) => {
+    const existing = moves.get(posKeyOf(c.fen));
+    if (!existing && !c.warning) void commit(c, false);
+    else setPending(c);
   };
 
   const onBoardMove = (uci: string) => {
@@ -202,14 +226,14 @@ export function Builder() {
       return;
     }
     if (myTurn && !entry && !mark?.endOfLine) {
-      setPending({ fen, uci, san, playAfter: true, warning: unreachableWarning() });
+      decide({ fen, uci, san, playAfter: true, warning: unreachableWarning() });
       return;
     }
     playMove(uci);
   };
 
   const onCommit = (uci: string, san: string) => {
-    setPending({ fen, uci, san, playAfter: false, warning: unreachableWarning() });
+    decide({ fen, uci, san, playAfter: false, warning: unreachableWarning() });
   };
 
   const onSelectNode = (id: number) => {
