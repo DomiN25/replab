@@ -17,7 +17,7 @@ const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'gaps', label: 'Lücken', icon: 'gap' },
   { v: 'train', label: 'Training', icon: 'train' },
   { v: 'studies', label: 'Studien', icon: 'book' },
-  { v: 'settings', label: 'Einstellungen', icon: 'more' },
+  { v: 'settings', label: 'Mehr', icon: 'more' },
 ];
 
 export function App() {
@@ -102,7 +102,7 @@ export function App() {
         {NAV.map((n) => (
           <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>
             <span className="ic"><Icon name={n.icon} /></span>
-            <span>{n.label === 'Einstellungen' ? 'Mehr' : n.label}</span>
+            <span>{n.label}</span>
           </button>
         ))}
       </nav>

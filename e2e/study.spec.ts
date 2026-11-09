@@ -27,7 +27,7 @@ test('Studie per Link: Schwarz erkannt, importiert, Sprung zur Studie', async ({
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await expect(page.locator('.rep-list li')).toHaveCount(2);
 
-  await page.getByRole('button', { name: 'PGN importieren' }).click();
+  await page.getByRole('button', { name: 'PGN direkt ins Repertoire' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.getByLabel('Lichess-Studienlink').fill('https://lichess.org/study/BQvp2G0t');
   await dlg.getByRole('button', { name: 'Laden' }).click();
@@ -60,6 +60,12 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(page.locator('.rep-list li')).toHaveCount(1);
 
   await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click();
+  // Zurück-Taste schließt den Dialog, die Ansicht bleibt
+  await page.getByRole('button', { name: 'Studie hinzufügen' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/studies/);
   await page.getByRole('button', { name: 'Studie hinzufügen' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.getByLabel('Lichess-Studienlink').fill('https://lichess.org/study/BQvp2G0t');

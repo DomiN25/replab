@@ -10,6 +10,7 @@ import type { Card, PositionMark, Repertoire, RepertoireMove, Settings } from '.
 import { DEFAULT_SETTINGS } from '../core/types';
 import type { SyncUiState } from './sync';
 import type { GuideState } from './GuideBar';
+import { afterPendingBack } from './backClose';
 
 export type View = 'home' | 'build' | 'gaps' | 'train' | 'studies' | 'settings';
 export interface LineStep {
@@ -53,6 +54,10 @@ export interface AppState {
   guide: GuideState;
   /** geöffnete Studie im Studien-Reiter (undefined = Liste) */
   studyId?: string;
+  /** Studien-Reiter soll gleich den „Hinzufügen“-Dialog öffnen */
+  studyAdd?: boolean;
+  /** Trainingsseite soll direkt eine Sitzung starten (Knopf „Training starten“ auf Start) */
+  trainAuto?: boolean;
 }
 
 export const useApp = create<AppState>(() => ({
@@ -161,7 +166,9 @@ function viewFromHash(): View {
 }
 
 export function setView(v: View) {
-  if (viewFromHash() !== v) location.hash = `/${v}`;
+  afterPendingBack(() => {
+    if (viewFromHash() !== v) location.hash = `/${v}`;
+  });
   if (get().view !== v && typeof window !== 'undefined') window.scrollTo(0, 0); // neue Ansicht beginnt oben
   set({ view: v });
 }

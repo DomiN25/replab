@@ -178,7 +178,15 @@ export function Home() {
             <div><b>{dueCount}</b><span>fällig</span></div>
             <div><b>{newCount}</b><span>neu (heute)</span></div>
           </div>
-          <button className="btn primary big" onClick={() => setView('train')}>Training starten</button>
+          <button
+            className="btn primary big"
+            onClick={() => {
+              useApp.setState({ trainAuto: true });
+              setView('train');
+            }}
+          >
+            {dueCount > 0 ? 'Wiederholen starten' : newCount > 0 ? 'Neue lernen' : 'Zum Training'}
+          </button>
         </section>
 
         <section className="card gaps">

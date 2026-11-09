@@ -73,7 +73,7 @@ test('Sync: PC → Drive → Handy, Änderung am Handy → PC', async ({ browser
   await pc.goto('/#/settings');
   await pc.getByPlaceholder('Name, z. B. Zweitwaffe 1.d4').fill('Sync Weiß');
   await pc.getByRole('button', { name: 'Anlegen' }).click();
-  await pc.getByRole('button', { name: 'PGN importieren' }).click();
+  await pc.getByRole('button', { name: 'PGN direkt ins Repertoire' }).click();
   const dlg = pc.getByRole('dialog');
   await dlg.locator('textarea').fill('1. e4 e5 2. Nf3 *');
   await dlg.getByRole('button', { name: 'Vorschau' }).click();

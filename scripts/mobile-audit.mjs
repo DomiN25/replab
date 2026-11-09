@@ -89,7 +89,7 @@ async function run(scheme) {
   const token = page.getByPlaceholder('lip_…');
   await token.fill('lip_audit');
   await token.blur();
-  await page.getByRole('button', { name: 'PGN importieren' }).click();
+  await page.getByRole('button', { name: 'PGN direkt ins Repertoire' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.locator('textarea').fill(PGN);
   await dlg.getByRole('button', { name: 'Vorschau' }).click();

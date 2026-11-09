@@ -2,6 +2,7 @@
 // und lässt sich am Griff/Kopf nach oben ziehen, bis es das Brett überdeckt. Tippen auf den Griff wechselt.
 // Bewegt wird nur das Sheet (position: fixed) – das Brett bleibt stehen, damit chessground seine Position behält.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useBackClose } from './backClose';
 
 export type SheetSnap = 'peek' | 'full';
 
@@ -20,6 +21,7 @@ const DRAG_START = 6; // px, ab denen aus einem Tippen ein Ziehen wird
 export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props) {
   const [tops, setTops] = useState({ peek: 0, full: 0, bottom: 0 });
   const [dragTop, setDragTop] = useState<number | undefined>();
+  useBackClose(snap === 'full', () => onSnap('peek'));
   const drag = useRef<{ y0: number; top0: number; t0: number; moved: boolean; id: number } | undefined>(undefined);
 
   const measure = useCallback(() => {

@@ -1,11 +1,11 @@
 // Einstellungen (F10), Repertoire-Verwaltung, Import/Export.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { repo, type BackupFile } from '../data/repo';
-import { currentRep, loadRepData, reloadRepertoires, saveSettings, selectRepertoire, toast, useApp } from './store';
+import { currentRep, loadRepData, reloadRepertoires, saveSettings, selectRepertoire, setView, toast, useApp } from './store';
 import { ImportDialog, type ImportPreset } from './ImportDialog';
 import { Modal } from './Modal';
 import { downloadBackup, downloadPgn } from './backup';
-import { fetchSeed, loadSeedRepertoires } from './seed';
+import { fetchSeed, loadSeedRepertoires, seedAvailable } from './seed';
 import { SyncSettings } from './SyncSettings';
 import type { Color, Settings } from '../core/types';
 import { BOARD_THEMES, useAppearance, type ThemeMode } from './theme';
@@ -33,6 +33,13 @@ export function SettingsView() {
   const [newColor, setNewColor] = useState<Color>('white');
   const rep = currentRep();
   const look = useAppearance();
+  // Entwickler-Knöpfe (Startrepertoire aus public/seed/) nur, wo es die Dateien gibt – live nicht
+  const [hasSeed, setHasSeed] = useState(false);
+  // Ohne Token läuft die Datenbank nicht → Abschnitt dann gleich offen (nur beim Öffnen der Seite entschieden)
+  const [lichessOpen] = useState(() => !settings.explorer.token);
+  useEffect(() => {
+    void seedAvailable().then(setHasSeed);
+  }, []);
 
   const upd = (fn: (s: Settings) => void) => {
     const s = structuredClone(settings);
@@ -75,7 +82,7 @@ export function SettingsView() {
 
   return (
     <div className="page settings">
-      <h1>Einstellungen</h1>
+      <h1>Mehr</h1>
 
       <section className="card">
         <h2>Repertoires</h2>
@@ -141,9 +148,18 @@ export function SettingsView() {
       <SyncSettings />
 
       <section className="card">
-        <h2>Import / Export</h2>
+        <h2>Daten</h2>
         <div className="row-actions wrap">
-          <button className="btn" onClick={() => setImportPreset({ text: '', name: '' })}>PGN importieren</button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              useApp.setState({ studyId: undefined, studyAdd: true });
+              setView('studies');
+            }}
+          >
+            Studie hinzufügen (erst ansehen)
+          </button>
+          <button className="btn" onClick={() => setImportPreset({ text: '', name: '' })}>PGN direkt ins Repertoire</button>
           <button className="btn" disabled={!rep || !graph} onClick={() => rep && graph && downloadPgn(rep, graph, moves, marks)}>PGN exportieren ({rep?.name ?? '–'})</button>
           <button className="btn" onClick={() => void downloadBackup()}>JSON-Sicherung exportieren</button>
           <label className="btn file">
@@ -151,6 +167,7 @@ export function SettingsView() {
             <input type="file" accept="application/json,.json" onChange={(e) => void importBackup(e.target.files?.[0])} hidden />
           </label>
         </div>
+        {hasSeed && (
         <div className="row-actions wrap">
           <button
             className="btn ghost"
@@ -183,11 +200,16 @@ export function SettingsView() {
             Studie „Spanisch“ importieren
           </button>
         </div>
+        )}
         <p className="hint">Die Sicherung enthält keinen Lichess-Token und keine Datenbank-/Engine-Caches.</p>
       </section>
 
-      <section className="card">
-        <h2>Lichess-Datenbank</h2>
+      <details className="card fold" open={lichessOpen}>
+        <summary>
+          <h2>Lichess-Datenbank</h2>
+          <small>Token, Bedenkzeiten, Ratingbänder</small>
+          <Icon name="next" className="fold-ico" />
+        </summary>
         <label className="field">
           <span>Persönlicher Token (nur lokal gespeichert, nie exportiert)</span>
           <div className="row-actions">
@@ -241,10 +263,14 @@ export function SettingsView() {
             <input type="number" min={1} max={1000} defaultValue={settings.explorer.minGames} onBlur={(e) => upd((s) => (s.explorer.minGames = num(e.target.value, 1, 1000)))} />
           </label>
         </div>
-      </section>
+      </details>
 
-      <section className="card">
-        <h2>Engine</h2>
+      <details className="card fold">
+        <summary>
+          <h2>Engine</h2>
+          <small>für Fortgeschrittene</small>
+          <Icon name="next" className="fold-ico" />
+        </summary>
         <div className="grid2">
           <label className="field">
             <span>Tiefe (Handy max. 14)</span>
@@ -263,10 +289,14 @@ export function SettingsView() {
             <input type="number" min={30} max={500} defaultValue={settings.engine.trapLossCp} onBlur={(e) => upd((s) => (s.engine.trapLossCp = num(e.target.value, 30, 500)))} />
           </label>
         </div>
-      </section>
+      </details>
 
-      <section className="card">
-        <h2>Training</h2>
+      <details className="card fold">
+        <summary>
+          <h2>Training</h2>
+          <small>Neue Karten pro Tag, Reihenfolge, Behaltensziel</small>
+          <Icon name="next" className="fold-ico" />
+        </summary>
         <div className="grid2">
           <label className="field">
             <span>Behaltensziel (0,80–0,97)</span>
@@ -310,10 +340,13 @@ export function SettingsView() {
             <input type="number" min={5} max={120} defaultValue={settings.srs.hardMs / 1000} onBlur={(e) => upd((s) => (s.srs.hardMs = num(e.target.value, 5, 120) * 1000))} />
           </label>
         </div>
-      </section>
+      </details>
 
-      <section className="card">
-        <h2>Anzeige</h2>
+      <details className="card fold" open>
+        <summary>
+          <h2>Anzeige</h2>
+          <Icon name="next" className="fold-ico" />
+        </summary>
         <div className="appearance-row">
           <span>Farbschema</span>
           <div className="seg" role="group" aria-label="Farbschema">
@@ -349,14 +382,18 @@ export function SettingsView() {
         <label className="check">
           <input type="checkbox" checked={settings.ui.showTraps} onChange={(e) => upd((s) => (s.ui.showTraps = e.target.checked))} /> Fallen (<Icon name="bolt" className="trap-ico" />) markieren
         </label>
-      </section>
+      </details>
 
-      <section className="card">
-        <h2>Info</h2>
+      <details className="card fold">
+        <summary>
+          <h2>Info</h2>
+          <small>Version, Lizenzen</small>
+          <Icon name="next" className="fold-ico" />
+        </summary>
         <p className="hint">
           RepLab 0.1 · Daten liegen lokal in diesem Browser (IndexedDB). Lizenz GPL-3 (Stockfish, chessground, chessops). Eröffnungsnamen: lichess-org/chess-openings (CC0).
         </p>
-      </section>
+      </details>
 
       {importPreset && <ImportDialog preset={importPreset} onClose={() => setImportPreset(undefined)} />}
       {confirm && (

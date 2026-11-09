@@ -11,7 +11,7 @@ test('Sitzung fortsetzen nach Reiterwechsel und Neuladen', async ({ page }) => {
   await page.goto('/#/settings');
   await page.getByPlaceholder('Name, z. B. Zweitwaffe 1.d4').fill('Train Weiß');
   await page.getByRole('button', { name: 'Anlegen' }).click();
-  await page.getByRole('button', { name: 'PGN importieren' }).click();
+  await page.getByRole('button', { name: 'PGN direkt ins Repertoire' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.locator('textarea').fill(PGN);
   await dlg.getByRole('button', { name: 'Vorschau' }).click();

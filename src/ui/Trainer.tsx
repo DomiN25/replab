@@ -31,8 +31,12 @@ export function Trainer() {
   const [stored, setStored] = useState<SavedSession | undefined>(() => (activeSession(rep?.id) ? undefined : storedSession(rep?.id)));
   const [version, setVersion] = useState(0);
 
+  const [logsLoaded, setLogsLoaded] = useState(false);
   useEffect(() => {
-    void repo.reviewsSince(Date.now() - 2 * 86400_000).then(setLogs);
+    void repo.reviewsSince(Date.now() - 2 * 86400_000).then((l) => {
+      setLogs(l);
+      setLogsLoaded(true);
+    });
   }, [saved, version]);
 
   const now = Date.now();
@@ -54,13 +58,23 @@ export function Trainer() {
     return out;
   }, [graph, settings.ui.notation]);
 
+  // „Training starten“ auf der Startseite: direkt loslegen (fällige zuerst, sonst neue), sobald die Zahlen stehen
+  useEffect(() => {
+    if (!logsLoaded || !rep || saved || !useApp.getState().trainAuto) return;
+    useApp.setState({ trainAuto: false });
+    if (stored) return; // angefangene Sitzung hat Vorrang – Nutzer entscheidet
+    if (due.length) start('due', due);
+    else if (fresh.length) start('new', fresh);
+  }, [logsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!rep) return <p className="empty">Kein Repertoire ausgewählt.</p>;
 
-  const start = (mode: TrainingMode, items: SessionItem[]) => {
+  function start(mode: TrainingMode, items: SessionItem[]) {
     if (!items.length) return;
+    if (!rep) return;
     setStored(undefined);
     setSaved(beginSession(rep.id, createSession(mode, items)));
-  };
+  }
 
   const startLine = () => {
     if (!graph) return;

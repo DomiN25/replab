@@ -5,7 +5,8 @@ import type { DrawShape } from 'chessground/draw';
 import { Board, uciSquares } from './Board';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import { Icon } from './Icon';
-import { Modal } from './Modal';
+import { Modal, trapFocus } from './Modal';
+import { useBackClose } from './backClose';
 import { useMediaQuery } from './hooks';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
@@ -34,7 +35,11 @@ export function Studies() {
 function StudyList() {
   const repertoires = useApp((s) => s.repertoires);
   const [list, setList] = useState<Study[] | undefined>();
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(() => {
+    const want = !!useApp.getState().studyAdd;
+    if (want) useApp.setState({ studyAdd: false });
+    return want;
+  });
   const [del, setDel] = useState<Study | undefined>();
   const reload = () => void repo.listStudies().then(setList);
   useEffect(reload, []);
@@ -117,6 +122,16 @@ function StudyAddDialog({ onClose }: { onClose: () => void }) {
   const [color, setColor] = useState<Color | ''>('');
   const [busy, setBusy] = useState(false);
   const ref = parseStudyUrl(url);
+  useBackClose(true, onClose);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') trapFocus(e, box.current);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   const detected = useMemo(() => (text.trim() ? pgnOrientation(text) ?? guessColor(text) : undefined), [text]);
 
   const load = async () => {
@@ -136,7 +151,7 @@ function StudyAddDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" role="dialog" aria-modal="true" aria-label="Studie hinzufügen" onClick={(e) => e.stopPropagation()}>
+      <div className="modal wide" role="dialog" aria-modal="true" aria-label="Studie hinzufügen" ref={box} onClick={(e) => e.stopPropagation()}>
         <h2>Studie hinzufügen</h2>
         <div className="field">
           <span>Lichess-Studie (Link)</span>

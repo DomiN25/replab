@@ -1,11 +1,13 @@
 // PGN-Import mit Vorschau und Konfliktdialog (F9).
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { analyzePgn, guessColor, planImport, pgnOrientation, studyStart, type ExistingEntry } from '../core/pgn';
 import { formatLine, displaySan } from '../core/chess';
 import { repo } from '../data/repo';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
 import { saveAsStudy } from './Studies';
+import { useBackClose } from './backClose';
+import { trapFocus } from './Modal';
 
 export interface ImportPreset {
   text: string;
@@ -28,6 +30,16 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
   const [existing, setExisting] = useState<Map<string, ExistingEntry> | undefined>();
   const [resolutions, setResolutions] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
+  useBackClose(true, onClose);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') trapFocus(e, box.current);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   const [studyUrl, setStudyUrl] = useState('');
   const [loadingStudy, setLoadingStudy] = useState(false);
   /** Text stammt aus einer per Link geladenen Studie (danach Sprung zur Studie). */
@@ -122,7 +134,7 @@ export function ImportDialog({ preset, onClose }: { preset?: ImportPreset; onClo
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" role="dialog" aria-modal="true" aria-label="PGN importieren" onClick={(e) => e.stopPropagation()}>
+      <div className="modal wide" role="dialog" aria-modal="true" aria-label="PGN importieren" ref={box} onClick={(e) => e.stopPropagation()}>
         <h2>PGN importieren {name && <small>{name}</small>}</h2>
         {!existing ? (
           <>
