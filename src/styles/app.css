@@ -966,3 +966,13 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .line-item .line-row { flex: 1; min-width: 0; }
 .line-cut { flex: none; color: var(--muted); border-color: transparent; }
 .line-cut:hover { color: var(--gap); }
+/* Lernmodus: Fortschritt der Linie (ein Segment pro Zug), deutliches Linienende */
+.learn-progress { display: flex; gap: 3px; margin-top: 8px; height: 5px; }
+.learn-progress i { flex: 1; border-radius: 3px; background: var(--line); transition: background-color 0.2s; }
+.learn-progress i.on { background: var(--acc); }
+.study-m .learn-progress + .learn-controls { margin-top: 6px; }
+.learn-go.done { background: var(--me); border-color: var(--me); color: var(--on-me); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--me) 70%, transparent); animation: popIn 0.3s var(--ease-pop); }
+.learn-go.done:disabled { opacity: 0.6; }
+.learn-card:has(.learn-end) { border-color: color-mix(in srgb, var(--me) 45%, transparent); background: linear-gradient(140deg, var(--me-soft), var(--panel)); }
+.learn-end-title { display: inline-flex; align-items: center; gap: 6px; color: var(--me); font: 700 16px var(--display); }
+.learn-next { margin: 6px 0 0; font-size: 13px; color: var(--muted); }

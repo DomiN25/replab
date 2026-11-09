@@ -127,7 +127,15 @@ export interface Study {
   /** Lernmodus: als verstanden markierte Linien (Linien-IDs, siehe core/studyLines.ts) */
   linesDone?: string[];
   /** Lernmodus: an/aus (fehlt = an), aktuelle Linie + Schritt, Reihenfolge, eigene Züge selbst spielen */
-  learn?: { on?: boolean; line: string; step: number; order?: 'skeleton' | 'study'; selfPlay?: boolean };
+  learn?: {
+    on?: boolean;
+    line: string;
+    step: number;
+    order?: 'skeleton' | 'study';
+    selfPlay?: boolean;
+    /** Verlauf für „Zurück“ über Liniengrenzen (zuletzt besuchte Positionen, max. 30) */
+    back?: { line: string; step: number }[];
+  };
   createdAt: number;
   updatedAt: number;
 }

@@ -86,6 +86,13 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(card).toContainText('Statt 2.Sf3');
   await expect(card).toContainText('2.c3');
   await expect(page.locator('.study-progress')).toHaveText('1/9');
+  // Zurück am Linienanfang → Ende der vorigen Linie; Kurzmeldung bietet ebenfalls „Zurück“
+  await expect(page.locator('.toast')).toContainText('Linie 1 verstanden');
+  await page.getByRole('button', { name: 'Zug zurück' }).click();
+  await expect(card).toContainText('Linie 1/9');
+  await expect(page.locator('.learn-count')).toHaveText('8/8');
+  await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
+  await expect(card).toContainText('Linie 2/9');
   // Abweichen an der Abzweigstelle: 2.Sc3 statt 2.c3
   await card.locator('.learn-alts .var-chip', { hasText: '2.Sc3' }).click();
   await expect(page.locator('.crumbs')).toContainText('Sc3');

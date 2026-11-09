@@ -11,6 +11,7 @@ import type { Study } from '../core/types';
 import { Icon } from './Icon';
 import { RowMenu } from './RowMenu';
 import { toast } from './store';
+import { buzz } from './theme';
 
 type LearnState = NonNullable<Study['learn']>;
 
@@ -28,6 +29,10 @@ export interface Learn {
   expected?: PathStep;
   /** eigener Zug ist dran und soll selbst gefunden werden */
   quiz: boolean;
+  /** Zurück möglich (Schritt, Verlauf oder Abzweig davor) */
+  canPrev: boolean;
+  /** nächste offene Linie nach dieser (für die Vorschau am Linienende) */
+  nextIdx?: number;
   hint: boolean;
   setOn: (on: boolean, here?: string) => void;
   setOrder: (o: LineOrder) => void;
@@ -78,6 +83,10 @@ export function useLearn(p: {
     if (on && line) setPath(learnPath);
   }, [on, learnPath]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setHint(false), [line, step]);
+  const atEndNow = !!line && step >= line.steps.length;
+  useEffect(() => {
+    if (on && atEndNow) buzz(25);
+  }, [on, atEndNow, line?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const expected = line?.steps[step];
   const expNode = expected && tree ? tree.nodes.get(expected.key) : undefined;
@@ -99,7 +108,14 @@ export function useLearn(p: {
   if (!st || !plan || !line) return undefined;
   const lines = plan.lines;
   const setLearn = setLearnRaw;
-  const goto = (i: number, s = 0) => setLearn({ line: lines[i].id, step: s, on: true });
+  const history = st.learn?.back ?? [];
+  /** Sprung in eine andere Linie; die aktuelle Position kommt in den Verlauf (für „Zurück“) */
+  const jump = (id: string, s: number, extra: Partial<Study> = {}) => {
+    const back = id === line.id ? history : [...history, { line: line.id, step }].slice(-30);
+    update({ ...extra, learn: { ...st.learn, on: true, line: id, step: s, back } });
+  };
+  const goto = (i: number, s = 0) => jump(lines[i].id, s);
+  const nextIdx = nextOpenLine(plan, new Set(done).add(line.id), idx);
 
   const undoCuts = (before: string[]) => () => update({ cuts: before });
   /** Zug entfernen (samt allem dahinter). Ganze Linie → weiter mit der nächsten offenen Linie. */
@@ -139,6 +155,8 @@ export function useLearn(p: {
     expected,
     quiz,
     hint,
+    canPrev: step > 0 || history.length > 0 || line.start.length > 0,
+    nextIdx,
     setOn: (b, here) => {
       if (b && here) {
         const o = plan.owner.get(here);
@@ -154,12 +172,26 @@ export function useLearn(p: {
       if (quiz && !hint) return setHint(true); // erst den Zug zeigen (Pfeil), dann weiter
       setLearn({ line: line.id, step: step + 1 });
     },
-    prev: () => step > 0 && setLearn({ line: line.id, step: step - 1 }),
+    prev: () => {
+      if (step > 0) return setLearn({ line: line.id, step: step - 1 });
+      // Linienanfang: zurück dorthin, wo man herkam (z. B. Ende der vorigen Linie) …
+      const last = history[history.length - 1];
+      if (last && plan.byId.has(last.line)) return setLearn({ line: last.line, step: last.step, back: history.slice(0, -1) });
+      // … sonst einen Zug zurück in die Linie, von der diese abzweigt
+      const before = line.start[line.start.length - 1];
+      const o = before && plan.owner.get(before.key);
+      if (o) setLearn({ line: lines[o.line].id, step: o.step });
+    },
     markDone: () => {
       const ids = new Set(done).add(line.id);
       const n = nextOpenLine(plan, ids, idx);
-      update({ linesDone: [...ids], learn: { ...st.learn, line: n !== undefined ? lines[n].id : line.id, step: 0 } });
-      if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok');
+      const prevDone = st.linesDone ?? [];
+      const here = { line: line.id, step };
+      jump(n !== undefined ? lines[n].id : line.id, 0, { linesDone: [...ids] });
+      // Rückgängig: Markierung entfernen und zurück ans Ende dieser Linie
+      const undo = { label: 'Zurück', run: () => update({ linesDone: prevDone, learn: { ...st.learn, on: true, ...here, back: history } }) };
+      if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok', undo);
+      else toast(`Linie ${idx + 1} verstanden – weiter mit Linie ${n + 1}`, 'ok', undo);
     },
     again: () => setLearn({ line: line.id, step: 0 }),
     skip: () => {
@@ -233,13 +265,27 @@ const sanAt = (tree: StudyTree, s: PathStep, notation: 'de' | 'en') => {
 
 export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Learn; onTouchStart: (e: React.TouchEvent) => void; onTouchEnd: (e: React.TouchEvent) => void }) {
   const { line, step, atEnd } = learn;
+  // Am Linienende den Knopf kurz sperren: wer schnell „Weiter“ tippt, springt sonst ungewollt in die nächste Linie
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    if (!atEnd) return setLocked(false);
+    setLocked(true);
+    const t = setTimeout(() => setLocked(false), 800);
+    return () => clearTimeout(t);
+  }, [atEnd, line.id]);
   return (
+    <>
+    <div className="learn-progress" role="progressbar" aria-label="Fortschritt in dieser Linie" aria-valuemin={0} aria-valuemax={line.steps.length} aria-valuenow={step}>
+      {line.steps.map((_, i) => (
+        <i key={i} className={i < step ? 'on' : ''} />
+      ))}
+    </div>
     <div className="board-controls learn-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <button className="btn icon" onClick={learn.prev} aria-label="Zug zurück" disabled={step === 0}>
+      <button className="btn icon" onClick={learn.prev} aria-label="Zug zurück" disabled={!learn.canPrev}>
         <Icon name="prev" />
       </button>
       {atEnd ? (
-        <button className="btn primary learn-go" onClick={learn.markDone}>
+        <button className="btn primary learn-go done" onClick={learn.markDone} disabled={locked}>
           <Icon name="check" /> Verstanden
         </button>
       ) : (
@@ -260,6 +306,7 @@ export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Lear
         {step}/{line.steps.length}
       </span>
     </div>
+    </>
   );
 }
 
@@ -334,7 +381,9 @@ export function LearnCard({
       )}
       {atEnd && (
         <div className="learn-end" role="status">
-          <b>Ende der Linie.</b>{' '}
+          <b className="learn-end-title">
+            <Icon name="check" /> Ende der Linie – geschafft
+          </b>{' '}
           {line.transposeTo ? (
             <span>
               Zugumstellung: Diese Stellung kennst du aus Linie {line.transposeTo.line + 1} ({levelName(plan.lines[line.transposeTo.line].level)})
@@ -343,6 +392,11 @@ export function LearnCard({
           ) : repDiff ? (
             <span className="warn">Dein Repertoire spielt hier {displaySan(view.repMove!.san, notation)} – die Studie geht anders weiter.</span>
           ) : null}
+          {learn.nextIdx !== undefined && (
+            <p className="learn-next">
+              Als Nächstes: Linie {learn.nextIdx + 1} · {levelName(plan.lines[learn.nextIdx].level)} · {lineLabel(tree, plan.lines[learn.nextIdx], notation, 3)}
+            </p>
+          )}
           <div className="row-actions">
             <button className="btn small" onClick={learn.again}>
               <Icon name="undo" /> Nochmal
