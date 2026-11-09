@@ -54,6 +54,20 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   const lines = await page.locator('.gapfam .line').allInnerTexts();
   expect(lines.sort()).toEqual(['1.e4 c5', '1.e4 e5 2.Sf3 Sc6', '1.e4 e5 2.Sf3 Sf6']);
 
+  // Suche: Zugfolge deutsch → Stellung; Treffer springt hin
+  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  await page.getByRole('button', { name: /Im Repertoire suchen/ }).click();
+  await page.getByLabel('Suchbegriff').fill('Sf3 Sc6');
+  await page.locator('.search-hits button').first().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.crumbs .cur')).toHaveText('Sc6');
+  // Zug tippen (deutsch) + Enter
+  await page.getByRole('button', { name: 'Zum Anfang' }).click();
+  await page.getByLabel('Zug eingeben').fill('Sf3');
+  await page.getByLabel('Zug eingeben').press('Enter');
+  await expect(page.locator('.crumbs .cur')).toHaveText('1.Sf3');
+  await expect(page.getByTestId('outside')).toContainText('Dein Repertoire spielt 1.e4');
+
   // Nach Neuladen ist alles noch da (M1)
   await page.reload();
   await expect(page.getByTestId('gap-count')).toHaveText('3');

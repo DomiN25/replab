@@ -23,11 +23,13 @@ import {
   toast,
   useApp,
 } from './store';
-import { displaySan, playUci, plyOfFen, posKeyOf, turnOf, moveNumberPrefix } from '../core/chess';
+import { displaySan, playSan, playUci, plyOfFen, posKeyOf, turnOf, moveNumberPrefix } from '../core/chess';
 import { oppCandidates } from '../core/relevance';
 import { Scheduler } from '../core/srs';
 import { repo } from '../data/repo';
 import { Icon } from './Icon';
+import { SearchDialog } from './Search';
+import { normalizeSanToken } from '../core/search';
 
 interface PendingCommit {
   fen: string;
@@ -60,6 +62,8 @@ export function Builder() {
   const boardRef = useRef<HTMLElement>(null);
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('peek');
   const [sheetTab, setSheetTab] = useState<'moves' | 'map'>('moves');
+  const [searching, setSearching] = useState(false);
+  const [typed, setTyped] = useState('');
 
   const step = line[cursor];
   const fen = step.fen;
@@ -256,6 +260,10 @@ export function Builder() {
       if (e.key === 'ArrowLeft') back();
       else if (e.key === 'ArrowRight') forward();
       else if (e.key === 'f') useApp.setState((s) => ({ flipped: !s.flipped }));
+      else if (e.key === '/') {
+        e.preventDefault();
+        setSearching(true);
+      }
       else if (e.key === ' ') {
         e.preventDefault();
         useApp.setState((s) => ({ engineOn: !s.engineOn }));
@@ -300,13 +308,30 @@ export function Builder() {
       <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
       <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
       <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
+      <button className="btn icon" onClick={() => setSearching(true)} aria-label="Im Repertoire suchen (/)" title="Suchen (/)"><Icon name="search" /></button>
     </>
   );
+  // Desktop: Zug tippen (deutsch oder englisch) + Enter – wie ein Zug am Brett
+  const playTyped = () => {
+    const tok = normalizeSanToken(typed);
+    if (!tok) return;
+    const p = (() => {
+      try {
+        return playSan(fen, tok);
+      } catch {
+        return undefined;
+      }
+    })();
+    if (!p) return toast(`„${typed}“ ist hier kein legaler Zug.`, 'err');
+    setTyped('');
+    onBoardMove(p.uci);
+  };
   const outsideBanner = deviation ? (
     <div className="outside" role="status" data-testid="outside">
       <span>
-        <b>Außerhalb des Repertoires.</b> Bei {deviation.label} spielst du laut Repertoire <b className="me">{displaySan(deviation.repSan, settings.ui.notation)}</b>, hier
-        wurde {displaySan(deviation.playedSan, settings.ui.notation)} gespielt.
+        <b>Außerhalb des Repertoires:</b> Dein Repertoire spielt{' '}
+        <b className="me">{deviation.label}{displaySan(deviation.repSan, settings.ui.notation)}</b>, hier wurde {deviation.label}
+        {displaySan(deviation.playedSan, settings.ui.notation)} gespielt.
       </span>
       <span className="row-actions">
         <button className="btn small" onClick={() => gotoCursor(deviation.index)}>Zur Abweichung</button>
@@ -426,8 +451,21 @@ export function Builder() {
             {board}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
               {navButtons}
-              <span className="swipe-hint">zum Blättern wischen</span>
+              <input
+                className="move-input"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') playTyped();
+                  e.stopPropagation(); // Pfeiltasten/„f“ im Feld nicht als Kürzel
+                }}
+                placeholder="Zug tippen, z. B. Sf3"
+                aria-label="Zug eingeben"
+              />
             </div>
+            <p className="kbd-hint">
+              <kbd>←</kbd> <kbd>→</kbd> blättern · <kbd>F</kbd> Brett drehen · <kbd>/</kbd> suchen · Zug tippen + <kbd>Enter</kbd>
+            </p>
           </section>
           <section className="col-panel sheet">
             {outsideBanner}
@@ -437,6 +475,7 @@ export function Builder() {
         </>
       )}
 
+      {searching && <SearchDialog onClose={() => setSearching(false)} />}
       {pending && (
         <Modal
           title={existing ? 'Repertoirezug ändern?' : 'Als Repertoirezug festlegen?'}
@@ -531,7 +570,7 @@ function findDeviation(line: LineStep[], cursor: number, color: Color, moves: Ma
     const next = line[i + 1];
     if (entry && next?.uci && entry.uci !== next.uci) {
       const ply = plyOfFen(at.fen);
-      return { index: i, label: moveNumberPrefix(ply).trim() || 'Zug', repUci: entry.uci, repSan: entry.san, playedSan: next.san ?? next.uci };
+      return { index: i, label: moveNumberPrefix(ply), repUci: entry.uci, repSan: entry.san, playedSan: next.san ?? next.uci };
     }
   }
   return undefined;

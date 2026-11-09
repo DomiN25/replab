@@ -693,3 +693,20 @@ details.fold[open] > summary .fold-ico { rotate: 90deg; }
 details.fold > :not(summary) { margin-left: 18px; margin-right: 18px; }
 details.fold[open] { padding-bottom: 14px; }
 details.fold > summary:hover h2 { color: var(--ink); }
+
+/* Suche im Repertoire */
+.search-field { display: flex; align-items: center; gap: 10px; padding: 4px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--field); margin-bottom: 10px; }
+.search-field:focus-within { border-color: var(--acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); }
+.search-field .ico { color: var(--muted); width: 18px; height: 18px; }
+.search-field input { flex: 1; min-width: 0; border: 0; background: transparent; box-shadow: none; font-size: 16px; padding: 8px 0; }
+.search-field input:focus { box-shadow: none; }
+.search-hits { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+.search-hits button { width: 100%; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line-soft); padding: 10px 6px; border-radius: 10px; cursor: pointer; color: inherit; }
+.search-hits button:hover, .search-hits button:focus-visible { background: var(--panel2); }
+.sh-line { font: 600 14px var(--display); }
+.sh-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.sh-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+/* Desktop: Zug tippen + Kürzel */
+.move-input { margin-left: auto; width: 170px; min-height: 40px; border-radius: 999px; font-size: 14px; }
+.kbd-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--panel-solid); color: var(--ink); }

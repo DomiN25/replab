@@ -279,7 +279,7 @@ function LabelEditor({ posKey, mark }: { posKey: string; mark?: PositionMark }) 
   if (!edit)
     return (
       <button className="link-btn" onClick={() => { setV(mark?.label ?? ''); setEdit(true); }}>
-        {mark?.label ? `Name: ${mark.label} ✎` : '+ Namen für diese Stellung'}
+        {mark?.label ? `Stellungsname: ${mark.label} (ändern)` : '+ Namen für diese Stellung'}
       </button>
     );
   return (
@@ -464,7 +464,7 @@ function EngineBox({ engine, fen, ply, notation, myTurn, onPlay }: { engine: Eng
           return (
             <div key={i} className="pv">
               <span className="ev">{formatEval(cp, mate)}</span>
-              <button className="mvbtn" onClick={() => onPlay(l.uci)}>{displaySan(l.san, notation)}</button>
+              <button className="mvbtn" onClick={() => onPlay(l.uci)}>{moveNumberPrefix(ply) + displaySan(l.san, notation)}</button>
               <span className="line">{formatLine(sans.slice(1, 8), notation, ply + 1)}</span>
             </div>
           );
