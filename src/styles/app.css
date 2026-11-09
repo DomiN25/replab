@@ -726,3 +726,18 @@ kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line
 .study-chapters li > .hint { flex-basis: 100%; }
 .ch-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
 .commit-scope { align-self: flex-start; }
+
+/* Wissen pro Familie: Legende */
+.klegend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.klegend span { display: inline-flex; align-items: center; gap: 5px; }
+.klegend i { display: inline-block; width: 12px; height: 8px; border-radius: 3px; }
+.klegend-n { margin-left: auto; }
+/* Status-Punkt der Lichess-Datenbank: antippbar (Erklärung als Kurzmeldung), große Trefferfläche */
+button.ex-dot { border: 0; padding: 0; cursor: pointer; position: relative; }
+button.ex-dot::after { content: ''; position: absolute; inset: -14px; }
+/* Handy: Kurzmeldungen oben – unten liegen Navigation und Sheet */
+@media (max-width: 899px) {
+  .toast { bottom: auto; top: calc(64px + env(safe-area-inset-top)); animation-name: toastDown; }
+  .app:has(.trainer) .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
+}
+@keyframes toastDown { from { opacity: 0; translate: 0 -16px; scale: 0.96; } }

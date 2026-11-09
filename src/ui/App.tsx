@@ -5,7 +5,7 @@ import { Home } from './Home';
 import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
 import { Studies } from './Studies';
-import { dismissToast, selectRepertoire, setView, useApp, type View } from './store';
+import { dismissToast, selectRepertoire, setView, toast as showToast, useApp, type View } from './store';
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
 import { gapCounts } from '../core/graph';
@@ -80,7 +80,12 @@ export function App() {
             {sync.status === 'syncing' ? <i className="spin">◌</i> : sync.status === 'needs-auth' || sync.dirty ? <i>!</i> : sync.status === 'error' ? <i>×</i> : <i>✓</i>}
           </button>
         )}
-        <span className={`ex-dot ${ex.state}`} title={explorerTitle(ex.state, ex.lastError)} aria-label={explorerTitle(ex.state, ex.lastError)} />
+        <button
+          className={`ex-dot ${ex.state}`}
+          title={explorerTitle(ex.state, ex.lastError)}
+          aria-label={explorerTitle(ex.state, ex.lastError)}
+          onClick={() => showToast(explorerTitle(ex.state, ex.lastError), ex.state === 'error' || ex.state === 'auth' ? 'err' : 'info')}
+        />
         <nav className="nav-top" aria-label="Hauptnavigation">
           {NAV.map((n) => (
             <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>

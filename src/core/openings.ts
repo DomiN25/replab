@@ -94,9 +94,43 @@ export function familyDe(name: string): string {
   return FAMILY_DE[fam] ?? fam;
 }
 
-/** Ganzen Namen mit übersetzter Familie: "Spanisch: Morphy Defense". */
+// Häufige Begriffe in Variantennamen (Lichess, englisch). Reihenfolge: längere Wendungen zuerst.
+const TERMS_DE: [RegExp, string][] = [
+  [/\bMain Line\b/g, 'Hauptvariante'],
+  [/\bModern Variation\b/g, 'Moderne Variante'],
+  [/\bClassical Variation\b/g, 'Klassische Variante'],
+  [/\bExchange Variation\b/g, 'Abtauschvariante'],
+  [/\bAdvance Variation\b/g, 'Vorstoßvariante'],
+  [/\bClosed Variation\b/g, 'Geschlossene Variante'],
+  [/\bOpen Variation\b/g, 'Offene Variante'],
+  [/\bNormal Variation\b/g, 'Normalvariante'],
+  [/\bAccepted\b/g, 'angenommen'],
+  [/\bDeclined\b/g, 'abgelehnt'],
+  [/\bVariation\b/g, 'Variante'],
+  [/\bDefense\b/g, 'Verteidigung'],
+  [/\bAttack\b/g, 'Angriff'],
+  [/\bSystem\b/g, 'System'],
+  [/\bLine\b/g, 'Linie'],
+  [/\bOpening\b/g, 'Eröffnung'],
+  [/\bCounterattack\b/g, 'Gegenangriff'],
+  [/\bCountergambit\b/g, 'Gegengambit'],
+  [/\bDeferred\b/g, 'verzögert'],
+  [/\bReversed\b/g, 'mit vertauschten Farben'],
+  [/\bExchange\b/g, 'Abtausch'],
+  [/\bAdvance\b/g, 'Vorstoß'],
+];
+
+/** Variantenteil eindeutschen ("Morphy Defense, Modern Steinitz Defense" → "Morphy-Verteidigung, …"). */
+export function termsDe(s: string): string {
+  let out = s;
+  for (const [re, de] of TERMS_DE) out = out.replace(re, de);
+  // „Morphy Verteidigung“ → „Morphy-Verteidigung“ (Eigenname + Begriff)
+  return out.replace(/\b([A-ZÄÖÜ][\wäöüß'’.-]+) (Verteidigung|Variante|Angriff|Gambit|System|Linie|Gegenangriff)\b/g, '$1-$2');
+}
+
+/** Ganzen Namen mit übersetzter Familie und eingedeutschten Begriffen: "Spanisch: Morphy-Verteidigung". */
 export function nameDe(name: string): string {
   const fam = familyPart(name);
   const rest = name.slice(fam.length);
-  return (FAMILY_DE[fam] ?? fam) + rest;
+  return (FAMILY_DE[fam] ?? fam) + termsDe(rest);
 }

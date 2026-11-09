@@ -15,7 +15,7 @@ Priorität: **P1** = stört die Kernnutzung oder kann Daten/Arbeit kosten · **P
 4. **Jeder eigene Zug kostet einen Bestätigungsdialog.** Zug am Brett in einer eigenen Stellung ohne Eintrag → Dialog „Festlegen / Nur ansehen“; „Festlegen“ in der Tabelle → Dialog. Beim Erkunden (nur ansehen) und beim schnellen Aufbauen (Lückentour!) nervt das bei jedem Zug. Besser: direkt festlegen + Kurzmeldung mit „Rückgängig“; Erkunden ohne Dialog (z. B. Festlegen nur über Tabelle/Knopf).
 5. **381 Lücken als Hauptzahl.** Start, Kopfleiste und Lücken-Seite zeigen ungefiltert 381 (davon ~340 unter 0,5 % Erreichbarkeit). Das demotiviert und versteckt die wichtigen ~41. Standard sollte ein sinnvoller Filter sein (z. B. ≥ 0,5 %), Rest als „selten“.
 
-## P2 – deutlich spürbar
+## P2 – deutlich spürbar (umgesetzt am 09.11.2026, Pakete A–F)
 
 ### Navigation & Struktur
 6. **Uneinheitliche Begriffe:** Reiter „Lücken“ ↔ Seite „Baustellen“ ↔ Knopf „Baustellen ansehen“; „Einstellungen“ (Desktop) ↔ „Mehr“ (Handy); „Einträge“ ↔ „Karten“ ↔ „Stellungen“ werden gemischt (Start: „Einträge 196“, „Wissen pro Familie: Offene Spiele 404“ – 404 was?).
@@ -82,3 +82,10 @@ Priorität: **P1** = stört die Kernnutzung oder kann Daten/Arbeit kosten · **P
 2. P1-3/P1-4 (Tabelle, Festlegen ohne Dialog + Rückgängig) – Kernbedienung beim Bauen.
 3. P1-5 + P2-6/28/29 (Zahlen, Begriffe, Formatierung) – schnell, großer Eindruck.
 4. Danach Studien-Feinheiten (23–26), Suche (12), Navigation/Einstellungen (7–11).
+
+## Nachtrag 09.11.2026 – Stand nach P1/P2
+- P1 und P2 umgesetzt (Commits 1d33c1d, a5f4639, 72754a9, 531e4ca, c3f7283, e769e30 und Paket F).
+- Bewusst nicht/teilweise: Topbar-Repertoirename bleibt abgeschnitten (Auswahlfeld), Farbsymbole ○/● im Auswahlfeld bleiben (Optionen können keine SVG). Eröffnungsnamen: nur häufige Begriffe übersetzt, Eigennamen bleiben.
+- Neu beobachtet: Kapitel-Reiter einer großen Studie (26 Kapitel) braucht beim Öffnen ~0,26 s (PC, Entwicklungsmodus) – am Handy ggf. spürbar; ggf. in einen Worker verlagern.
+- Offen: P3 (Touch-Ziele Zugleiste, Galaxie am Handy, Farbschwäche, Einstellungs-Rückmeldung, leere Zustände, Begriffe „Linie durchspielen“/„Lückentour“).
+

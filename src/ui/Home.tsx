@@ -14,6 +14,7 @@ import type { ReviewLog } from '../core/types';
 import type { BackupFile } from '../data/repo';
 import { gapCounts } from '../core/graph';
 import { pct } from './format';
+import { moveNumberPrefix, plyOfFen } from '../core/chess';
 
 export function Home() {
   const rep = currentRep();
@@ -71,7 +72,9 @@ export function Home() {
       if (n.status === 'transposition' || n.toMove !== 'me' || n.ply === 0) continue;
       const fam = n.topFamily;
       const b = m.get(fam) ?? { green: 0, yellow: 0, red: 0, grey: 0, gap: 0 };
-      if (n.status === 'gap') b.gap++;
+      if (n.status === 'gap') {
+        if (n.reach >= gapMin) b.gap++; // wie überall: nur wichtige Lücken
+      }
       else if (n.status === 'answered') {
         const c = cards.get(n.posKey);
         b[knowledgeOf(c ? sch.retrievability(c.srs, now) : undefined)]++;
@@ -82,7 +85,7 @@ export function Home() {
       .map(([fam, b]) => ({ fam, ...b, total: b.green + b.yellow + b.red + b.grey + b.gap }))
       .filter((x) => x.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [graph, cards, settings.srs.desiredRetention, now]);
+  }, [graph, cards, settings.srs.desiredRetention, now, gapMin]);
 
   const recent = useMemo(() => [...moves.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6), [moves]);
 
@@ -216,13 +219,23 @@ export function Home() {
           {bars.map((b) => (
             <div key={b.fam} className="kbar-row">
               <span className="kbar-label">{b.fam}</span>
-              <span className="kbar" title={`grün ${b.green} · gelb ${b.yellow} · rot ${b.red} · neu ${b.grey} · Lücken ${b.gap}`}>
+              <span className="kbar" title={`sicher ${b.green} · wackelig ${b.yellow} · schwach ${b.red} · neu ${b.grey} · wichtige Lücken ${b.gap}`}>
                 {(['green', 'yellow', 'red', 'grey'] as const).map((k) => (b[k] ? <i key={k} style={{ flex: b[k], background: KNOWLEDGE_COLORS[k] }} /> : null))}
                 {b.gap ? <i className="stripes" style={{ flex: b.gap }} /> : null}
               </span>
-              <span className="kbar-n">{b.total}</span>
+              <span className="kbar-n" title="eigene Züge in dieser Familie">{b.total - b.gap}</span>
             </div>
           ))}
+          {bars.length > 0 && (
+            <p className="klegend">
+              <span><i style={{ background: KNOWLEDGE_COLORS.green }} />sicher</span>
+              <span><i style={{ background: KNOWLEDGE_COLORS.yellow }} />wackelig</span>
+              <span><i style={{ background: KNOWLEDGE_COLORS.red }} />schwach</span>
+              <span><i style={{ background: KNOWLEDGE_COLORS.grey }} />neu</span>
+              <span><i className="stripes" />Lücke</span>
+              <span className="klegend-n">Zahl = eigene Züge</span>
+            </p>
+          )}
         </section>
 
         <section className="card recent">
@@ -236,9 +249,9 @@ export function Home() {
                     setView('build');
                   }}
                 >
-                  <b className="me">{displaySan(m.san, settings.ui.notation)}</b>
+                  <b className="me">{moveNumberPrefix(plyOfFen(m.fen)) + displaySan(m.san, settings.ui.notation)}</b>
                   <span>{graph?.nodes[graph.byPosKey.get(m.posKey) ?? -1]?.name ?? ''}</span>
-                  <small>{new Date(m.updatedAt).toLocaleDateString('de-DE')}</small>
+                  <small>{relDay(m.updatedAt)}</small>
                 </button>
               </li>
             ))}
@@ -264,4 +277,15 @@ export function Home() {
       {dialog}
     </div>
   );
+}
+
+/** „heute“, „gestern“, sonst Datum. */
+function relDay(ts: number): string {
+  const d = new Date(ts);
+  const today = new Date();
+  const y = new Date();
+  y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'heute';
+  if (d.toDateString() === y.toDateString()) return 'gestern';
+  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' });
 }
