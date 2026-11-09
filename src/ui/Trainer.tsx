@@ -7,12 +7,12 @@ import { Board, uciSquares } from './Board';
 import { currentRep, gotoPosKey, loadRepData, setView, useApp } from './store';
 import { repo } from '../data/repo';
 import { answer, createSession, currentStep, isFinished, type Session, type SessionItem } from '../core/session';
-import { ratingFor, Scheduler } from '../core/srs';
+import { isDue, isNew, ratingFor, Scheduler } from '../core/srs';
 import { displaySan, playUci, START_FEN, formatLine, moveNumberPrefix, plyOfFen } from '../core/chess';
 import { buildPool, dueItems, eligibleNew, lineItems, newItems, type Focus } from './training';
-import { pathSans } from '../core/graph';
+import { pathSans, subtreeIds } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
-import type { ReviewLog, TrainingMode } from '../core/types';
+import type { Card, ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
 import { buzz } from './theme';
 import { activeSession, beginSession, clearSession, pauseSession, persistSession, resumeSession, storedSession, type SavedSession } from './trainingSession';
@@ -49,14 +49,31 @@ export function Trainer() {
   // Über das Tageslimit hinaus: 10 weitere neue Karten (falls noch welche da sind)
   const extraNew = useMemo(() => (fresh.length === 0 && eligibleCount > 0 ? newItems(pool, settings, graph, 10) : []), [fresh.length, eligibleCount, pool, settings, graph]);
 
+  // Fokus-Äste mit Anzahl fälliger Karten
   const families = useMemo(() => {
     if (!graph) return [];
+    const dueKeys = new Set(cardList.filter((c) => !c.suspended && isDue(c.srs, now)).map((c) => c.posKey));
     const out: { id: number; label: string }[] = [];
     for (const n of graph.nodes) {
-      if (n.ply === 2 && n.status !== 'transposition' && n.children.length) out.push({ id: n.id, label: `${n.topFamily} (${formatLine(pathSans(graph, n.id), settings.ui.notation)})` });
+      if (n.ply === 2 && n.status !== 'transposition' && n.children.length) {
+        const dueHere = subtreeIds(graph, n.id).filter((i) => dueKeys.has(graph.nodes[i].posKey)).length;
+        out.push({ id: n.id, label: `${n.topFamily} (${formatLine(pathSans(graph, n.id), settings.ui.notation)})${dueHere ? ` · ${dueHere} fällig` : ''}` });
+      }
     }
     return out;
-  }, [graph, settings.ui.notation]);
+  }, [graph, settings.ui.notation, cardList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Vorschau: wie viele Wiederholungen in den nächsten Tagen kommen
+  const forecast = useMemo(() => {
+    const endOf = (days: number) => {
+      const d = new Date();
+      d.setHours(23, 59, 59, 999);
+      return d.getTime() + days * 86400_000;
+    };
+    const learned = cardList.filter((c) => !c.suspended && !isNew(c.srs));
+    const count = (to: number) => learned.filter((c) => c.srs.due > now && c.srs.due <= to).length;
+    return { tomorrow: count(endOf(1)), week: count(endOf(7)), learned: learned.length };
+  }, [cardList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // „Training starten“ auf der Startseite: direkt loslegen (fällige zuerst, sonst neue), sobald die Zahlen stehen
   useEffect(() => {
@@ -100,6 +117,14 @@ export function Trainer() {
           setSaved(undefined);
           void loadRepData();
         }}
+        more={[
+          ...(due.length ? [{ label: `Weiter wiederholen (${due.length})`, run: () => start('due', due) }] : []),
+          ...(fresh.length
+            ? [{ label: `Neue lernen (${fresh.length})`, run: () => start('new', fresh) }]
+            : extraNew.length
+              ? [{ label: `${extraNew.length} weitere neue`, run: () => start('new', extraNew) }]
+              : []),
+        ]}
       />
     );
   }
@@ -172,6 +197,11 @@ export function Trainer() {
           <small>zufällige Linie im Fokus, in Zugreihenfolge</small>
         </button>
       </div>
+      {forecast.learned > 0 && (
+        <p className="forecast">
+          Gelernt: <b>{forecast.learned}</b> Stellungen · kommen wieder: morgen <b>{forecast.tomorrow}</b> · in 7 Tagen <b>{forecast.week}</b>
+        </p>
+      )}
       <section className="focus">
         <h2>Fokus</h2>
         <label className="field">
@@ -200,7 +230,20 @@ export function Trainer() {
 
 // ------------------------------------------------------------ Sitzung
 
-function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onExit: () => void; onPause: () => void; onChange: () => void }) {
+function Runner({
+  saved,
+  onExit,
+  onPause,
+  onChange,
+  more,
+}: {
+  saved: SavedSession;
+  onExit: () => void;
+  onPause: () => void;
+  onChange: () => void;
+  /** Angebote nach dem Ende („Weiter wiederholen“, „10 weitere neue“) */
+  more: { label: string; run: () => void }[];
+}) {
   const session: Session = saved.session;
   const startedAt = saved.startedAt;
   const rep = currentRep()!;
@@ -217,6 +260,7 @@ function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onE
   const [lastUci, setLastUci] = useState<string | undefined>();
   const askAt = useRef(0);
   const [nextDue, setNextDue] = useState<number | undefined>();
+  const lastReview = useRef<{ prev: Card; uid: string } | undefined>(undefined);
   const answered = useRef(false);
   const stats = useRef(saved.stats); // dasselbe Objekt wie in der gespeicherten Sitzung
   const scheduler = useMemo(() => new Scheduler(settings.srs.desiredRetention), [settings.srs.desiredRetention]);
@@ -317,7 +361,7 @@ function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onE
     if (!fresh) return;
     const srs = scheduler.review(fresh.srs, mode === 'line' ? 1 : rating, Date.now());
     if (correct) setNextDue(srs.due);
-    await repo.saveReview(fresh, srs, {
+    const uid = await repo.saveReview(fresh, srs, {
       cardId: card.id,
       repertoireId: rep.id,
       posKey: card.posKey,
@@ -328,11 +372,27 @@ function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onE
       wrongMoveUci: wrong,
       mode,
     });
+    lastReview.current = { prev: fresh, uid };
     useApp.setState((s) => {
       const m = new Map(s.cards);
       m.set(card.posKey, { ...fresh, srs });
       return { cards: m };
     });
+  };
+
+  // „Verklickt“: falsche Bewertung zurücknehmen und als richtig werten (ohne Relearning in dieser Sitzung)
+  const misclick = async () => {
+    const lr = lastReview.current;
+    if (!lr || !move || phase !== 'wrong') return;
+    lastReview.current = undefined;
+    await repo.undoReview(lr.prev, lr.prev.srs, lr.uid);
+    stats.current.wrong = Math.max(0, stats.current.wrong - 1);
+    stats.current.right++;
+    // Als „gut“ werten (Zeit nicht mehr aussagekräftig)
+    await record(true, (settings.srs.easyMs + settings.srs.hardMs) / 2);
+    pendingAnswer.current = true;
+    setWrongUci(undefined);
+    setPhase('fixed');
   };
 
   const onMove = (uci: string) => {
@@ -415,7 +475,14 @@ function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onE
           <div className="tile"><b>{total ? Math.round((100 * stats.current.right) / total) : 0} %</b><span>Trefferquote</span></div>
           <div className="tile"><b>{Math.floor(dur / 60)}:{String(dur % 60).padStart(2, '0')}</b><span>Dauer</span></div>
         </div>
-        <button className="btn primary big" onClick={onExit}>Fertig</button>
+        <div className="row-actions center">
+          {more.map((m) => (
+            <button key={m.label} className="btn big" onClick={m.run}>
+              {m.label}
+            </button>
+          ))}
+          <button className="btn primary big" onClick={onExit}>Fertig</button>
+        </div>
       </div>
     );
   }
@@ -492,6 +559,11 @@ function Runner({ saved, onExit, onPause, onChange }: { saved: SavedSession; onE
           <div>
             <p className="bad big"><Icon name="x" />Richtig ist {moveNumberPrefix(ply) + displaySan(move.san, notation)}</p>
             <p className="hint">Spiel den richtigen Zug nach. Die Stellung kommt in dieser Sitzung noch einmal.</p>
+            {session.mode !== 'line' && (
+              <button className="link-btn" onClick={() => void misclick()} title="Bewertung zurücknehmen und als richtig werten">
+                Verklickt – ich wusste den Zug
+              </button>
+            )}
             {move.note && <p className="note">{move.note}</p>}
           </div>
         )}

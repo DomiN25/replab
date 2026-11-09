@@ -719,3 +719,5 @@ kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line
 .gapfam .rowmenu-pop { z-index: 25; }
 .more-gaps { margin: 4px 0 2px 6px; }
 .page h1 small.shown { font: 500 14px var(--body); letter-spacing: 0; color: var(--muted); margin-left: 6px; }
+.forecast { margin: -4px 0 14px; font-size: 13.5px; color: var(--muted); }
+.forecast b { color: var(--ink); font-family: var(--display); font-variant-numeric: tabular-nums; }

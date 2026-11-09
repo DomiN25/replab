@@ -180,3 +180,18 @@ describe('Studien im Sync und in der Sicherung', () => {
     expect((await c.listStudies()).map((s) => s.name)).toEqual(['bleibt']);
   });
 });
+
+describe('Bewertung zurücknehmen (Verklicker)', () => {
+  it('Lernstand zurück, Wiederholung weg, Grabstein für den Sync', async () => {
+    const r = fresh();
+    const rep = await r.createRepertoire('W', 'white');
+    await r.setMove(rep.id, START_FEN, 'e2e4', 'e4');
+    const card = (await r.getCards(rep.id))[0];
+    const uid = await r.saveReview(card, { ...card.srs, reps: 1, state: 1 }, { cardId: card.id, repertoireId: rep.id, posKey: card.posKey, at: Date.now(), rating: 1, correct: false, msToAnswer: 900, mode: 'due' });
+    expect((await r.db.reviews.toArray()).length).toBe(1);
+    await r.undoReview(card, card.srs, uid);
+    expect((await r.db.reviews.toArray()).length).toBe(0);
+    expect((await r.getCards(rep.id))[0].srs.reps).toBe(card.srs.reps);
+    expect((await r.db.tombstones.toArray()).map((t) => t.key)).toContain(`reviews:${uid}`);
+  });
+});

@@ -242,10 +242,22 @@ export class Repo {
     return this.db.cards.where('repertoireId').equals(repId).toArray();
   }
 
-  async saveReview(card: Card, srs: SrsState, log: Omit<ReviewLog, 'id'>): Promise<void> {
+  /** Speichert Lernstand + Wiederholung; liefert die uid der Wiederholung (für „Verklicker“-Rücknahme). */
+  async saveReview(card: Card, srs: SrsState, log: Omit<ReviewLog, 'id'>): Promise<string> {
+    const uid = log.uid ?? newId();
     await this.db.transaction('rw', [this.db.cards, this.db.reviews], async () => {
       await this.db.cards.put({ ...card, srs, updatedAt: Date.now() });
-      await this.db.reviews.add({ ...log, uid: log.uid ?? newId() } as ReviewLog);
+      await this.db.reviews.add({ ...log, uid } as ReviewLog);
+    });
+    return uid;
+  }
+
+  /** Bewertung zurücknehmen: Lernstand der Karte zurücksetzen, Wiederholung löschen (Grabstein für den Sync). */
+  async undoReview(card: Card, prevSrs: SrsState, uid: string): Promise<void> {
+    await this.db.transaction('rw', [this.db.cards, this.db.reviews, this.db.tombstones], async () => {
+      await this.db.cards.put({ ...card, srs: prevSrs, updatedAt: Date.now() });
+      await this.db.reviews.where('uid').equals(uid).delete();
+      await this.tomb('reviews', [uid]);
     });
   }
 
