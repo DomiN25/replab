@@ -191,7 +191,7 @@ async function run(scheme) {
   await sd.locator('textarea').fill(STUDY);
   await sd.getByPlaceholder('z. B. Anti-Sizilianer').fill('Anti-Sizilianer');
   await sd.getByRole('button', { name: 'Als Studie speichern' }).tap();
-  await page.waitForSelector('.study-moves');
+  await page.waitForSelector('.var-chips'); // Sheet ist in Studien eingeklappt – Brett, Varianten, Text frei
   const tapIn = async (loc) => {
     await loc.evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
     await page.waitForTimeout(150);

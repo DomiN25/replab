@@ -752,3 +752,20 @@ button.ex-dot::after { content: ''; position: absolute; inset: -14px; }
 .empty-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 18px; }
 .empty-cta > .ico { width: 34px; height: 34px; color: var(--acc); }
 .empty-cta p { margin: 0; max-width: 46ch; }
+
+/* Bottom-Sheet: Kopfzeile mit Einklapp-Knopf; eingeklappt nur Griff + Reiter */
+.bs-headrow { align-self: stretch; display: flex; align-items: center; gap: 8px; }
+.bs-headrow .bs-tabs { flex: 1; }
+.bs-min { flex: none; width: 40px; height: 34px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel2); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.bs-min .ico { transition: rotate 0.25s var(--ease-out); }
+.bs-min .ico.down { rotate: 90deg; }
+.bs-min .ico.up { rotate: -90deg; }
+.bsheet.min { box-shadow: 0 -1px 0 var(--line-soft), 0 -6px 18px rgba(20, 40, 70, 0.12); }
+.bsheet.min .bs-body { visibility: hidden; }
+/* Studien am Handy: Seite scrollt (Brett, Varianten, Text), Sheet eingeklappt darunter */
+main:has(.study-m) { padding-bottom: calc(var(--nav-h) + 80px + env(safe-area-inset-bottom)); }
+.study-m .study-comment { margin: 12px 0 0; max-height: none; font-size: 15px; line-height: 1.6; }
+.study-m .study-comment small { font-size: 11.5px; }
+.study-nocomment { margin: 12px 4px 0; }
+.study-m .study-head .back-label { display: none; }
+.study-m .study-head .btn.small { min-height: 38px; }

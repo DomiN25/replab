@@ -287,7 +287,7 @@ export function Builder() {
 
   // Neue Stellung (Zug in der Tabelle, Galaxie, Brett): aufgezogenes Sheet einklappen, damit das Brett sichtbar ist
   useEffect(() => {
-    setSheetSnap('peek');
+    setSheetSnap((s) => (s === 'full' ? 'peek' : s)); // eingeklappt bleibt eingeklappt
   }, [fen]);
 
   if (!rep) return <p className="empty">Lege zuerst ein Repertoire an (Start oder Einstellungen).</p>;
@@ -426,8 +426,8 @@ export function Builder() {
             onSnap={setSheetSnap}
             header={
               <div className="seg small bs-tabs" role="tablist" aria-label="Bereich">
-                <button role="tab" aria-selected={sheetTab === 'moves'} aria-pressed={sheetTab === 'moves'} onClick={() => setSheetTab('moves')}>Züge</button>
-                <button role="tab" aria-selected={sheetTab === 'map'} aria-pressed={sheetTab === 'map'} onClick={() => setSheetTab('map')}>Übersicht</button>
+                <button role="tab" aria-selected={sheetTab === 'moves'} aria-pressed={sheetTab === 'moves'} onClick={() => { setSheetTab('moves'); setSheetSnap((s) => (s === 'min' ? 'full' : s)); }}>Züge</button>
+                <button role="tab" aria-selected={sheetTab === 'map'} aria-pressed={sheetTab === 'map'} onClick={() => { setSheetTab('map'); setSheetSnap((s) => (s === 'min' ? 'full' : s)); }}>Übersicht</button>
               </div>
             }
           >

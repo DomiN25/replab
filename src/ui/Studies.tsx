@@ -230,7 +230,7 @@ function StudyEditor({ id }: { id: string }) {
   const [st, setSt] = useState<Study | undefined>();
   const [path, setPath] = useState<PathStep[]>([]);
   const [tab, setTab] = useState<'moves' | 'chapters'>('moves');
-  const [snap, setSnap] = useState<SheetSnap>('peek');
+  const [snap, setSnap] = useState<SheetSnap>('min'); // Studien lesen: Brett, Varianten und Text frei
   const [targetId, setTargetId] = useState<string | undefined>();
   const [existing, setExisting] = useState<Map<string, ExistingEntry>>(new Map());
   const [confirm, setConfirm] = useState(false);
@@ -361,7 +361,7 @@ function StudyEditor({ id }: { id: string }) {
 
   // Neue Stellung → aufgezogenes Sheet einklappen
   useEffect(() => {
-    setSnap('peek');
+    setSnap((s) => (s === 'full' ? 'min' : s)); // nach einem Zug wieder Brett + Text zeigen
   }, [currentKey]);
 
   const go = (uci: string) => {
@@ -482,7 +482,7 @@ function StudyEditor({ id }: { id: string }) {
   const head = (
     <div className="study-head">
       <button className="btn small ghost" onClick={() => useApp.setState({ studyId: undefined })}>
-        <Icon name="prev" /> Studien
+        <Icon name="prev" /> <span className="back-label">Studien</span>
       </button>
       {renaming ? (
         <input
@@ -512,6 +512,20 @@ function StudyEditor({ id }: { id: string }) {
     </div>
   );
 
+  // Text der Studie: Kommentar zum gerade gespielten Zug, auf der Startstellung die Einleitung
+  const intro = path.length === 0 ? tree.chapters.find((c) => active.has(c.index) && c.intro)?.intro : undefined;
+  const commentBlock = lastMove?.comment ? (
+    <div className="note study-comment">
+      <small>Kommentar zu {sanLabel(tree.nodes.get(lastStep.key)!.fen, lastMove.san)}</small>
+      {lastMove.comment}
+    </div>
+  ) : intro ? (
+    <div className="note study-comment">
+      <small>Einleitung</small>
+      {intro}
+    </div>
+  ) : undefined;
+
   const movesPanel = (
     <>
       {excluded && (
@@ -522,15 +536,7 @@ function StudyEditor({ id }: { id: string }) {
           <button className="btn small" onClick={() => setPath(path.slice(0, excluded.index))}>Zur Stelle</button>
         </div>
       )}
-      {lastMove?.comment && (
-        <div className="note study-comment">
-          <small>Kommentar zu {sanLabel(tree.nodes.get(lastStep.key)!.fen, lastMove.san)}</small>
-          {lastMove.comment}
-        </div>
-      )}
-      {path.length === 0 && tree.chapters.filter((c) => active.has(c.index) && c.intro)[0] && (
-        <p className="note study-comment">{tree.chapters.filter((c) => active.has(c.index) && c.intro)[0].intro}</p>
-      )}
+      {!mobile && commentBlock}
       <div className="study-turn">
         <b>{view.mine ? 'Du bist am Zug' : 'Gegner am Zug'}</b>
         {view.mine && view.repMove && !view.moves.some((m) => m.inRep) && (
@@ -670,8 +676,8 @@ function StudyEditor({ id }: { id: string }) {
 
   const tabs = (
     <div className="seg small bs-tabs" role="tablist" aria-label="Bereich">
-      <button role="tab" aria-selected={tab === 'moves'} aria-pressed={tab === 'moves'} onClick={() => setTab('moves')}>Züge</button>
-      <button role="tab" aria-selected={tab === 'chapters'} aria-pressed={tab === 'chapters'} onClick={() => setTab('chapters')}>
+      <button role="tab" aria-selected={tab === 'moves'} aria-pressed={tab === 'moves'} onClick={() => { setTab('moves'); setSnap((x) => (x === 'min' ? 'full' : x)); }}>Züge</button>
+      <button role="tab" aria-selected={tab === 'chapters'} aria-pressed={tab === 'chapters'} onClick={() => { setTab('chapters'); setSnap((x) => (x === 'min' ? 'full' : x)); }}>
         Kapitel ({tree.chapters.filter((c) => active.has(c.index)).length}/{tree.chapters.length})
       </button>
     </div>
@@ -686,6 +692,7 @@ function StudyEditor({ id }: { id: string }) {
             {crumbs}
             {board}
             {controls}
+            {commentBlock ?? <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>}
           </section>
           <BottomSheet anchorRef={boardRef} snap={snap} onSnap={setSnap} header={tabs}>
             {tab === 'moves' ? movesPanel : chaptersPanel}

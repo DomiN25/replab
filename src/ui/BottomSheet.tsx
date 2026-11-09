@@ -1,10 +1,14 @@
-// Bottom-Sheet für „Bauen“ am Handy: liegt unter dem Brett (Ruhezustand füllt den Platz darunter)
-// und lässt sich am Griff/Kopf nach oben ziehen, bis es das Brett überdeckt. Tippen auf den Griff wechselt.
+// Bottom-Sheet am Handy (Bauen, Studien). Drei Zustände:
+// - „min“: eingeklappt – nur Griff + Reiter als schmale Leiste über der Navigation (Brett frei)
+// - „peek“: Ruhezustand unter dem Brett (füllt den Platz darunter; entfällt, wenn darunter kein Platz ist)
+// - „full“: aufgezogen bis unter die Kopfleiste
+// Wischen am Kopf wechselt stufenweise, der Pfeil-Knopf klappt ein/aus, Tippen auf den Griff zieht auf/zu.
 // Bewegt wird nur das Sheet (position: fixed) – das Brett bleibt stehen, damit chessground seine Position behält.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useBackClose } from './backClose';
+import { Icon } from './Icon';
 
-export type SheetSnap = 'peek' | 'full';
+export type SheetSnap = 'min' | 'peek' | 'full';
 
 interface Props {
   /** Element, unter dessen Unterkante das Sheet im Ruhezustand beginnt (Brett + Steuerung). */
@@ -15,13 +19,14 @@ interface Props {
   children: ReactNode;
 }
 
-const MIN_PEEK = 190; // px sichtbare Höhe mindestens (überdeckt sonst notfalls die unterste Brettreihe)
+const MIN_PEEK = 190; // px sichtbare Höhe im Ruhezustand mindestens
 const DRAG_START = 6; // px, ab denen aus einem Tippen ein Ziehen wird
 
 export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props) {
-  const [tops, setTops] = useState({ peek: 0, full: 0, bottom: 0 });
+  const [tops, setTops] = useState({ min: 0, peek: 0, full: 0, bottom: 0, peekUseful: true });
   const [dragTop, setDragTop] = useState<number | undefined>();
-  useBackClose(snap === 'full', () => onSnap('peek'));
+  const headRef = useRef<HTMLDivElement>(null);
+  useBackClose(snap === 'full', () => onSnap(tops.peekUseful ? 'peek' : 'min'));
   const drag = useRef<{ y0: number; top0: number; t0: number; moved: boolean; id: number } | undefined>(undefined);
 
   const measure = useCallback(() => {
@@ -30,9 +35,13 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
     const navH = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().height : 0;
     const bottom = vh - navH;
     const topbar = document.querySelector<HTMLElement>('.topbar')?.getBoundingClientRect().bottom ?? 0;
+    const headH = headRef.current?.getBoundingClientRect().height ?? 60;
     const anchorBottom = anchorRef.current?.getBoundingClientRect().bottom ?? vh * 0.6;
-    const peek = Math.min(anchorBottom + 6, bottom - MIN_PEEK);
-    setTops({ peek: Math.max(peek, topbar + 40), full: topbar + 8, bottom });
+    const min = bottom - headH;
+    // Ruhezustand nur, wenn unter dem Brett wirklich Platz ist – sonst würde er die Steuerung überdecken
+    const peekUseful = anchorBottom + 6 <= bottom - MIN_PEEK;
+    const peek = peekUseful ? anchorBottom + 6 : min;
+    setTops({ min, peek: Math.max(peek, topbar + 40), full: topbar + 8, bottom, peekUseful });
   }, [anchorRef]);
 
   useLayoutEffect(() => {
@@ -48,15 +57,18 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
     };
   }, [measure, anchorRef]);
 
-  // Esc schließt ein aufgezogenes Sheet
+  // Ruhezustand ohne Platz → eingeklappt
+  const effective: SheetSnap = snap === 'peek' && !tops.peekUseful ? 'min' : snap;
+
+  // Esc klappt ein aufgezogenes Sheet zurück
   useEffect(() => {
-    if (snap !== 'full') return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onSnap('peek');
+    if (effective !== 'full') return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onSnap(tops.peekUseful ? 'peek' : 'min');
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [snap, onSnap]);
+  }, [effective, onSnap, tops.peekUseful]);
 
-  const restTop = snap === 'full' ? tops.full : tops.peek;
+  const restTop = effective === 'full' ? tops.full : effective === 'peek' ? tops.peek : tops.min;
   const top = dragTop ?? restTop;
 
   // Ziehen: Touch über Touch-Events (Chrome bricht Pointer-Events beim Wischen teils mit pointercancel ab,
@@ -72,7 +84,7 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
       if (Math.abs(dy) < DRAG_START) return false;
       d.moved = true;
     }
-    setDragTop(Math.min(tops.peek + 60, Math.max(tops.full, d.top0 + dy)));
+    setDragTop(Math.min(tops.min, Math.max(tops.full, d.top0 + dy)));
     return true;
   };
   /** Ende einer Geste; true = es war nur ein Tippen. */
@@ -80,16 +92,21 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
     const d = drag.current;
     if (!d || d.id !== id) return false;
     drag.current = undefined;
-    if (!d.moved) return true; // Tippen: Reiter bekommen ihren Klick normal
+    if (!d.moved) return true; // Tippen: Reiter und Knöpfe bekommen ihren Klick normal
     const dy = y - d.y0;
     const v = dy / Math.max(1, performance.now() - d.t0); // px/ms
     const cur = d.top0 + dy;
-    const next: SheetSnap = v < -0.4 ? 'full' : v > 0.4 ? 'peek' : cur < (tops.full + tops.peek) / 2 ? 'full' : 'peek';
+    const stops: [SheetSnap, number][] = [['full', tops.full], ...(tops.peekUseful ? ([['peek', tops.peek]] as [SheetSnap, number][]) : []), ['min', tops.min]];
+    const idx = stops.findIndex(([s]) => s === effective);
+    let next: SheetSnap;
+    if (v < -0.4) next = stops[Math.max(0, idx - 1)][0]; // schnell nach oben: eine Stufe auf
+    else if (v > 0.4) next = stops[Math.min(stops.length - 1, idx + 1)][0]; // schnell nach unten: eine Stufe zu
+    else next = stops.reduce((a, b) => (Math.abs(b[1] - cur) < Math.abs(a[1] - cur) ? b : a))[0]; // nächste Stufe
     setDragTop(undefined);
     onSnap(next);
     return false;
   };
-  const toggle = () => onSnap(snap === 'full' ? 'peek' : 'full');
+  const toggle = () => onSnap(effective === 'full' ? (tops.peekUseful ? 'peek' : 'min') : 'full');
   const cancel = () => {
     drag.current = undefined;
     setDragTop(undefined);
@@ -99,12 +116,13 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
 
   return (
     <section
-      className={`bsheet ${snap} ${dragTop !== undefined ? 'dragging' : ''}`}
+      className={`bsheet ${effective} ${dragTop !== undefined ? 'dragging' : ''}`}
       style={{ top, bottom: window.innerHeight - tops.bottom }}
       aria-label="Details zur Stellung"
     >
       <div
         className="bs-head"
+        ref={headRef}
         onPointerDown={(e) => e.pointerType !== 'touch' && e.button === 0 && start(e.clientY, e.pointerId)}
         onPointerMove={(e) => {
           if (e.pointerType === 'touch') return;
@@ -134,13 +152,25 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children }: Props
       >
         <button
           className="bs-grip"
-          aria-label={snap === 'full' ? 'Details verkleinern' : 'Details vergrößern'}
-          aria-expanded={snap === 'full'}
+          aria-label={effective === 'full' ? 'Details verkleinern' : 'Details vergrößern'}
+          aria-expanded={effective === 'full'}
           onClick={toggle}
         />
-        {header}
+        <div className="bs-headrow">
+          {header}
+          <button
+            className="bs-min"
+            aria-label={effective === 'min' ? 'Details aufklappen' : 'Details einklappen'}
+            title={effective === 'min' ? 'Aufklappen' : 'Einklappen'}
+            onClick={() => onSnap(effective === 'min' ? 'full' : 'min')}
+          >
+            <Icon name="next" className={effective === 'min' ? 'up' : 'down'} />
+          </button>
+        </div>
       </div>
-      <div className="bs-body">{children}</div>
+      <div className="bs-body" aria-hidden={effective === 'min'}>
+        {children}
+      </div>
     </section>
   );
 }
