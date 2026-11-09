@@ -465,6 +465,8 @@ export interface StudyNode {
 export interface StudyChapter {
   index: number;
   name: string;
+  /** Hauptvariante des Kapitels als UCI-Züge ab der Grundstellung */
+  mainline: string[];
   /** Farbe laut Orientation-Header; undefined = unbekannt */
   color?: Color;
   /** Einleitungstext des Kapitels */
@@ -488,9 +490,21 @@ export function buildStudyTree(text: string): StudyTree {
   const nodes = new Map<string, StudyNode>();
   const chapters: StudyChapter[] = all.map((g, i) => {
     const intro = (g.comments ?? []).map(cleanComment).filter(Boolean).join(' ');
+    const mainline: string[] = [];
+    const start = startingPosition(g.headers);
+    if (start.isOk) {
+      const pos = start.value;
+      for (const d of g.moves.mainline()) {
+        const mv = parseSan(pos, d.san);
+        if (!mv) break;
+        mainline.push(stdUci(pos, mv));
+        pos.play(mv);
+      }
+    }
     return {
       index: i,
       name: g.headers.get('ChapterName') || g.headers.get('Event') || `Kapitel ${i + 1}`,
+      mainline,
       color: chapterColor(g),
       intro: intro || undefined,
     };

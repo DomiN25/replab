@@ -11,7 +11,8 @@ import { useMediaQuery } from './hooks';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { buildStudyTree, cutKey, guessColor, pgnOrientation, planImport, studyStart, type ExistingEntry } from '../core/pgn';
-import { activeChapters, firstExcluded, nextUnseen, nodeView, readingOrder, studyFilter, subtreeSize, type PathStep } from '../core/study';
+import { activeChapters, chapterEntry, firstExcluded, keysFrom, nextUnseen, nodeView, readingOrder, skipNotChosen, studyFilter, subtreeSize, type PathStep } from '../core/study';
+import type { ImportPlan } from '../core/pgn';
 import { displaySan, moveNumberPrefix, plyOfFen } from '../core/chess';
 import { fetchStudyPgn, parseStudyUrl, studyName } from '../services/lichessStudy';
 import type { Color, Study } from '../core/types';
@@ -186,7 +187,10 @@ function StudyAddDialog({ onClose }: { onClose: () => void }) {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Anti-Sizilianer" />
           </label>
           <label className="field">
-            <span>Für {detected && !color && <small>(erkannt: {detected === 'white' ? 'Weiß' : 'Schwarz'})</small>}</span>
+            <span>
+              Für {detected && !color && <small>(erkannt: {detected === 'white' ? 'Weiß' : 'Schwarz'})</small>}
+              {!detected && !color && text.trim() && <small className="warn"> (nicht erkannt – bitte prüfen)</small>}
+            </span>
             <select value={color || detected || 'white'} onChange={(e) => setColor(e.target.value as Color)}>
               <option value="white">Weiß</option>
               <option value="black">Schwarz</option>
@@ -280,10 +284,16 @@ function StudyEditor({ id }: { id: string }) {
 
   // Übernahme-Plan im Hintergrund (am Handy einige 100 ms bei großen Studien)
   const deferredSt = useDeferredValue(st);
-  const plan = useMemo(() => {
+  const fullPlan = useMemo(() => {
     if (!deferredSt) return undefined;
     return planImport(deferredSt.pgn, deferredSt.color, existing, new Map(Object.entries(deferredSt.choices)), undefined, studyFilter(deferredSt));
   }, [deferredSt, existing]);
+  // „Nur ab hier“: Weg zur aktuellen Stellung + alles darunter (große Studien stückweise übernehmen)
+  const [scope, setScope] = useState<'all' | 'here'>('all');
+  const plan = useMemo(() => {
+    if (!fullPlan || scope === 'all' || !tree || !st) return fullPlan;
+    return restrictPlan(fullPlan, keysFrom(tree, st, activeChapters(tree, st), path));
+  }, [fullPlan, scope, tree, st, path]);
 
   const update = (patch: Partial<Study>) =>
     setSt((prev) => {
@@ -311,7 +321,23 @@ function StudyEditor({ id }: { id: string }) {
   }, [tree, validLen, path.length]);
 
   // Fortschritt: angesehene Stellungen + letzte Position merken
-  const order = useMemo(() => (tree && st ? readingOrder(tree, st, active) : []), [tree, st?.cuts, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  const order = useMemo(
+    () => (tree && st ? readingOrder(tree, st, active, { skip: skipNotChosen(tree, st, active, existing) }) : []),
+    [tree, st?.cuts, st?.choices, active, existing], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // Fortschritt je Kapitel (für den Kapitel-Reiter)
+  const chapterProgress = useMemo(() => {
+    const out = new Map<number, { seen: number; total: number }>();
+    if (!tree || !st || tab !== 'chapters') return out; // nur berechnen, wenn der Kapitel-Reiter offen ist
+    const seen = new Set(st.seen ?? []);
+    for (const c of tree.chapters) {
+      if (!active.has(c.index)) continue;
+      const one = new Set([c.index]);
+      const o = readingOrder(tree, st, one, { skip: skipNotChosen(tree, st, one, existing) });
+      out.set(c.index, { seen: o.filter((x) => seen.has(x.key)).length, total: o.length });
+    }
+    return out;
+  }, [tree, st?.seen, st?.cuts, st?.choices, active, existing, tab]); // eslint-disable-line react-hooks/exhaustive-deps
   const seenSet = useMemo(() => new Set(st?.seen ?? []), [st?.seen]);
   const seenCount = useMemo(() => order.filter((x) => seenSet.has(x.key)).length, [order, seenSet]);
   useEffect(() => {
@@ -383,8 +409,11 @@ function StudyEditor({ id }: { id: string }) {
   };
   const choose = (uci: string) => update({ choices: { ...st.choices, [node.key]: uci } });
   const target = repertoires.find((r) => r.id === targetId);
+  // Nicht alle Fortsetzungen zeichnen (bei 12 Gegnerzügen unlesbar): gewählter Zug + die häufigsten (meiste Kapitel)
   const shapes: DrawShape[] = view.moves
     .filter((m) => m.status !== 'cut')
+    .sort((a, b) => Number(b.status === 'chosen') - Number(a.status === 'chosen') || b.chapters.length - a.chapters.length)
+    .slice(0, 4)
     .map((m) => {
       const sq = uciSquares(m.uci)!;
       return { orig: sq[0], dest: sq[1], brush: m.status === 'chosen' ? 'mine' : m.status === 'alt' ? 'eng' : 'opp' };
@@ -569,8 +598,25 @@ function StudyEditor({ id }: { id: string }) {
               <span>
                 <b>{c.name}</b>
                 {other && <small> · für {c.color === 'white' ? 'Weiß' : 'Schwarz'}</small>}
+                {chapterProgress.get(c.index) && (
+                  <small className="ch-progress">
+                    {' '}
+                    · {chapterProgress.get(c.index)!.seen}/{chapterProgress.get(c.index)!.total} angesehen
+                  </small>
+                )}
               </span>
             </label>
+            {!other && (
+              <button
+                className="btn small"
+                onClick={() => {
+                  setPath(chapterEntry(tree, c.index));
+                  setTab('moves');
+                }}
+              >
+                Ansehen
+              </button>
+            )}
             {c.intro && <p className="hint">{c.intro.length > 220 ? c.intro.slice(0, 220) + ' …' : c.intro}</p>}
           </li>
         );
@@ -595,6 +641,12 @@ function StudyEditor({ id }: { id: string }) {
         ) : (
           '…'
         )}
+      </div>
+      <div className="seg small commit-scope" role="group" aria-label="Umfang der Übernahme">
+        <button aria-pressed={scope === 'all'} onClick={() => setScope('all')}>Alles</button>
+        <button aria-pressed={scope === 'here'} onClick={() => setScope('here')} title="Nur die aktuelle Stellung und alles darunter">
+          Nur ab hier
+        </button>
       </div>
       <div className="row-actions">
         <select value={targetId ?? ''} onChange={(e) => setTargetId(e.target.value)} aria-label="Ziel-Repertoire">
@@ -685,4 +737,20 @@ function StudyEditor({ id }: { id: string }) {
       )}
     </div>
   );
+}
+
+/** Plan auf bestimmte Stellungen beschränken (Teilübernahme) – Zahlen neu zählen. */
+function restrictPlan(plan: ImportPlan, keys: Set<string>): ImportPlan {
+  const entries = plan.entries.filter((e) => keys.has(e.posKey));
+  return {
+    ...plan,
+    entries,
+    marks: plan.marks.filter((m) => keys.has(m.posKey)),
+    stats: {
+      ...plan.stats,
+      newEntries: entries.filter((e) => e.status === 'new').length,
+      existing: entries.filter((e) => e.status === 'unchanged' || e.status === 'update').length,
+      replaced: entries.filter((e) => e.status === 'replace').length,
+    },
+  };
 }

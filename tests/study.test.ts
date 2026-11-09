@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStudyTree, cutKey, planImport, type ExistingEntry } from '../src/core/pgn';
-import { activeChapters, firstExcluded, nextUnseen, nodeView, readingOrder, studyFilter, subtreeSize } from '../src/core/study';
+import { activeChapters, chapterEntry, firstExcluded, keysFrom, nextUnseen, nodeView, readingOrder, skipNotChosen, studyFilter, subtreeSize } from '../src/core/study';
 import type { Study } from '../src/core/types';
 import { keyAfter } from './helpers';
 
@@ -138,6 +138,31 @@ describe('Durcharbeiten', () => {
     const allButFirst = new Set(order.slice(1).map((x) => x.key));
     expect(nextUnseen(order, allButFirst, order[order.length - 1].key)).toEqual([]); // wieder Start
     expect(nextUnseen(order, new Set(order.map((x) => x.key)), tree.root)).toBeUndefined();
+  });
+});
+
+describe('Studien: Kapitel, Fortschritt, Teilübernahme', () => {
+  const st0 = study();
+  const active = activeChapters(tree, st0);
+
+  it('Kapitel-Einstieg: dort, wo das Kapitel Neues bringt', () => {
+    expect(chapterEntry(tree, 0)).toEqual([]); // erstes Kapitel: ab Grundstellung
+    const e = chapterEntry(tree, 1); // Alapin: 1.e4 c5 gemeinsam, 2.c3 neu
+    expect(e.map((p) => p.uci)).toEqual(['e2e4', 'c7c5']);
+  });
+
+  it('Fortschritt zählt nur, was übernommen würde (nicht gewählte Nebenäste nicht)', () => {
+    const all = readingOrder(tree, st0, active);
+    const chosenOnly = readingOrder(tree, st0, active, { skip: skipNotChosen(tree, st0, active, new Map()) });
+    expect(chosenOnly.length).toBe(all.length - 3); // 3…g6 4.O-O Lg7 fällt weg (3 Stellungen)
+  });
+
+  it('Teilübernahme ab einer Stellung: Weg + alles darunter', () => {
+    const path = [...chapterEntry(tree, 1), { key: keyAfter(['e4', 'c5']), uci: 'c2c3' }]; // Stellung nach 2.c3
+    const keys = keysFrom(tree, st0, active, path);
+    const plan = planImport(PGN, 'black', noRep, new Map(), undefined, studyFilter(st0));
+    const part = plan.entries.filter((e) => keys.has(e.posKey));
+    expect(part.map((e) => e.san).sort()).toEqual(['Nc6', 'c5', 'e5']); // 1…c5 + Alapin 2…e5 3…Sc6
   });
 });
 

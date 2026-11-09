@@ -721,3 +721,8 @@ kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line
 .page h1 small.shown { font: 500 14px var(--body); letter-spacing: 0; color: var(--muted); margin-left: 6px; }
 .forecast { margin: -4px 0 14px; font-size: 13.5px; color: var(--muted); }
 .forecast b { color: var(--ink); font-family: var(--display); font-variant-numeric: tabular-nums; }
+.study-chapters li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.study-chapters li > label { flex: 1; min-width: 0; margin: 0; }
+.study-chapters li > .hint { flex-basis: 100%; }
+.ch-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
+.commit-scope { align-self: flex-start; }

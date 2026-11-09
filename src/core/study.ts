@@ -99,7 +99,12 @@ export function subtreeSize(tree: StudyTree, key: string, active: Set<number>): 
  * Alle Stellungen der Studie in Lesereihenfolge (Tiefensuche, Hauptvariante zuerst, nur aktive Kapitel und
  * nicht entfernte Züge), jeweils mit Zugweg ab der Grundstellung. Zugumstellungen nur beim ersten Erreichen.
  */
-export function readingOrder(tree: StudyTree, st: Pick<Study, 'cuts'>, active: Set<number>): { key: string; path: PathStep[] }[] {
+export function readingOrder(
+  tree: StudyTree,
+  st: Pick<Study, 'cuts'>,
+  active: Set<number>,
+  opts: { from?: { key: string; path: PathStep[] }; skip?: (key: string, uci: string) => boolean } = {},
+): { key: string; path: PathStep[] }[] {
   const cuts = new Set(st.cuts);
   const out: { key: string; path: PathStep[] }[] = [];
   const seen = new Set<string>();
@@ -109,11 +114,57 @@ export function readingOrder(tree: StudyTree, st: Pick<Study, 'cuts'>, active: S
     out.push({ key, path });
     for (const m of tree.nodes.get(key)?.moves ?? []) {
       if (!m.chapters.some((c) => active.has(c)) || cuts.has(cutKey(key, m.uci))) continue;
+      if (opts.skip?.(key, m.uci)) continue;
       rec(m.child, [...path, { key, uci: m.uci }]);
     }
   };
-  rec(tree.root, []);
+  rec(opts.from?.key ?? tree.root, opts.from?.path ?? []);
   return out;
+}
+
+/** Überspringt eigene Züge, die nicht übernommen würden (anderer Zug gewählt oder Repertoirezug weicht ab). */
+export function skipNotChosen(tree: StudyTree, st: Study, active: Set<number>, existing: Map<string, ExistingEntry>) {
+  const chosen = new Map<string, string | undefined>();
+  return (key: string, uci: string) => {
+    if (!chosen.has(key)) {
+      const node = tree.nodes.get(key);
+      chosen.set(key, node ? nodeView(node, st, active, existing).chosen : undefined);
+    }
+    const c = chosen.get(key);
+    return c !== undefined && c !== uci;
+  };
+}
+
+/**
+ * Einstieg eines Kapitels: entlang seiner Hauptvariante bis zum ersten Zug, den kein früheres Kapitel hat
+ * (dort beginnt der Stoff dieses Kapitels). Liefert den Zugweg dorthin.
+ */
+export function chapterEntry(tree: StudyTree, chapter: number): PathStep[] {
+  const ch = tree.chapters[chapter];
+  if (!ch) return [];
+  const path: PathStep[] = [];
+  let key = tree.root;
+  for (const uci of ch.mainline) {
+    const m = tree.nodes.get(key)?.moves.find((x) => x.uci === uci);
+    if (!m) break;
+    if (!m.chapters.some((c) => c < chapter)) return path; // ab hier neu in diesem Kapitel
+    path.push({ key, uci });
+    key = m.child;
+  }
+  return path;
+}
+
+/** Stellungen, die bei „nur ab hier übernehmen“ zählen: Weg dorthin + alles darunter. */
+export function keysFrom(tree: StudyTree, st: Pick<Study, 'cuts'>, active: Set<number>, path: PathStep[]): Set<string> {
+  const keys = new Set(path.map((p) => p.key));
+  let key = tree.root;
+  for (const p of path) {
+    const m = tree.nodes.get(p.key)?.moves.find((x) => x.uci === p.uci);
+    if (!m) break;
+    key = m.child;
+  }
+  for (const x of readingOrder(tree, st, active, { from: { key, path } })) keys.add(x.key);
+  return keys;
 }
 
 /**
