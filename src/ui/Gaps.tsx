@@ -1,8 +1,8 @@
 // Lücken: gruppiert nach Eröffnungsfamilie (F3). Standard: nur wichtige (Mindest-Erreichbarkeit aus den Einstellungen).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { gapList, groupGaps, type GapSort } from '../core/graph';
 import { formatLine, displaySan } from '../core/chess';
-import { deleteMyMoves, gotoNode, lichessToken, requestGraph, saveSettings, setView, toast, useApp, engine } from './store';
+import { deleteMyMoves, gotoNode, lichessToken, requestGraph, saveSettings, setEndOfLine, setView, toast, toggleOpp, useApp, engine } from './store';
 import { Modal } from './Modal';
 import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
@@ -19,6 +19,7 @@ export function Gaps() {
   const [onlyTraps, setOnlyTraps] = useState(false);
   const minReach = settings.ui.gapMinReach;
   const [askOrphans, setAskOrphans] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [engineScan, setEngineScan] = useState<{ done: number; total: number } | undefined>();
   const notation = settings.ui.notation;
 
@@ -154,9 +155,9 @@ export function Gaps() {
               </button>
             </h2>
             <ul>
-              {g.gaps.map((gp) => (
-                <li key={gp.id}>
-                  <button onClick={() => jump(gp.id)}>
+              {(expanded.has(g.family) ? g.gaps : g.gaps.slice(0, PREVIEW)).map((gp) => (
+                <li key={gp.id} className="gaprow">
+                  <button className="gap-go" onClick={() => jump(gp.id)}>
                     <span className="line">{formatLine(gp.sans, notation)}</span>
                     <span className="meta">
                       {gp.viaTrap && settings.ui.showTraps && <span className="trap" title="Gegnerzug ist eine Chance (Fehler)"><Icon name="bolt" /></span>}
@@ -164,9 +165,23 @@ export function Gaps() {
                       {settings.ui.showReach && gp.reach > 0 && <span className="reach">≈ {(gp.reach * 100).toFixed(1).replace(".", ",")} %</span>}
                     </span>
                   </button>
+                  <GapMenu id={gp.id} />
                 </li>
               ))}
             </ul>
+            {g.gaps.length > PREVIEW && (
+              <button
+                className="link-btn more-gaps"
+                onClick={() => {
+                  const next = new Set(expanded);
+                  if (next.has(g.family)) next.delete(g.family);
+                  else next.add(g.family);
+                  setExpanded(next);
+                }}
+              >
+                {expanded.has(g.family) ? 'weniger anzeigen' : `alle ${g.gaps.length} anzeigen`}
+              </button>
+            )}
           </section>
         ))}
       </div>
@@ -202,5 +217,59 @@ export function Gaps() {
         Abstand, plus deine Markierungen. Berechnung: {graph.nodes.length} Knoten.
       </p>
     </div>
+  );
+}
+
+const PREVIEW = 8; // je Familie zuerst nur die wichtigsten Lücken
+
+/** ⋯-Menü je Lücke: direkt hier erledigen, ohne erst ins Bauen zu springen (mit Rückgängig). */
+function GapMenu({ id }: { id: number }) {
+  const graph = useApp((s) => s.graph);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  // Tippen/Klicken daneben schließt das Menü (am Handy gibt es kein „Maus verlässt“)
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [open]);
+  if (!graph) return null;
+  const n = graph.nodes[id];
+  const parent = n.parent >= 0 ? graph.nodes[n.parent] : undefined;
+  return (
+    <span className="rowmenu" ref={ref}>
+      <button className="dots" aria-label="Aktionen für diese Lücke" aria-expanded={open} onClick={() => setOpen(!open)}>
+        ⋯
+      </button>
+      {open && (
+        <span className="rowmenu-pop">
+          {parent && n.uci && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                void toggleOpp(parent.posKey, n.uci!, 'ignore', true).then(() =>
+                  toast('Gegnerzug ignoriert', 'ok', { label: 'Rückgängig', run: () => void toggleOpp(parent.posKey, n.uci!, 'ignore', false) }),
+                );
+              }}
+            >
+              Gegnerzug ignorieren (nicht relevant)
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setOpen(false);
+              void setEndOfLine(n.posKey, true).then(() =>
+                toast('Ende der Linie gesetzt', 'ok', { label: 'Rückgängig', run: () => void setEndOfLine(n.posKey, false) }),
+              );
+            }}
+          >
+            Ende der Linie hier (hier improvisiere ich)
+          </button>
+        </span>
+      )}
+    </span>
   );
 }

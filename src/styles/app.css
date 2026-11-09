@@ -456,8 +456,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 
 /* Lücken */
 .gap-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 10px; }
-.gapfam { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px 8px; box-shadow: var(--shadow); position: relative; overflow: hidden; animation: rise 0.45s var(--ease-out) backwards; }
-.gapfam::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gap); opacity: 0.8; }
+.gapfam { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px 8px 18px; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--gap) 80%, transparent), var(--shadow); position: relative; animation: rise 0.45s var(--ease-out) backwards; }
 .gapfam:nth-child(2) { animation-delay: 40ms; } .gapfam:nth-child(3) { animation-delay: 80ms; } .gapfam:nth-child(4) { animation-delay: 120ms; } .gapfam:nth-child(n + 5) { animation-delay: 160ms; }
 .gapfam h2 { font: 700 15px var(--display); margin: 0 0 6px; letter-spacing: -0.01em; text-transform: none; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gapfam h2 .btn { font-family: var(--body); }
@@ -710,3 +709,13 @@ details.fold > summary:hover h2 { color: var(--ink); }
 .move-input { margin-left: auto; width: 170px; min-height: 40px; border-radius: 999px; font-size: 14px; }
 .kbd-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--panel-solid); color: var(--ink); }
+
+/* Lückenliste: Zeile mit ⋯-Menü, „alle anzeigen“ */
+.gapfam .gaprow { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line-soft); }
+.gapfam li.gaprow:last-child { border-bottom: 0; }
+.gapfam .gaprow > .gap-go { flex: 1; min-width: 0; border-bottom: 0; }
+.gapfam .rowmenu .dots, .gapfam .rowmenu-pop button { width: auto; min-height: 36px; display: inline-flex; flex-direction: row; align-items: center; border-bottom: 0; padding: 6px 10px; }
+.gapfam .rowmenu-pop button { width: 100%; padding: 10px 12px; }
+.gapfam .rowmenu-pop { z-index: 25; }
+.more-gaps { margin: 4px 0 2px 6px; }
+.page h1 small.shown { font: 500 14px var(--body); letter-spacing: 0; color: var(--muted); margin-left: 6px; }
