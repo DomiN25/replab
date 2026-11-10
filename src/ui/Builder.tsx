@@ -65,6 +65,24 @@ export function Builder() {
   const [sheetTab, setSheetTab] = useState<'moves' | 'map'>('moves');
   const [searching, setSearching] = useState(false);
   const [typed, setTyped] = useState('');
+  // Erkunden: Züge am Brett legen nichts fest (nur der Knopf in der Zugtabelle). Pro Gerät gemerkt.
+  const [explore, setExplore] = useState(() => {
+    try {
+      return localStorage.getItem('replab.explore') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleExplore = () => {
+    const on = !explore;
+    setExplore(on);
+    try {
+      localStorage.setItem('replab.explore', on ? '1' : '0');
+    } catch {
+      /* privat/blockiert */
+    }
+    toast(on ? 'Erkunden an: Züge am Brett werden nicht festgelegt.' : 'Erkunden aus: Ein Zug am Brett legt deinen Repertoirezug fest.', 'info');
+  };
 
   const step = line[cursor];
   const fen = step.fen;
@@ -233,7 +251,8 @@ export function Builder() {
     } catch {
       return;
     }
-    if (myTurn && !entry && !mark?.endOfLine) {
+    // Erkunden gilt nur im freien Modus – die Lückentour lebt vom Festlegen am Brett
+    if (myTurn && !entry && !mark?.endOfLine && !(explore && !guideActive)) {
       decide({ fen, uci, san, playAfter: true, warning: unreachableWarning() });
       return;
     }
@@ -313,11 +332,23 @@ export function Builder() {
   );
   const navButtons = (
     <>
-      <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>
+      {/* am Handy ist die Reihe voll – „Start“ in der Zugleiste springt ebenfalls zum Anfang */}
+      {!mobile && <button className="btn icon" onClick={() => gotoCursor(0)} aria-label="Zum Anfang"><Icon name="first" /></button>}
       <button className="btn icon" onClick={back} aria-label="Zug zurück"><Icon name="prev" /></button>
       <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
       <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
       <button className="btn icon" onClick={() => setSearching(true)} aria-label="Im Repertoire suchen (/)" title="Suchen (/)"><Icon name="search" /></button>
+      <button
+        className="btn icon explore-toggle"
+        aria-pressed={explore}
+        disabled={guideActive}
+        onClick={toggleExplore}
+        aria-label="Erkunden: Züge am Brett nicht festlegen"
+        title={explore ? 'Erkunden an – Züge am Brett werden nicht festgelegt' : 'Erkunden – Züge am Brett nur ansehen, nichts festlegen'}
+        data-testid="explore"
+      >
+        <Icon name="eye" />
+      </button>
     </>
   );
   // Desktop: Zug tippen (deutsch oder englisch) + Enter – wie ein Zug am Brett
@@ -472,6 +503,11 @@ export function Builder() {
                 aria-label="Zug eingeben"
               />
             </div>
+            {explore && !guideActive && (
+              <p className="explore-note" role="status">
+                <Icon name="eye" /> Erkunden: Züge am Brett werden nicht festgelegt – festlegen über die Zugtabelle.
+              </p>
+            )}
             <p className="kbd-hint">
               <kbd>←</kbd> <kbd>→</kbd> blättern · <kbd>F</kbd> Brett drehen · <kbd>/</kbd> suchen · Zug tippen + <kbd>Enter</kbd>
             </p>

@@ -10,6 +10,7 @@ import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
 import { Modal } from './Modal';
 import { useSwipeNav } from './swipeNav';
+import { refreshToday } from './today';
 import { gapCounts } from '../core/graph';
 import { isDue, isNew } from '../core/srs';
 import { pct } from './format';
@@ -42,6 +43,16 @@ export function App() {
     for (const c of cards.values()) if (!c.suspended && !isNew(c.srs) && isDue(c.srs, now)) n++;
     return n;
   }, [cards]);
+  // Zähler an den Reitern gelten für ALLE Repertoires bzw. Studien (sonst sieht man Fälliges nur im aktiven Repertoire)
+  const today = useApp((s) => s.today);
+  const studyId = useApp((s) => s.studyId);
+  const dueAll = useMemo(() => (today ? Object.values(today.reps).reduce((n, r) => n + r.due, 0) : due), [today, due]);
+  const studyDueAll = useMemo(() => (today ? today.studies.reduce((n, s) => n + s.due, 0) : 0), [today]);
+  useEffect(() => {
+    if (!loaded) return;
+    // Studien nur dort neu zählen, wo man die Zahl sieht (braucht ggf. den Studienbaum) – nicht bei jeder Trainingsantwort
+    void refreshToday(view === 'home' || (view === 'studies' && !studyId));
+  }, [loaded, cards, view, studyId, repertoires]);
   const graphBusy = useApp((s) => s.graphBusy);
   const ex = useApp((s) => s.explorerStatus);
   const toast = useApp((s) => s.toast);
@@ -94,8 +105,10 @@ export function App() {
   const badge = (v: View) =>
     v === 'gaps' && gaps && gaps.important > 0 ? (
       <b className="nav-badge gap">{gaps.important > 99 ? '99+' : gaps.important}</b>
-    ) : v === 'train' && due > 0 ? (
-      <b className="nav-badge">{due > 99 ? '99+' : due}</b>
+    ) : v === 'train' && dueAll > 0 ? (
+      <b className="nav-badge">{dueAll > 99 ? '99+' : dueAll}</b>
+    ) : v === 'studies' && studyDueAll > 0 ? (
+      <b className="nav-badge">{studyDueAll > 99 ? '99+' : studyDueAll}</b>
     ) : null;
 
   return (
@@ -166,7 +179,8 @@ export function App() {
         {view === 'home' && <Home />}
         {view === 'build' && <Builder />}
         {view === 'gaps' && <Gaps />}
-        {view === 'train' && <Trainer />}
+        {/* key: Repertoirewechsel setzt die Trainingsseite sauber neu auf (Sitzung, Fokus) */}
+        {view === 'train' && <Trainer key={repId} />}
         {view === 'studies' && <Studies />}
         {view === 'settings' && <SettingsView />}
       </main>

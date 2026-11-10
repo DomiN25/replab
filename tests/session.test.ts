@@ -6,6 +6,7 @@ import {
   diversify,
   isFinished,
   lineDistance,
+  newBlocks,
   type SessionItem,
 } from '../src/core/session';
 import { rng } from './helpers';
@@ -128,13 +129,28 @@ describe('Sitzung und Relearning', () => {
     }
   });
 
-  it('Neu lernen: erst zeigen (Linienreihenfolge), dann gemischt abfragen', () => {
+  it('Neu lernen: in Blöcken zeigen und gleich abfragen (höchstens 4 neue am Stück)', () => {
     const its = items();
     const s = createSession('new', its, { rand: rng(2) });
-    expect(s.steps.slice(0, 12).every((st) => st.kind === 'show')).toBe(true);
-    expect(s.steps.slice(0, 12).map((st) => st.cardId)).toEqual(its.map((x) => x.cardId));
-    const asks = s.steps.slice(12).map((st) => s.items[st.cardId]);
-    expect(maxSameLineRun(asks)).toBe(1);
+    // 12 Karten → 3 Blöcke à 4: je 4× zeigen, dann dieselben 4 abfragen
+    expect(s.steps.length).toBe(24);
+    for (let b = 0; b < 3; b++) {
+      const block = s.steps.slice(b * 8, b * 8 + 8);
+      const ids = its.slice(b * 4, b * 4 + 4).map((x) => x.cardId);
+      expect(block.slice(0, 4).every((st) => st.kind === 'show')).toBe(true);
+      expect(block.slice(0, 4).map((st) => st.cardId)).toEqual(ids); // zeigen in Linienreihenfolge
+      expect(block.slice(4).every((st) => st.kind === 'ask')).toBe(true);
+      expect(block.slice(4).map((st) => st.cardId).sort()).toEqual([...ids].sort());
+    }
+    // jede Karte genau einmal gezeigt und einmal abgefragt
+    expect(new Set(s.steps.filter((st) => st.kind === 'ask').map((st) => st.cardId)).size).toBe(12);
+  });
+
+  it('Neu lernen: Blöcke gleichmäßig (10 → 4, 3, 3), kleine Mengen in einem Block', () => {
+    expect(newBlocks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((b) => b.length)).toEqual([4, 3, 3]);
+    expect(newBlocks([1, 2, 3]).map((b) => b.length)).toEqual([3]);
+    expect(newBlocks([1, 2, 3, 4, 5]).map((b) => b.length)).toEqual([3, 2]);
+    expect(newBlocks([])).toEqual([]);
   });
 
   it('Linien-Modus: Reihenfolge bleibt, kein Relearning', () => {

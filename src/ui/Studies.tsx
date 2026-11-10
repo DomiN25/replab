@@ -45,6 +45,7 @@ function StudyList() {
     return want;
   });
   const [del, setDel] = useState<Study | undefined>();
+  const today = useApp((s) => s.today);
   const reload = () => void repo.listStudies().then(setList);
   useEffect(reload, []);
 
@@ -92,11 +93,16 @@ function StudyList() {
                   <span className="study-meta">
                     <b>{st.name}</b>
                     <small>
-                      {st.color === 'white' ? 'Weiß' : 'Schwarz'} · {chapters} {chapters === 1 ? 'Kapitel' : 'Kapitel'}
-                      {st.cuts.length > 0 && ` · ${st.cuts.length} Äste entfernt`}
+                      {st.color === 'white' ? 'Weiß' : 'Schwarz'} · {chapters} Kapitel
+                      {!!st.linesDone?.length && ` · ${st.linesDone.length} ${st.linesDone.length === 1 ? 'Linie' : 'Linien'} verstanden`}
+                      {st.cuts.length > 0 && ` · ${st.cuts.length} ${st.cuts.length === 1 ? 'Ast' : 'Äste'} entfernt`}
                       {last && ` · übernommen in „${repName ?? 'Repertoire'}“ (+${last.entries})`}
                     </small>
                   </span>
+                  {(() => {
+                    const due = today?.studies.find((x) => x.id === st.id)?.due ?? 0;
+                    return due > 0 ? <span className="tag due" title="fällige Abfragen in dieser Studie">{due} fällig</span> : null;
+                  })()}
                   <Icon name="next" />
                 </button>
                 <button className="btn small ghost danger" aria-label={`${st.name} löschen`} onClick={() => setDel(st)}>
@@ -365,6 +371,13 @@ function StudyEditor({ id }: { id: string }) {
   const engineSt = useEngine(node?.fen ?? '', evalOn && !!node);
   const view = node && st ? nodeView(node, st, active, existing) : undefined;
   const learn = useLearn({ tree, st, active, existing, update, setPath });
+  // Von „Auch heute fällig“ geöffnet: gleich die fälligen Karten abfragen (nur im Lernmodus)
+  const learnReady = !!learn?.on && learn.checkAvailable > 0;
+  useEffect(() => {
+    if (!learnReady || !useApp.getState().studyCheck) return;
+    useApp.setState({ studyCheck: false });
+    learn?.startCheck();
+  }, [learnReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const learning = !!learn?.on;
   const checking = learning && !!learn?.check;
   const lastStep = path[path.length - 1];

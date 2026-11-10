@@ -14,6 +14,7 @@ import type { ReviewLog } from '../core/types';
 import type { BackupFile } from '../data/repo';
 import { gapCounts } from '../core/graph';
 import { pct } from './format';
+import { TodayRows } from './TodayRows';
 import { moveNumberPrefix, plyOfFen } from '../core/chess';
 
 export function Home() {
@@ -61,7 +62,8 @@ export function Home() {
   const newCount = useMemo(() => newItems(pool, settings, graph).length, [pool, settings, graph]);
   const gapMin = settings.ui.gapMinReach;
   const gapInfo = useMemo(() => (graph ? gapCounts(graph, gapMin) : undefined), [graph, gapMin]);
-  const stats = useMemo(() => trainingStats(logs.filter((l) => l.repertoireId === rep?.id), now), [logs, rep, now]);
+  // Serie und Trefferquote über alle Repertoires – wer heute nur Schwarz trainiert, hat trotzdem trainiert
+  const stats = useMemo(() => trainingStats(logs, now), [logs, now]);
 
   // Wissensleiste pro Familie
   const bars = useMemo(() => {
@@ -190,6 +192,7 @@ export function Home() {
           >
             {dueCount > 0 ? 'Wiederholen starten' : newCount > 0 ? 'Neue lernen' : 'Zum Training'}
           </button>
+          <TodayRows autoStart />
         </section>
 
         <section className="card gaps">
@@ -203,13 +206,13 @@ export function Home() {
         </section>
 
         <section className="card stats">
-          <h2>Statistik</h2>
+          <h2>Statistik <small className="h-note">alle Repertoires</small></h2>
           <ul className="kv">
             <li><span>Heute gelernt</span><b>{stats.reviewsToday}</b></li>
             <li><span>Trefferquote 7 Tage</span><b>{stats.hitRate7 !== undefined ? `${Math.round(stats.hitRate7 * 100)} %` : '–'}</b></li>
             <li><span>Trefferquote 30 Tage</span><b>{stats.hitRate30 !== undefined ? `${Math.round(stats.hitRate30 * 100)} %` : '–'}</b></li>
             <li><span>Serie</span><b>{stats.streak} {stats.streak === 1 ? 'Tag' : 'Tage'}</b></li>
-            <li><span>Einträge</span><b>{moves.size}</b></li>
+            <li><span>Einträge{rep ? ` in „${rep.name}“` : ''}</span><b>{moves.size}</b></li>
           </ul>
         </section>
 

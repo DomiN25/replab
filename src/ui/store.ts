@@ -10,6 +10,7 @@ import type { Card, PositionMark, Repertoire, RepertoireMove, Settings } from '.
 import { DEFAULT_SETTINGS } from '../core/types';
 import type { SyncUiState } from './sync';
 import type { GuideState } from './GuideBar';
+import type { TodayState } from './today';
 import { afterPendingBack } from './backClose';
 
 export type View = 'home' | 'build' | 'gaps' | 'train' | 'studies' | 'settings';
@@ -56,8 +57,12 @@ export interface AppState {
   studyId?: string;
   /** Studien-Reiter soll gleich den „Hinzufügen“-Dialog öffnen */
   studyAdd?: boolean;
+  /** geöffnete Studie soll gleich die Abfrage der fälligen Karten starten (Zeile „Auch heute fällig“) */
+  studyCheck?: boolean;
   /** Trainingsseite soll direkt eine Sitzung starten (Knopf „Training starten“ auf Start) */
   trainAuto?: boolean;
+  /** Fälliges über alle Repertoires und Studien (ui/today.ts) – für Startseite, Reiter-Zähler, Studienliste */
+  today?: TodayState;
 }
 
 export const useApp = create<AppState>(() => ({

@@ -14,6 +14,7 @@ import { pathSans, subtreeIds } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
 import type { Card, ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
+import { TodayRows } from './TodayRows';
 import { buzz } from './theme';
 import { activeSession, beginSession, clearSession, pauseSession, persistSession, resumeSession, storedSession, type SavedSession } from './trainingSession';
 
@@ -215,6 +216,7 @@ export function Trainer() {
           <small>eine zufällige Linie deines Repertoires von vorn durchspielen – nur Fehler zählen</small>
         </button>
       </div>
+      <TodayRows />
       {forecast.learned > 0 && (
         <p className="forecast">
           Gelernt: <b>{forecast.learned}</b> Stellungen · kommen wieder: morgen <b>{forecast.tomorrow}</b> · in 7 Tagen <b>{forecast.week}</b>
@@ -242,7 +244,7 @@ export function Trainer() {
         <p>
         Karteikarten-Prinzip (FSRS, wie Anki): Jede Stellung ist eine Karte. Weißt du sie, kommt sie in immer größeren Abständen wieder (Tage, Wochen, Monate),
         vergisst du sie, kommt sie bald wieder. Die Abstände werden so gewählt, dass du dich mit {Math.round(settings.srs.desiredRetention * 100)} % Wahrscheinlichkeit
-        erinnerst (Behaltensziel in den Einstellungen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
+        erinnerst (Behaltensziel in den Einstellungen). Neue Züge lernst du in kleinen Blöcken (bis 4 zeigen, dann gleich abfragen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
         Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Neue Karten:{' '}
         {settings.srs.newOrder === 'line' ? 'Linie für Linie' : 'wichtigste (häufigste) Stellungen zuerst'}. Funktioniert offline.
         </p>

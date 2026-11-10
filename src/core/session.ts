@@ -42,6 +42,7 @@ export interface Session {
 export interface SessionOptions {
   minDistance?: number; // Standard 4 Halbzüge
   relearnGap?: number; // Relearning frühestens nach so vielen Karten (Standard 4)
+  newBlock?: number; // Neu lernen: Karten pro Block (Standard NEW_BLOCK)
   rand?: () => number;
 }
 
@@ -113,6 +114,24 @@ export function diversify(items: SessionItem[], minDistance = 4, rand: () => num
   return out;
 }
 
+/** Blockgröße beim Neu-Lernen: so viele Karten werden höchstens gezeigt, bevor abgefragt wird. */
+export const NEW_BLOCK = 4;
+
+/** Gleichmäßige Blöcke in Reihenfolge (10 Karten bei max. 4 → 4, 3, 3 statt 4, 4, 2). */
+export function newBlocks<T>(items: T[], max = NEW_BLOCK): T[][] {
+  if (!items.length) return [];
+  const n = Math.ceil(items.length / Math.max(1, max));
+  const base = Math.floor(items.length / n);
+  const extra = items.length % n; // die ersten „extra“ Blöcke bekommen eine Karte mehr
+  const out: T[][] = [];
+  for (let b = 0, i = 0; b < n; b++) {
+    const size = base + (b < extra ? 1 : 0);
+    out.push(items.slice(i, i + size));
+    i += size;
+  }
+  return out;
+}
+
 export function createSession(mode: TrainingMode, items: SessionItem[], opts: SessionOptions = {}): Session {
   const minDistance = opts.minDistance ?? 4;
   const relearnGap = opts.relearnGap ?? 4;
@@ -124,10 +143,13 @@ export function createSession(mode: TrainingMode, items: SessionItem[], opts: Se
     // Linien-Modus: bewusst in Zugreihenfolge
     steps = items.map((it) => ({ cardId: it.cardId, kind: 'ask', attempt: 1 }));
   } else if (mode === 'new') {
-    // Erst zeigen (in Linien-Reihenfolge), dann gemischt abfragen
-    const shows: Step[] = items.map((it) => ({ cardId: it.cardId, kind: 'show', attempt: 1 }));
-    const asks: Step[] = diversify(items, minDistance, rand).map((it) => ({ cardId: it.cardId, kind: 'ask', attempt: 1 }));
-    steps = [...shows, ...asks];
+    // In kleinen Blöcken: zeigen (Linien-Reihenfolge), dann gleich gemischt abfragen – nicht erst alle zeigen.
+    // Mehr als ~4 neue Züge am Stück überfordern das Arbeitsgedächtnis (gleiche Idee wie die Lernlast der Studien).
+    steps = [];
+    for (const block of newBlocks(items, opts.newBlock ?? NEW_BLOCK)) {
+      for (const it of block) steps.push({ cardId: it.cardId, kind: 'show', attempt: 1 });
+      for (const it of diversify(block, minDistance, rand)) steps.push({ cardId: it.cardId, kind: 'ask', attempt: 1 });
+    }
   } else {
     steps = diversify(items, minDistance, rand).map((it) => ({ cardId: it.cardId, kind: 'ask', attempt: 1 }));
   }

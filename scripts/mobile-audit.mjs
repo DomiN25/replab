@@ -150,7 +150,7 @@ async function run(scheme) {
   await shot('build-tour');
   await page.locator('.mode-switch').getByRole('button', { name: 'Frei' }).tap();
   // Abweichung vom Repertoire: ab Start 1.d4 statt 1.e4
-  await page.getByRole('button', { name: 'Zum Anfang' }).tap();
+  await page.locator('.crumbs').getByRole('button', { name: 'Start' }).tap(); // am Handy gibt es keinen „Zum Anfang“-Knopf mehr
   await page.waitForTimeout(300);
   await move(page, 'd2d4');
   await page.waitForSelector('[data-testid="outside"]');

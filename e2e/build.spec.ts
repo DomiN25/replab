@@ -61,6 +61,14 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   await page.locator('.search-hits button').first().click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.crumbs .cur')).toHaveText('Sc6');
+  // Erkunden: ein Zug am Brett in einer eigenen Stellung ohne Eintrag wird nur angesehen, nicht festgelegt
+  await page.getByTestId('explore').click();
+  await move(page, 'f1b5');
+  await expect(page.locator('.crumbs .cur')).toHaveText('3.Lb5');
+  await expect(page.locator('.toast').getByRole('button', { name: 'Rückgängig' })).toHaveCount(0);
+  await page.waitForTimeout(400);
+  await expect(page.getByTestId('gap-count')).toHaveText('3'); // unverändert – nichts festgelegt
+  await page.getByTestId('explore').click(); // wieder aus
   // Zug tippen (deutsch) + Enter
   await page.getByRole('button', { name: 'Zum Anfang' }).click();
   await page.getByLabel('Zug eingeben').fill('Sf3');
