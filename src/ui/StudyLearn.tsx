@@ -495,6 +495,7 @@ export function LearnCard({
   st,
   onChoose,
   comment,
+  onAdd,
 }: {
   learn: Learn;
   tree: StudyTree;
@@ -506,6 +507,8 @@ export function LearnCard({
   onChoose: (uci: string) => void;
   /** Kommentar der Studie zum letzten Zug – steht ganz oben, direkt unter den Knöpfen */
   comment?: ReactNode;
+  /** Linie ins Repertoire übernehmen (öffnet den Übernahme-Dialog) */
+  onAdd?: () => void;
 }) {
   const { line, idx, step, atEnd, plan, done } = learn;
   const total = plan.lines.length;
@@ -552,6 +555,11 @@ export function LearnCard({
             <button className="btn small" onClick={learn.again}>
               <Icon name="undo" /> Nochmal
             </button>
+            {onAdd && (
+              <button className="btn small" onClick={onAdd}>
+                <Icon name="plus" /> Linie ins Repertoire
+              </button>
+            )}
             <button className="btn small ghost" onClick={learn.skip}>
               Überspringen
             </button>
@@ -603,6 +611,7 @@ export function LearnCard({
           {!atEnd && <button onClick={learn.cutRest}>{step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier nicht interessant (Rest entfernen)'}</button>}
           <button onClick={learn.skip}>Linie überspringen (später)</button>
           <button onClick={learn.again}>Von vorn</button>
+          {onAdd && <button onClick={onAdd}>Ins Repertoire übernehmen …</button>}
           <button className="danger" disabled={line.id === 'main'} onClick={learn.cutLine}>
             Ganze Linie entfernen …
           </button>

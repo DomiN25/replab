@@ -9,7 +9,7 @@ import { Modal, trapFocus } from './Modal';
 import { useBackClose } from './backClose';
 import { useEngine, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
-import { CheckPanel, LearnCard, LearnControls, LearnPlan, useLearn } from './StudyLearn';
+import { CheckPanel, LearnCard, LearnControls, LearnPlan, lineLabel, useLearn } from './StudyLearn';
 import { adoptable } from '../core/studyCards';
 import { lichessToken, lineFromUcis, loadRepData, reloadRepertoires, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
@@ -243,7 +243,6 @@ function StudyEditor({ id }: { id: string }) {
   const [snap, setSnap] = useState<SheetSnap>('min'); // Studien lesen: Brett, Varianten und Text frei
   const [targetId, setTargetId] = useState<string | undefined>();
   const [existing, setExisting] = useState<Map<string, ExistingEntry>>(new Map());
-  const [confirm, setConfirm] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const boardRef = useRef<HTMLElement>(null);
   const crumbsRef = useRef<HTMLElement>(null);
@@ -305,12 +304,9 @@ function StudyEditor({ id }: { id: string }) {
     if (!deferredSt) return undefined;
     return planImport(deferredSt.pgn, deferredSt.color, existing, new Map(Object.entries(deferredSt.choices)), undefined, studyFilter(deferredSt));
   }, [deferredSt, existing]);
-  // „Nur ab hier“: Weg zur aktuellen Stellung + alles darunter (große Studien stückweise übernehmen)
-  const [scope, setScope] = useState<'all' | 'here'>('all');
-  const plan = useMemo(() => {
-    if (!fullPlan || scope === 'all' || !tree || !st) return fullPlan;
-    return restrictPlan(fullPlan, keysFrom(tree, st, activeChapters(tree, st), path));
-  }, [fullPlan, scope, tree, st, path]);
+  // Übernahme-Dialog: Umfang wählbar (ganze Studie, bis hierher, ab hier, diese Linie, verstandene Linien)
+  const [addScope, setAddScope] = useState<AddScope | undefined>();
+  const plan = fullPlan; // Gesamtbilanz (Leiste im Plan/Panel)
 
   const update = (patch: Partial<Study>) =>
     setSt((prev) => {
@@ -470,8 +466,8 @@ function StudyEditor({ id }: { id: string }) {
       return { orig: sq[0], dest: sq[1], brush: m.status === 'chosen' ? 'mine' : m.status === 'alt' ? 'eng' : 'opp' };
     });
 
-  const commit = async () => {
-    if (!plan || !target) return;
+  const commit = async (plan: ImportPlan, whole: boolean) => {
+    if (!target) return;
     await repo.applyImport(target.id, plan, 'pgn');
     // Lernstand aus den Studien-Abfragen in die neuen Repertoire-Karten übernehmen (vorhandener bleibt unangetastet)
     const adopt = adoptable(st.cards, plan.entries.map((e) => ({ posKey: e.posKey, uci: e.uci })));
@@ -485,9 +481,29 @@ function StudyEditor({ id }: { id: string }) {
       `Übernommen in „${target.name}“: +${plan.stats.newEntries} Einträge${plan.stats.replaced ? `, ${plan.stats.replaced} ersetzt` : ''}${adopted ? ` · Lernstand von ${adopted} Stellungen mitgenommen` : ''}`,
       'ok',
     );
-    setLine(lineFromUcis(studyStart(st.pgn, st.color)));
-    setView('build');
+    if (whole) {
+      setLine(lineFromUcis(studyStart(st.pgn, st.color)));
+      setView('build');
+    }
   };
+  // Stellungen je Umfang (Schlüssel = Stellung vor dem eigenen Zug)
+  const pathKeys = (ps: PathStep[]) => new Set(ps.map((x) => x.key));
+  const scopeKeys = (k: AddScope): Set<string> | undefined => {
+    if (k === 'all') return undefined;
+    if (k === 'upto') return pathKeys(path);
+    if (k === 'from') return keysFrom(tree, st, active, path);
+    if (!learn) return new Set();
+    if (k === 'line') return pathKeys([...learn.line.start, ...learn.line.steps]);
+    const keys = new Set<string>();
+    for (const l of learn.plan.lines) if (learn.done.has(l.id)) for (const x of [...l.start, ...l.steps]) keys.add(x.key);
+    return keys;
+  };
+  const planFor = (k: AddScope) => {
+    if (!fullPlan) return undefined;
+    const keys = scopeKeys(k);
+    return keys ? restrictPlan(fullPlan, keys) : fullPlan;
+  };
+  const openAdd = (k?: AddScope) => setAddScope(k ?? (learning ? 'line' : 'all'));
 
   const crumbs = (
     <nav className="crumbs" aria-label="Zugfolge in der Studie" ref={crumbsRef}>
@@ -586,6 +602,9 @@ function StudyEditor({ id }: { id: string }) {
           <Icon name="next" />
         </button>
       )}
+      <button className="btn icon study-add" onClick={() => openAdd()} aria-label="Ins Repertoire übernehmen" title="Ins Repertoire übernehmen (ganz oder teilweise)">
+        <Icon name="plus" />
+      </button>
       <div className="seg small study-mode" role="group" aria-label="Modus">
         <button aria-pressed={!learning} onClick={() => learn?.setOn(false)}>Lesen</button>
         <button aria-pressed={learning} onClick={() => learn?.setOn(true, currentKey)} title="Geführt Linie für Linie durch die Studie">
@@ -724,7 +743,7 @@ function StudyEditor({ id }: { id: string }) {
       <div className="study-stats">
         {plan ? (
           <>
-            <b className="me">+{plan.stats.newEntries}</b> neu
+            Ganze Studie: <b className="me">+{plan.stats.newEntries}</b> neu
             {plan.stats.replaced > 0 && (
               <>
                 {' '}
@@ -737,23 +756,19 @@ function StudyEditor({ id }: { id: string }) {
           '…'
         )}
       </div>
-      <div className="seg small commit-scope" role="group" aria-label="Umfang der Übernahme">
-        <button aria-pressed={scope === 'all'} onClick={() => setScope('all')}>Alles</button>
-        <button aria-pressed={scope === 'here'} onClick={() => setScope('here')} title="Nur die aktuelle Stellung und alles darunter">
-          Nur ab hier
-        </button>
-      </div>
       <div className="row-actions">
-        <select value={targetId ?? ''} onChange={(e) => setTargetId(e.target.value)} aria-label="Ziel-Repertoire">
-          {repertoires.filter((r) => r.color === st.color).map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-          {!repertoires.some((r) => r.color === st.color) && <option value="">kein {st.color === 'white' ? 'Weiß' : 'Schwarz'}-Repertoire</option>}
-        </select>
-        <button className="btn primary" disabled={!plan || !target || plan.stats.newEntries + plan.stats.replaced === 0} onClick={() => setConfirm(true)}>
-          Zum Repertoire hinzufügen
+        <button className="btn primary" disabled={!plan} onClick={() => openAdd(learning ? undefined : 'all')}>
+          <Icon name="plus" /> Zum Repertoire hinzufügen …
         </button>
       </div>
+    </div>
+  );
+
+  // Gesamtfortschritt als Balken unter der Kopfzeile (Lernen: Linien, Lesen: angesehene Stellungen)
+  const overallPct = learning && learn ? (100 * learn.plan.lines.filter((l) => learn.done.has(l.id)).length) / Math.max(1, learn.plan.lines.length) : order.length ? (100 * seenCount) / order.length : 0;
+  const overall = (
+    <div className="study-overall" role="progressbar" aria-label="Fortschritt in der Studie" aria-valuenow={Math.round(overallPct)} aria-valuemin={0} aria-valuemax={100}>
+      <i style={{ width: `${overallPct}%` }} />
     </div>
   );
 
@@ -772,6 +787,7 @@ function StudyEditor({ id }: { id: string }) {
         <>
           <section className={learning ? 'col-board learn-fixed' : 'col-board'} ref={boardRef}>
             {head}
+            {overall}
             {crumbs}
             {board}
             {checking && learn ? (
@@ -782,7 +798,7 @@ function StudyEditor({ id }: { id: string }) {
               <>
                 <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} />
                 <div className="learn-pane">
-                  <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} />
+                  <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} onAdd={() => openAdd('line')} />
                 </div>
               </>
             ) : (
@@ -801,6 +817,7 @@ function StudyEditor({ id }: { id: string }) {
         <>
           <section className="col-board">
             {head}
+            {overall}
             {crumbs}
             {board}
             {checking && learn ? (
@@ -817,7 +834,7 @@ function StudyEditor({ id }: { id: string }) {
               {tab === 'moves' ? (
                 learning && learn ? (
                   <>
-                    {!checking && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} />}
+                    {!checking && <LearnCard learn={learn} tree={tree} view={view} fen={node.fen} notation={notation} st={st} onChoose={choose} comment={commentBlock} onAdd={() => openAdd('line')} />}
                     <LearnPlan learn={learn} tree={tree} notation={notation} />
                   </>
                 ) : (
@@ -831,41 +848,118 @@ function StudyEditor({ id }: { id: string }) {
           </section>
         </>
       )}
-      {confirm && plan && target && (
-        <Modal
-          title={`In „${target.name}“ übernehmen?`}
-          onClose={() => setConfirm(false)}
-          actions={[
-            {
-              label: 'Übernehmen',
-              kind: 'primary',
-              onClick: () => {
-                setConfirm(false);
-                void commit().catch((e) => toast(String(e), 'err'));
-              },
-            },
-            { label: 'Abbrechen', kind: 'ghost', onClick: () => setConfirm(false) },
-          ]}
-        >
-          <p>
-            <b className="me">+{plan.stats.newEntries} neue Einträge</b> (werden neue Lernkarten)
-            {plan.stats.replaced > 0 && (
-              <>
-                {' '}
-                und <b className="warn">{plan.stats.replaced} ersetzte Züge</b> – deren Lernstand verfällt
-              </>
-            )}
-            .
-          </p>
-          {plan.stats.newEntries > 100 && (
-            <p className="hint">
-              Viele neue Karten: Im Training kommen zuerst die häufigsten Stellungen. Unter Mehr → Training kannst du seltene Stellungen zurückstellen
-              („Neue Karten erst ab Erreichbarkeit“).
-            </p>
-          )}
-        </Modal>
+      {addScope && (
+        <AddDialog
+          scope={addScope}
+          onScope={setAddScope}
+          options={
+            learning && learn
+              ? [
+                  { k: 'line', label: 'Diese Linie', sub: `Linie ${learn.idx + 1}: ${lineLabel(tree, learn.line, notation, 4)}` },
+                  { k: 'upto', label: 'Bis hierher', sub: 'Weg bis zur aktuellen Stellung' },
+                  { k: 'done', label: 'Alle verstandenen Linien', sub: `${learn.done.size} ${learn.done.size === 1 ? 'Linie' : 'Linien'}` },
+                  { k: 'from', label: 'Ab hier alles', sub: 'aktuelle Stellung und alles darunter' },
+                  { k: 'all', label: 'Ganze Studie', sub: 'alle aktiven Kapitel' },
+                ]
+              : [
+                  { k: 'all', label: 'Ganze Studie', sub: 'alle aktiven Kapitel' },
+                  { k: 'upto', label: 'Bis hierher', sub: 'Weg bis zur aktuellen Stellung' },
+                  { k: 'from', label: 'Ab hier alles', sub: 'aktuelle Stellung und alles darunter' },
+                ]
+          }
+          planFor={planFor}
+          repertoires={repertoires.filter((r) => r.color === st.color)}
+          color={st.color}
+          targetId={targetId}
+          onTarget={setTargetId}
+          onClose={() => setAddScope(undefined)}
+          onConfirm={(pl, k) => {
+            setAddScope(undefined);
+            void commit(pl, k === 'all').catch((e) => toast(String(e), 'err'));
+          }}
+        />
       )}
     </div>
+  );
+}
+
+type AddScope = 'all' | 'upto' | 'from' | 'line' | 'done';
+
+/** Übernahme ins Repertoire: Umfang wählen, Bilanz je Umfang sehen, Ziel-Repertoire wählen. */
+function AddDialog(p: {
+  scope: AddScope;
+  onScope: (k: AddScope) => void;
+  options: { k: AddScope; label: string; sub: string }[];
+  planFor: (k: AddScope) => ImportPlan | undefined;
+  repertoires: { id: string; name: string }[];
+  color: 'white' | 'black';
+  targetId?: string;
+  onTarget: (id: string) => void;
+  onClose: () => void;
+  onConfirm: (plan: ImportPlan, k: AddScope) => void;
+}) {
+  const chosen = p.planFor(p.scope);
+  const n = chosen ? chosen.stats.newEntries + chosen.stats.replaced : 0;
+  return (
+    <Modal
+      title="Ins Repertoire übernehmen"
+      onClose={p.onClose}
+      actions={[
+        {
+          label: 'Übernehmen',
+          kind: 'primary',
+          onClick: () => {
+            if (!chosen || !n) return toast('In diesem Umfang ist nichts Neues zu übernehmen.', 'info');
+            if (!p.targetId) return toast(`Erst ein ${p.color === 'white' ? 'Weiß' : 'Schwarz'}-Repertoire anlegen.`, 'info');
+            p.onConfirm(chosen, p.scope);
+          },
+        },
+        { label: 'Abbrechen', kind: 'ghost', onClick: p.onClose },
+      ]}
+    >
+      <div className="add-scopes" role="radiogroup" aria-label="Umfang">
+        {p.options.map((o) => {
+          const pl = p.planFor(o.k);
+          return (
+            <button key={o.k} role="radio" aria-checked={p.scope === o.k} className={`add-scope ${p.scope === o.k ? 'on' : ''}`} onClick={() => p.onScope(o.k)}>
+              <span className="add-dot" aria-hidden />
+              <span className="add-txt">
+                <b>{o.label}</b>
+                <small>{o.sub}</small>
+              </span>
+              <span className="add-n">
+                {pl ? (
+                  <>
+                    <b className="me">+{pl.stats.newEntries}</b>
+                    {pl.stats.replaced > 0 && <small className="warn"> {pl.stats.replaced} ersetzt</small>}
+                  </>
+                ) : (
+                  '…'
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <label className="field">
+        <span>Ziel-Repertoire</span>
+        <select value={p.targetId ?? ''} onChange={(e) => p.onTarget(e.target.value)} aria-label="Ziel-Repertoire">
+          {p.repertoires.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+          {!p.repertoires.length && <option value="">kein {p.color === 'white' ? 'Weiß' : 'Schwarz'}-Repertoire</option>}
+        </select>
+      </label>
+      {chosen && chosen.stats.replaced > 0 && (
+        <p className="hint warn">{chosen.stats.replaced} vorhandene Züge werden ersetzt – deren Lernstand verfällt.</p>
+      )}
+      {chosen && chosen.stats.newEntries > 100 && (
+        <p className="hint">Viele neue Karten: Im Training kommen zuerst die häufigsten Stellungen (Einstellungen → Training: „Neue Karten erst ab Erreichbarkeit“).</p>
+      )}
+      <p className="hint">Neue Einträge werden Lernkarten; Lernstand aus den Studien-Abfragen geht mit.</p>
+    </Modal>
   );
 }
 

@@ -111,6 +111,16 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await page.getByRole('button', { name: 'Verstanden', exact: true }).click();
   await expect(card).toContainText('Linie 2/9'); // Lernlast 2 < 4 → keine neue Abfrage
   await expect(chk).toHaveCount(0);
+
+  // Teilübernahme: nur diese Linie (2.c3 e5) ins Repertoire – bleibt in der Studie
+  await page.getByRole('button', { name: 'Ins Repertoire übernehmen' }).click();
+  const add = page.getByRole('dialog');
+  await expect(add.getByRole('radio', { name: /Diese Linie/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(add.getByRole('radio', { name: /Diese Linie/ })).toContainText('+2');
+  await add.getByRole('button', { name: 'Übernehmen' }).click();
+  await expect(page.locator('.toast')).toContainText('+2 Einträge');
+  await expect(page.locator('.toast')).toContainText('Lernstand von 1 Stellungen'); // 1…c5 war schon abgefragt
+  await expect(page).toHaveURL(/#\/studies/);
   // Abweichen an der Abzweigstelle: 2.Sc3 statt 2.c3
   await card.locator('.learn-alts .var-chip', { hasText: '2.Sc3' }).click();
   await expect(page.locator('.crumbs')).toContainText('Sc3');
@@ -188,7 +198,7 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await page.getByRole('button', { name: 'Zum Repertoire hinzufügen' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Übernehmen' }).click();
   await expect(page).toHaveURL(/#\/build/);
-  await expect(page.locator('.toast')).toContainText('Lernstand von 2 Stellungen mitgenommen');
+  await expect(page.locator('.toast')).toContainText('Lernstand von 1 Stellungen mitgenommen'); // 2…Sc6 (1…c5 kam schon mit der Linie)
   await expect(page.locator('.crumbs')).toContainText('c5');
 
   // Studie bleibt in der Liste, mit Vermerk

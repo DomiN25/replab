@@ -224,6 +224,13 @@ async function run(scheme) {
   const lineInfo = await page.locator('.learn-of').innerText();
   console.log(`${scheme}: Lernmodus nach „Verstanden“: ${lineInfo}`);
   await shot('study-learn-branch');
+  // Übernahme-Dialog (Knopf in der Studien-Kopfzeile), Umfang „Diese Linie“
+  await page.locator('.study-add').tap();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForTimeout(400);
+  await shot('study-add-dialog');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   // Zwischenabfrage (manuell gestartet): Frage, dann falscher Zug → richtiger wird gezeigt
   await page.locator('.check-chip').tap();
   await page.waitForSelector('.check-card');
