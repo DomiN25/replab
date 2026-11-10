@@ -6,7 +6,12 @@ import type { EngineData, EngineLine } from '../core/types';
 export interface AnalyseOptions {
   depth: number;
   multipv: number;
+  /** nur diese Züge untersuchen (UCI „searchmoves“) – für Kandidaten, die nicht unter den besten MultiPV-Linien sind */
+  searchmoves?: string[];
 }
+
+/** So tief rechnet die Dauer-Analyse höchstens weiter (praktisch „bis man weiterklickt“). */
+export const MAX_DEPTH = 40;
 
 interface Search {
   id: number;
@@ -116,7 +121,7 @@ export class EngineService {
     const w = this.worker!;
     w.postMessage(`setoption name MultiPV value ${s.opts.multipv}`);
     w.postMessage(`position fen ${s.fen}`);
-    w.postMessage(`go depth ${s.opts.depth}`);
+    w.postMessage(`go depth ${s.opts.depth}${s.opts.searchmoves?.length ? ` searchmoves ${s.opts.searchmoves.join(' ')}` : ''}`);
   }
 
   /**

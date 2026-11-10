@@ -100,9 +100,17 @@ export function Builder() {
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
   const evalOn = settings.ui.evalBar !== false;
-  const engineRaw = useEngine(fen, engineOn || evalOn); // Balken braucht die Engine auch, wenn die Linien aus sind
+  // Häufige Datenbankzüge sollen immer eine Bewertung haben – auch wenn Stockfish sie nicht unter seinen besten Linien führt
+  const extraMoves = useMemo(() => {
+    const d = explorerSt.data;
+    if (!d || !engineOn) return [];
+    const total = d.moves.reduce((n, m) => n + m.white + m.draws + m.black, 0) || 1;
+    return d.moves.filter((m) => (m.white + m.draws + m.black) / total >= 0.01).slice(0, 8).map((m) => m.uci);
+  }, [explorerSt.data, engineOn]);
+  // Balken braucht die Engine auch, wenn die Linien aus sind; weitergerechnet wird nur bei „Stockfish an“
+  const engineRaw = useEngine(fen, engineOn || evalOn, { deep: engineOn, extraMoves });
   // „Stockfish aus“ heißt weiterhin: keine Engine-Linien, -Pfeile oder -Kandidaten – nur der Balken rechnet
-  const engineSt = useMemo(() => (engineOn ? engineRaw : { ...engineRaw, lines: [], depth: 0, running: false }), [engineOn, engineRaw]);
+  const engineSt = useMemo(() => (engineOn ? engineRaw : { ...engineRaw, lines: [], extra: [], depth: 0, running: false }), [engineOn, engineRaw]);
 
   // Fokus der Galaxie: aktuelle Stellung, falls sie Kinder hat, sonst ihr Elternknoten.
   // Außerhalb des Repertoires: tiefster bekannter Vorfahr auf dem Weg.

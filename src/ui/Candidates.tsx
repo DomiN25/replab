@@ -130,7 +130,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
 
       {p.mark?.note && <p className="note">{p.mark.note}</p>}
 
-      <ExplorerStatusLine ex={p.ex} />
+      <ExplorerStatusLine ex={p.ex} engine={p.engine} />
       <div className="table-wrap">
         <table className="ctable">
           <thead>
@@ -147,7 +147,9 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
           <tbody>
             {showAll.map((r) => {
               const mine = p.entry?.uci === r.uci;
-              const myCp = r.cp;
+              // Züge außerhalb der besten Engine-Linien: gezielt nachgerechnete Bewertung (etwas flacher)
+              const more = r.cp === undefined && r.mate === undefined ? p.engine.extra.find((e) => e.uci === r.uci) : undefined;
+              const myCp = r.cp ?? more?.cp;
               return (
                 <tr key={r.uci} className={mine ? 'mine' : ''}>
                   <td>
@@ -158,7 +160,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                   <td className="num">{pct(r.share)}</td>
                   <td className="num hide-s" title={r.games ? r.games.toLocaleString('de-DE') : undefined}>{r.games ? compactCount(r.games) : '–'}</td>
                   <td className="hide-s">{r.games ? <WdlBar w={r.white} d={r.draws} l={r.black} /> : null}</td>
-                  <td className="num">{formatEval(myCp, r.mate)}</td>
+                  <td className="num" title={more ? 'gezielt nachgerechnet (geringere Tiefe)' : undefined}>{formatEval(myCp, r.mate ?? more?.mate)}</td>
                   <td className="num hide-s">{r.deltaCp !== undefined ? (r.deltaCp === 0 ? '★' : `−${(r.deltaCp / 100).toFixed(2).replace('.', ',')}`) : ''}</td>
                   <td className="act">
                     {mine ? (
@@ -346,7 +348,8 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
 
   const row = (c: OppCandidate) => {
     const st = statusOf(c);
-    const myCp = c.moverCp !== undefined ? -c.moverCp : undefined;
+    const more = c.moverCp === undefined ? p.engine.extra.find((e) => e.uci === c.uci) : undefined;
+    const myCp = c.moverCp !== undefined ? -c.moverCp : more?.cp !== undefined ? -more.cp : undefined;
     return (
       <tr key={c.uci} className={c.relevant ? '' : 'dim'}>
         <td>
@@ -400,7 +403,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
   return (
     <>
       {p.mark?.note && <p className="note">{p.mark.note}</p>}
-      <ExplorerStatusLine ex={p.ex} />
+      <ExplorerStatusLine ex={p.ex} engine={p.engine} />
       {p.mark?.endOfLine && <p className="hint">■ Ende-Marker: ab hier keine Lücken mehr.</p>}
       <div className="table-wrap">
         <table className="ctable">
@@ -437,13 +440,37 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
   );
 }
 
-function ExplorerStatusLine({ ex }: { ex: ExplorerState }) {
+/** Zeile über der Tabelle: Datenbank-Status und – direkt bei den Bewertungen – die aktuelle Stockfish-Tiefe. */
+function ExplorerStatusLine({ ex, engine }: { ex: ExplorerState; engine: EngineState }) {
   const st = useApp((s) => s.explorerStatus);
-  if (ex.loading) return <p className="hint">Datenbank wird geladen …</p>;
-  if (ex.error) return <p className="hint warn">{ex.error}</p>;
-  if (st.state === 'backoff') return <p className="hint warn">Lichess-Limit erreicht – kurze Pause.</p>;
-  if (ex.data && ex.data.total === 0) return <p className="hint">Keine Partien in diesem Ratingband – nur Engine-Regel.</p>;
-  return ex.data ? <p className="hint">{ex.data.total.toLocaleString('de-DE')} Partien</p> : null;
+  const on = useApp((s) => s.engineOn);
+  const warn = !!ex.error || (!ex.loading && st.state === 'backoff');
+  const text = ex.loading
+    ? 'Datenbank wird geladen …'
+    : ex.error
+      ? ex.error
+      : st.state === 'backoff'
+        ? 'Lichess-Limit erreicht – kurze Pause.'
+        : ex.data && ex.data.total === 0
+          ? 'Keine Partien in diesem Ratingband – nur Engine-Regel.'
+          : ex.data
+            ? `${ex.data.total.toLocaleString('de-DE')} Partien`
+            : '';
+  const eng =
+    on && (engine.depth > 0 || engine.running) ? (
+      <span className="eng-depth" data-testid="engine-depth" title="Stockfish rechnet weiter, solange die Stellung offen ist">
+        Stockfish Tiefe {engine.depth}
+        {engine.running ? ' …' : ''}
+      </span>
+    ) : null;
+  if (!text && !eng) return null;
+  return (
+    <p className={`hint ${warn ? 'warn' : ''}`}>
+      {text}
+      {text && eng ? ' · ' : ''}
+      {eng}
+    </p>
+  );
 }
 
 // ------------------------------------------------------------ Engine
@@ -458,8 +485,8 @@ function EngineBox({ engine, fen, ply, notation, myTurn, onPlay }: { engine: Eng
         </button>
         {on && (
           <span className="hint">
-            Tiefe {engine.depth}/{engine.target}
-            {engine.running ? ' …' : ''}
+            Tiefe {engine.depth}
+            {engine.running ? ' … rechnet weiter' : ''}
           </span>
         )}
       </div>

@@ -73,6 +73,8 @@ export interface EngineData {
   posKey: string;
   depth: number;
   lines: EngineLine[];
+  /** Bewertungen weiterer Züge (z. B. häufige Datenbankzüge außerhalb der besten Linien) – nur zur Anzeige, zählen nicht für die Engine-Regel */
+  extra?: EngineLine[];
   analysedAt: number;
 }
 
