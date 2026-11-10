@@ -164,7 +164,8 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                     {mine ? (
                       <span className="ok">✓</span>
                     ) : (
-                      <button className="btn small primary" onClick={() => p.onCommit(r.uci, r.san)}>
+                      // „Ändern“ ist selten und folgenreich (Lernstand) → dezent; nur „Festlegen“ ist der Hauptknopf
+                      <button className={`btn small ${p.entry ? 'ghost' : 'primary'}`} onClick={() => p.onCommit(r.uci, r.san)}>
                         {p.entry ? 'Ändern' : 'Festlegen'}
                       </button>
                     )}

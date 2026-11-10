@@ -251,8 +251,8 @@ export function Builder() {
     } catch {
       return;
     }
-    // Erkunden gilt nur im freien Modus – die Lückentour lebt vom Festlegen am Brett
-    if (myTurn && !entry && !mark?.endOfLine && !(explore && !guideActive)) {
+    // Erkunden (auch in der Lückentour): Linien am Brett ansehen, ohne etwas festzulegen
+    if (myTurn && !entry && !mark?.endOfLine && !explore) {
       decide({ fen, uci, san, playAfter: true, warning: unreachableWarning() });
       return;
     }
@@ -341,7 +341,6 @@ export function Builder() {
       <button
         className="btn icon explore-toggle"
         aria-pressed={explore}
-        disabled={guideActive}
         onClick={toggleExplore}
         aria-label="Erkunden: Züge am Brett nicht festlegen"
         title={explore ? 'Erkunden an – Züge am Brett werden nicht festgelegt' : 'Erkunden – Züge am Brett nur ansehen, nichts festlegen'}
@@ -503,7 +502,7 @@ export function Builder() {
                 aria-label="Zug eingeben"
               />
             </div>
-            {explore && !guideActive && (
+            {explore && (
               <p className="explore-note" role="status">
                 <Icon name="eye" /> Erkunden: Züge am Brett werden nicht festgelegt – festlegen über die Zugtabelle.
               </p>

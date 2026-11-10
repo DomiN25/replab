@@ -516,7 +516,10 @@ function StudyEditor({ id }: { id: string }) {
     const keys = scopeKeys(k);
     return keys ? restrictPlan(fullPlan, keys) : fullPlan;
   };
-  const openAdd = (k?: AddScope) => setAddScope(k ?? (learning ? 'line' : 'all'));
+  // Vorwahl: im Lernmodus die aktuelle Linie – direkt nach „Verstanden“ (man steht schon am Anfang der nächsten,
+  // noch nicht gelernten Linie) aber die verstandenen Linien
+  const freshLine = !!learn && learn.step === 0 && !learn.done.has(learn.line.id) && learn.done.size > 0;
+  const openAdd = (k?: AddScope) => setAddScope(k ?? (learning ? (freshLine ? 'done' : 'line') : 'all'));
 
   const crumbs = (
     <nav className="crumbs" aria-label="Zugfolge in der Studie" ref={crumbsRef}>
@@ -598,12 +601,13 @@ function StudyEditor({ id }: { id: string }) {
             setTab('moves');
             setSnap('full');
           }}
-          aria-label={`Lernplan öffnen: ${learn.plan.lines.filter((l) => learn.done.has(l.id)).length} von ${learn.plan.lines.length} Linien geschafft`}
+          aria-label={`Lernplan öffnen: ${learn.plan.lines.filter((l) => learn.done.has(l.id)).length} von ${learn.plan.lines.length} Linien verstanden`}
         >
           <i style={{ width: `${(100 * learn.plan.lines.filter((l) => learn.done.has(l.id)).length) / learn.plan.lines.length}%` }} />
           <b>
             {learn.plan.lines.filter((l) => learn.done.has(l.id)).length}/{learn.plan.lines.length}
           </b>
+          <small className="hide-s">Linien</small>
           <Icon name="down" className="up" />
         </button>
       ) : (
@@ -612,6 +616,7 @@ function StudyEditor({ id }: { id: string }) {
           <b>
             {seenCount}/{order.length}
           </b>
+          <small className="hide-s">gesehen</small>
           <Icon name="next" />
         </button>
       )}

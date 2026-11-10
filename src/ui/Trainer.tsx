@@ -234,7 +234,7 @@ export function Trainer() {
           </select>
         </label>
         <label className="check">
-          <input type="checkbox" checked={!!focus.onlyWeak} onChange={(e) => setFocus({ ...focus, onlyWeak: e.target.checked })} /> nur schwache Stellungen (Wissen rot, R &lt; 0,7)
+          <input type="checkbox" checked={!!focus.onlyWeak} onChange={(e) => setFocus({ ...focus, onlyWeak: e.target.checked })} /> nur schwache Stellungen (Erinnerung unter 70 %)
         </label>
       </section>
       <details className="explain">

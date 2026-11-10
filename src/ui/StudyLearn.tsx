@@ -258,7 +258,9 @@ export function useLearn(p: {
       if (items.length) startRun(items);
       // Rückgängig: Markierung entfernen und zurück ans Ende dieser Linie
       const undo = { label: 'Zurück', run: () => update({ linesDone: prevDone, learn: { ...st.learn, on: true, ...here, back: history } }) };
-      if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok', undo);
+      // Startet gleich eine Abfrage, wäre „weiter mit Linie n“ falsch und „Zurück“ würde mitten in die Abfrage greifen
+      if (items.length) toast(`Linie ${idx + 1} verstanden – erst eine kurze Abfrage`, 'ok');
+      else if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok', undo);
       else toast(`Linie ${idx + 1} verstanden – weiter mit Linie ${n + 1}`, 'ok', undo);
     },
     again: () => setLearn({ line: line.id, step: 0 }),
@@ -403,15 +405,7 @@ export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Lear
           {learn.quiz ? (learn.hint ? 'Zug spielen' : 'Zeigen') : 'Weiter'} <Icon name="next" />
         </button>
       )}
-      <button
-        className="btn icon learn-cut"
-        onClick={learn.cutRest}
-        disabled={atEnd || (step === 0 && line.id === 'main')}
-        aria-label={step === 0 ? 'Diese Linie nicht lernen (entfernen)' : 'Ab hier abschneiden (Rest der Linie entfernen)'}
-        title={step === 0 ? 'Linie nicht lernen' : 'Ab hier abschneiden'}
-      >
-        <Icon name="scissors" />
-      </button>
+      {/* Abschneiden steht bewusst nur im „…“-Menü der Linienkarte – neben „Weiter“ wurde es zu leicht versehentlich getroffen */}
       <span className="learn-count" title="Züge dieser Linie">
         {step}/{line.steps.length}
       </span>
@@ -540,7 +534,7 @@ export function LearnCard({
       {atEnd && (
         <div className="learn-end" role="status">
           <b className="learn-end-title">
-            <Icon name="check" /> Ende der Linie – geschafft
+            <Icon name="check" /> Ende der Linie
           </b>{' '}
           {line.transposeTo ? (
             <span>

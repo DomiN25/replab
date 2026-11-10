@@ -101,7 +101,7 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(card).toContainText('Linie 2/9');
   await expect(card).toContainText('Statt 2.Sf3');
   await expect(card).toContainText('2.c3');
-  await expect(page.locator('.study-progress')).toHaveText('1/9');
+  await expect(page.locator('.study-progress b')).toHaveText('1/9');
   await expect(page.locator('.check-chip')).toHaveText('Abfrage (2)'); // zwei noch neu, zwei bewertet
   await expect(page.locator('.learn-loadinfo')).toContainText('neu gelernt: 2 Stellungen');
   // Zurück am Linienanfang → Ende der vorigen Linie
@@ -115,6 +115,9 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   // Teilübernahme: nur diese Linie (2.c3 e5) ins Repertoire – bleibt in der Studie
   await page.getByRole('button', { name: 'Ins Repertoire übernehmen' }).click();
   const add = page.getByRole('dialog');
+  // direkt nach „Verstanden“ (Anfang der nächsten Linie) sind die verstandenen Linien vorgewählt, nicht die ungelernte
+  await expect(add.getByRole('radio', { name: /Alle verstandenen Linien/ })).toHaveAttribute('aria-checked', 'true');
+  await add.getByRole('radio', { name: /Diese Linie/ }).click();
   await expect(add.getByRole('radio', { name: /Diese Linie/ })).toHaveAttribute('aria-checked', 'true');
   await expect(add.getByRole('radio', { name: /Diese Linie/ })).toContainText('+2');
   await add.getByRole('button', { name: 'Übernehmen' }).click();
@@ -139,9 +142,10 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(page.getByRole('button', { name: 'Verstanden', exact: true })).toBeVisible();
   await page.getByLabel('Eigene Züge selbst spielen').uncheck();
 
-  // Sichtbare Schere: Rest der Linie abschneiden (mit Rückgängig), Fortschrittskarte zeigt alle Linien
+  // Rest der Linie abschneiden über das „…“-Menü (mit Rückgängig), Fortschrittskarte zeigt alle Linien
   await page.getByRole('button', { name: 'Zug zurück' }).click(); // vor 3…Sd4
-  await page.getByRole('button', { name: /Ab hier abschneiden/ }).click();
+  await page.getByRole('button', { name: 'Aktionen für diese Linie' }).click();
+  await page.getByRole('button', { name: /Ab hier nicht interessant/ }).click();
   await expect(page.locator('.toast')).toContainText('Rest der Linie entfernt');
   await expect(page.locator('.learn-count')).toHaveText('3/3');
   await page.locator('.toast').getByRole('button', { name: 'Rückgängig' }).click();
@@ -173,18 +177,18 @@ test('Studien-Reiter: hinzufügen, Ast entfernen, Kapitel abwählen, übernehmen
   await expect(moves).toContainText('3.Lb5');
 
   // Position und Fortschritt bleiben gespeichert: Liste und zurück → wieder bei 2…Sc6
-  await expect(page.locator('.study-progress')).toContainText('/');
-  const progress = await page.locator('.study-progress').innerText();
+  await expect(page.locator('.study-progress b')).toContainText('/');
+  const progress = await page.locator('.study-progress b').innerText();
   await page.locator('.nav-top').getByRole('button', { name: 'Studien' }).click();
   await expect(page.locator('.study-list')).toBeVisible();
   await page.locator('.study-open', { hasText: 'tbg' }).click();
   await expect(page.locator('.crumbs')).toContainText('Sc6');
-  await expect(page.locator('.study-progress')).toHaveText(progress);
+  await expect(page.locator('.study-progress b')).toHaveText(progress);
   // Variantenleiste unter dem Brett und „Offen“ (nächste nicht angesehene Variante)
   await page.locator('.var-chip', { hasText: '3.Lb5' }).click();
   await expect(page.locator('.crumbs')).toContainText('Lb5');
   await page.getByRole('button', { name: /^Offen/ }).click();
-  await expect(page.locator('.study-progress')).not.toHaveText(progress);
+  await expect(page.locator('.study-progress b')).not.toHaveText(progress);
 
   // Kapitel abwählen und wieder an
   await page.getByRole('tab', { name: /Kapitel/ }).click();

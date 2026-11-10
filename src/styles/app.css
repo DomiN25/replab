@@ -951,8 +951,6 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .learn-alts.own { border-top-style: dashed; }
 .learn-alts.own .var-chip { opacity: 0.85; border-style: dashed; }
 /* Lernmodus: Schere, Gesamtfortschritt, Kapitelkarte */
-.learn-cut { flex: none; min-width: 44px !important; min-height: 44px !important; color: var(--muted); }
-.learn-cut:not(:disabled):hover { color: var(--gap); }
 .learn-skipline { margin-top: 6px; color: var(--muted); }
 .learn-total { display: flex; align-items: center; gap: 14px; }
 .learn-total > b { font: 800 34px/1 var(--display); letter-spacing: -0.03em; color: var(--me); }
@@ -1027,6 +1025,9 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .learn-card > .learn-meta:last-child .learn-of { font-size: 12px; }
 .learn-card > .learn-meta:first-child + .learn-text, .learn-card > .learn-text:first-child { margin-top: 0; }
 button.study-progress .ico.up { rotate: 180deg; }
+button.study-progress small { position: relative; color: var(--muted); font-size: 11.5px; }
+/* Linienkarte ohne Kommentar/Hinweis: nur die Infozeile, ohne leere Fläche und Trennlinie darüber */
+.learn-card > .learn-meta:only-child { margin: -6px -6px -8px 0; padding-top: 0; border-top: 0; }
 
 /* Studie: Übernahme-Knopf in der Kopfzeile, Gesamtfortschritt, Umfang-Dialog */
 .study-add { flex: none; min-width: 38px !important; min-height: 38px !important; font-size: 18px; color: var(--acc); border-color: color-mix(in srgb, var(--acc) 40%, transparent); }
