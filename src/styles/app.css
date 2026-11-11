@@ -85,6 +85,9 @@ body { min-height: 100vh; overscroll-behavior-y: contain; }
 body::before { content: ''; position: fixed; inset: 0; z-index: -1; background: var(--blobs), var(--bg); pointer-events: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, a, summary, label { touch-action: manipulation; }
+/* Seitenwischen: waagerechte Gesten gehören der App. Ohne das übernimmt der Browser diagonale Gesten, bricht per touchcancel ab
+   und die Seite ruckelt zurück. Quer scrollende Leisten und das Brett setzen ihr eigenes touch-action. */
+.app { touch-action: pan-y pinch-zoom; }
 a { color: var(--acc); }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .ico { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; vertical-align: -0.2em; }

@@ -47,6 +47,7 @@ export function useSwipeNav(rootRef: RefObject<HTMLElement>, mainRef: RefObject<
         el.style.transition = animate ? 'translate 0.28s var(--ease-out), opacity 0.28s var(--ease-out)' : '';
         el.style.translate = '';
         el.style.opacity = '';
+        el.style.willChange = '';
       }
       if (animate) setTimeout(() => els.forEach((el) => (el.style.transition = '')), 300);
     };
@@ -76,6 +77,8 @@ export function useSwipeNav(rootRef: RefObject<HTMLElement>, mainRef: RefObject<
           return;
         }
         s.els = movers(main);
+        // eigene Compositor-Ebene: Verschieben/Ausblenden läuft dann ohne Neuzeichnen der ganzen Seite
+        for (const el of s.els) el.style.willChange = 'translate, opacity';
       }
       e.preventDefault(); // waagerecht: Seite nicht gleichzeitig scrollen
       const has = dx < 0 ? !!next : !!prev;
@@ -104,9 +107,11 @@ export function useSwipeNav(rootRef: RefObject<HTMLElement>, mainRef: RefObject<
         el.style.translate = `${Math.sign(st.dx) * innerWidth * 0.35}px 0`;
         el.style.opacity = '0';
       }
+      // Die alte Seite bleibt unsichtbar stehen, bis React die neue gemountet hat – ein sofortiges Zurücksetzen ließ sie
+      // für ein, zwei Frames wieder voll aufblitzen (Ruckeln). Gleiche Elemente (Wechsel nicht möglich) räumen wir später auf.
       setTimeout(() => {
-        reset(st.els, false);
         go();
+        setTimeout(() => reset(st.els.filter((el) => el.isConnected), true), 450);
       }, 130);
     };
 
