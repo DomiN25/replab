@@ -468,6 +468,14 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .ctable tr.standout td.num:not(.reach) { color: var(--text); }
 .pv.standout .ev { font-weight: 800; }
 .pv.standout .mvbtn { font-weight: 800; }
+.study-sug { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.sug-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.sug-title svg { width: 14px; height: 14px; }
+.sug-study { padding: 4px 0; }
+.sug-study + .sug-study { border-top: 1px solid var(--line-soft); }
+.sug-name { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.sug-move { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.sug-note { color: var(--muted); flex-basis: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cands-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
 .cands-foot .hint { margin: 0; }
 .ctable tr:hover td { background: var(--panel2); }
@@ -930,6 +938,9 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 .crumbs button.ctx { opacity: 0.5; cursor: default; }
 .crumbs button.ctx:hover { background: transparent; color: var(--muted); }
 .learn-controls { gap: 8px; }
+.learn-auto.on { background: var(--acc-soft, var(--panel2)); border-color: var(--acc, var(--line)); color: var(--acc, inherit); }
+.learn-speed { white-space: nowrap; min-width: 0; }
+.learn-controls:has(.learn-auto.on) { flex-wrap: nowrap; }
 .learn-go { flex: 1; min-height: 48px; font-size: 15px; border-radius: 16px; }
 .learn-count { flex: none; min-width: 44px; text-align: center; font: 700 13px var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
 .learn-card { margin-top: 12px; padding: 12px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--card-b); box-shadow: var(--shadow); animation: rise 0.3s var(--ease-out); }

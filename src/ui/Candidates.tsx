@@ -9,6 +9,7 @@ import { nameDe } from '../core/openings';
 import type { ExplorerState, EngineState } from './hooks';
 import { saveMoveMeta, setEndOfLine, toggleOpp, updateMark, useApp } from './store';
 import { Icon } from './Icon';
+import type { StudySuggestion } from './studySuggest';
 
 interface Props {
   fen: string;
@@ -26,6 +27,8 @@ interface Props {
   onPlay: (uci: string) => void;
   onCommit: (uci: string, san: string) => void;
   onDeleteEntry: () => void;
+  /** Was meine Studien in dieser Stellung spielen */
+  suggestions: StudySuggestion[];
 }
 
 const pct = (x?: number) => (x === undefined ? '–' : `${(x * 100).toFixed(x < 0.1 ? 1 : 0).replace(".", ",")} %`);
@@ -197,6 +200,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
         </table>
       </div>
       {!rows.length && !p.ex.loading && <p className="hint">Keine Daten. Zug am Brett spielen, um ihn festzulegen.</p>}
+      <StudySuggest items={p.suggestions} entry={p.entry} myTurn ply={p.ply} notation={p.notation} onPlay={p.onPlay} onCommit={p.onCommit} />
 
       {p.entry ? (
         <EntryEditor key={p.entry.id} entry={p.entry} onDelete={p.onDeleteEntry} />
@@ -209,6 +213,55 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
       )}
       <LabelEditor posKey={posKey} mark={p.mark} />
     </>
+  );
+}
+
+/** „Aus deinen Studien“: Züge, die eine meiner Studien in dieser Stellung spielt – ansehen oder (eigener Zug) direkt festlegen. */
+function StudySuggest({
+  items,
+  entry,
+  myTurn,
+  ply,
+  notation,
+  onPlay,
+  onCommit,
+}: {
+  items: StudySuggestion[];
+  entry?: RepertoireMove;
+  myTurn: boolean;
+  ply: number;
+  notation: 'de' | 'en';
+  onPlay: (uci: string) => void;
+  onCommit: (uci: string, san: string) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="study-sug" data-testid="study-sug">
+      <div className="sug-title">
+        <Icon name="book" /> Aus deinen Studien
+      </div>
+      {items.map((s) => (
+        <div key={s.studyId} className="sug-study">
+          <span className="sug-name">{s.studyName}</span>
+          {s.moves.map((m) => (
+            <div key={m.uci} className="sug-move">
+              <button className="mvbtn" onClick={() => onPlay(m.uci)} title="Zug am Brett ansehen">
+                {moveNumberPrefix(ply) + displaySan(m.san, notation)}
+              </button>
+              {myTurn &&
+                (entry?.uci === m.uci ? (
+                  <span className="ok" title="Ist dein Repertoirezug">✓</span>
+                ) : (
+                  <button className={`btn small ${entry ? 'ghost' : ''}`} onClick={() => onCommit(m.uci, m.san)}>
+                    {entry ? 'Ändern' : 'Festlegen'}
+                  </button>
+                ))}
+              {m.comment && <small className="sug-note">{m.comment}</small>}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -442,6 +495,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         </button>
       )}
       {!relevant.length && !p.ex.loading && <p className="hint">Keine relevanten Gegnerzüge bekannt.</p>}
+      <StudySuggest items={p.suggestions} myTurn={false} ply={p.ply} notation={p.notation} onPlay={p.onPlay} onCommit={p.onCommit} />
       <div className="row-actions">
         <button className="btn small" onClick={() => void setEndOfLine(posKey, !p.mark?.endOfLine)}>
           {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '■ Ende der Linie hier'}

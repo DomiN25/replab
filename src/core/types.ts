@@ -135,6 +135,8 @@ export interface Study {
     step: number;
     order?: 'skeleton' | 'study';
     selfPlay?: boolean;
+    /** Tempo des geführten Abspielens (fehlt = mittel), siehe core/autoplay.ts */
+    speed?: 'slow' | 'normal' | 'fast';
     /** Verlauf für „Zurück“ über Liniengrenzen (zuletzt besuchte Positionen, max. 30) */
     back?: { line: string; step: number }[];
     /** Zwischenabfragen an (fehlt = an); Takt nach Lernlast (core/studyCards.ts CHECK_LOAD), Standard „normal“ */

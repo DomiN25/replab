@@ -244,7 +244,7 @@ export function Trainer() {
         <p>
         Karteikarten-Prinzip (FSRS, wie Anki): Jede Stellung ist eine Karte. Weißt du sie, kommt sie in immer größeren Abständen wieder (Tage, Wochen, Monate),
         vergisst du sie, kommt sie bald wieder. Die Abstände werden so gewählt, dass du dich mit {Math.round(settings.srs.desiredRetention * 100)} % Wahrscheinlichkeit
-        erinnerst (Behaltensziel in den Einstellungen). Neue Züge lernst du in kleinen Blöcken (bis 4 zeigen, dann gleich abfragen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
+        erinnerst (Behaltensziel in den Einstellungen). Neue Züge werden ohne Vorsagen gleich abgefragt – der richtige Zug erscheint erst nach einer falschen Antwort. Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
         Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Es zählt nur die erste Antwort; die Wiederholung in derselben Sitzung übt nur. Neue Karten:{' '}
         {settings.srs.newOrder === 'line' ? 'Linie für Linie' : 'wichtigste (häufigste) Stellungen zuerst'}. Funktioniert offline.
         </p>

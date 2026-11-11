@@ -11,6 +11,7 @@ import { Modal } from './Modal';
 import { GuideBar, startGuide, stopGuide } from './GuideBar';
 import { useEngine, useExplorer, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
+import { useStudySuggestions } from './studySuggest';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import {
   back,
@@ -97,6 +98,7 @@ export function Builder() {
   // Abweichung vom Repertoire auf dem Weg bis hierher: erste eigene Stellung, in der ein anderer Zug gespielt wurde
   const deviation = useMemo(() => findDeviation(line, cursor, myColor, moves), [line, cursor, myColor, moves]);
 
+  const suggestions = useStudySuggestions(posKey, myColor);
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
   const evalOn = settings.ui.evalBar !== false;
@@ -415,6 +417,7 @@ export function Builder() {
             onPlay={playMove}
             onCommit={onCommit}
             onDeleteEntry={() => setConfirmDelete(true)}
+            suggestions={suggestions}
           />
   );
   const side = (

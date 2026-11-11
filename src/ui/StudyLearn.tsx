@@ -11,6 +11,7 @@ import { buildLinePlan, levelName, lineForMove, nextOpenLine, type LineOrder, ty
 import type { Study } from '../core/types';
 import { addLineCards, buildRound, CHECK_LOAD, checkCount, freshLoad, linePositions, type CheckItem, type CheckPace } from '../core/studyCards';
 import { ratingFor, Scheduler } from '../core/srs';
+import { AUTO_SPEEDS, autoDelay, autoNext, leadFor, type AutoSpeed } from '../core/autoplay';
 import { useApp } from './store';
 import { repo } from '../data/repo';
 import { Icon } from './Icon';
@@ -50,6 +51,14 @@ export interface Learn {
   /** nächste offene Linie nach dieser (für die Vorschau am Linienende) */
   nextIdx?: number;
   hint: boolean;
+  /** Geführtes Abspielen: Linie läuft von allein (Interrupt: jede Bedienung hält an) */
+  playing: boolean;
+  /** Orientierungszüge vor dem Abzweig laufen gerade */
+  leading: boolean;
+  speed: AutoSpeed;
+  autoToggle: () => void;
+  autoStop: () => void;
+  setSpeed: (s: AutoSpeed) => void;
   setOn: (on: boolean, here?: string) => void;
   setOrder: (o: LineOrder) => void;
   setSelfPlay: (b: boolean) => void;
@@ -100,6 +109,10 @@ export function useLearn(p: {
   const on = !!st && st.learn?.on !== false; // Standard: Lernen
   const selfPlay = !!st?.learn?.selfPlay;
   const [hint, setHint] = useState(false);
+  // Geführtes Abspielen: nicht gespeichert (Neustart der Seite = angehalten). lead = noch auszublendende Orientierungszüge
+  const [playing, setPlaying] = useState(false);
+  const [lead, setLead] = useState(0);
+  const speed: AutoSpeed = st?.learn?.speed ?? 'normal';
   const [check, setCheck] = useState<CheckRun | undefined>();
   const srsSet = useApp((s) => s.settings.srs);
   const scheduler = useMemo(() => new Scheduler(srsSet.desiredRetention), [srsSet.desiredRetention]);
@@ -127,11 +140,21 @@ export function useLearn(p: {
   useEffect(() => {
     if (!on) return;
     if (checkItem) setPath(checkItem.path);
-    else if (line) setPath(learnPath);
-  }, [on, learnPath, checkItem]); // eslint-disable-line react-hooks/exhaustive-deps
+    else if (line) setPath(lead > 0 ? line.start.slice(0, Math.max(0, line.start.length - lead)) : learnPath);
+  }, [on, learnPath, checkItem, lead]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!on) setCheck(undefined);
+    if (!on) {
+      setCheck(undefined);
+      setPlaying(false);
+      setLead(0);
+    }
   }, [on]);
+  // Linie wechselt von außen (Plan, Zugleiste, Wischen …) → Abspielen aus
+  const lineId = line?.id;
+  useEffect(() => {
+    setPlaying(false);
+    setLead(0);
+  }, [lineId]);
   useEffect(() => setHint(false), [line, step]);
   const atEndNow = !!line && step >= line.steps.length;
   useEffect(() => {
@@ -140,15 +163,28 @@ export function useLearn(p: {
 
   const expected = line?.steps[step];
   const expNode = expected && tree ? tree.nodes.get(expected.key) : undefined;
-  const quiz = on && selfPlay && !!expNode && turnOf(expNode.fen) === st?.color;
+  const quiz = on && selfPlay && !playing && !!expNode && turnOf(expNode.fen) === st?.color;
 
   // Selbst spielen: Gegnerzüge kommen von allein (kurz warten, damit man mitlesen kann)
   useEffect(() => {
-    if (!on || !selfPlay || !line || !expNode || !st || turnOf(expNode.fen) === st.color) return;
+    if (!on || !selfPlay || playing || !line || !expNode || !st || turnOf(expNode.fen) === st.color) return;
     const t = setTimeout(() => setLearnRaw({ line: line.id, step: step + 1 }), step === 0 ? 1000 : 650);
     return () => clearTimeout(t);
     // nur bei neuer Position neu starten (nicht bei jedem Engine-Update)
-  }, [on, selfPlay, line?.id, step, st?.color, !!expNode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [on, selfPlay, playing, line?.id, step, st?.color, !!expNode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Geführtes Abspielen: erst die letzten Züge vor dem Abzweig, dann die neuen Züge im eingestellten Tempo
+  const checking = !!checkItem;
+  useEffect(() => {
+    if (!playing || !line || checking) return;
+    const a = autoNext({ lead, step, len: line.steps.length });
+    if (a.kind === 'stop') return setPlaying(false);
+    const t = setTimeout(() => {
+      if (a.kind === 'lead') setLead((l) => Math.max(0, l - 1));
+      else setLearnRaw({ line: line.id, step: step + 1 });
+    }, autoDelay(a, speed, step));
+    return () => clearTimeout(t);
+  }, [playing, lead, step, line?.id, speed, checking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setLearnRaw(patch: Partial<LearnState>) {
     if (!st) return;
@@ -160,7 +196,13 @@ export function useLearn(p: {
   const setLearn = setLearnRaw;
   const history = st.learn?.back ?? [];
   /** Sprung in eine andere Linie; die aktuelle Position kommt in den Verlauf (für „Zurück“) */
+  /** Jede Bedienung unterbricht das Abspielen (Stellung bleibt stehen → analysieren) */
+  const halt = () => {
+    setPlaying(false);
+    setLead(0);
+  };
   const jump = (id: string, s: number, extra: Partial<Study> = {}, learnExtra: Partial<LearnState> = {}) => {
+    halt();
     const back = id === line.id ? history : [...history, { line: line.id, step }].slice(-30);
     update({ ...extra, learn: { ...st.learn, ...learnExtra, on: true, line: id, step: s, back } });
   };
@@ -222,9 +264,23 @@ export function useLearn(p: {
     expected,
     quiz,
     hint,
+    playing,
+    leading: playing && lead > 0,
+    speed,
+    autoStop: halt,
+    autoToggle: () => {
+      if (playing) return halt();
+      if (check) return;
+      const from = step >= line.steps.length ? 0 : step; // am Ende: noch einmal von vorn
+      if (from !== step) setLearn({ line: line.id, step: 0 });
+      setLead(leadFor(line.start.length, from));
+      setPlaying(true);
+    },
+    setSpeed: (s) => setLearn({ speed: s }),
     canPrev: step > 0 || history.length > 0 || line.start.length > 0,
     nextIdx,
     setOn: (b, here) => {
+      halt();
       if (b && here) {
         const o = plan.owner.get(here);
         if (o) return setLearn({ on: true, line: lines[o.line].id, step: o.step });
@@ -232,14 +288,19 @@ export function useLearn(p: {
       setLearn({ on: b });
     },
     setOrder: (o) => setLearn({ order: o }),
-    setSelfPlay: (b) => setLearn({ selfPlay: b }),
+    setSelfPlay: (b) => {
+      halt();
+      setLearn({ selfPlay: b });
+    },
     goto,
     next: () => {
+      halt();
       if (step >= line.steps.length) return;
       if (quiz && !hint) return setHint(true); // erst den Zug zeigen (Pfeil), dann weiter
       setLearn({ line: line.id, step: step + 1 });
     },
     prev: () => {
+      halt();
       if (step > 0) return setLearn({ line: line.id, step: step - 1 });
       // Linienanfang: zurück dorthin, wo man herkam (z. B. Ende der vorigen Linie) …
       const last = history[history.length - 1];
@@ -268,7 +329,10 @@ export function useLearn(p: {
       else if (n === undefined) toast('Alle Linien verstanden – Studie durchgearbeitet.', 'ok', undo);
       else toast(`Linie ${idx + 1} verstanden – weiter mit Linie ${n + 1}`, 'ok', undo);
     },
-    again: () => setLearn({ line: line.id, step: 0 }),
+    again: () => {
+      halt();
+      setLearn({ line: line.id, step: 0 });
+    },
     skip: () => {
       const n = nextOpenLine(plan, done, idx);
       if (n === undefined || n === idx) return toast('Keine weitere offene Linie.', 'info');
@@ -300,6 +364,7 @@ export function useLearn(p: {
     checkLoad: { load: loadInfo.load, fresh: loadInfo.fresh.length, threshold },
     checkAvailable,
     startCheck: () => {
+      halt();
       const items = buildRound(st.cards ?? {}, plan, Date.now(), { skip: inRep, manual: true });
       if (!items.length) return toast('Gerade nichts abzufragen – Karten entstehen mit „Verstanden“.', 'info');
       startRun(items);
@@ -332,6 +397,7 @@ export function useLearn(p: {
     setCheckOn: (b) => setLearn({ checkOn: b }),
     setCheckPace: (pace) => setLearn({ checkPace: pace }),
     play: (uci) => {
+      halt();
       if (expected && uci === expected.uci) {
         setLearn({ line: line.id, step: step + 1 });
         return true;
@@ -401,13 +467,32 @@ export function LearnControls({ learn, onTouchStart, onTouchEnd }: { learn: Lear
       <button className="btn icon" onClick={learn.prev} aria-label="Zug zurück" disabled={!learn.canPrev}>
         <Icon name="prev" />
       </button>
-      {atEnd ? (
+      {atEnd && learn.playing ? null : atEnd ? (
         <button className="btn primary learn-go done" onClick={learn.markDone} disabled={locked}>
           <Icon name="check" /> Verstanden
         </button>
       ) : (
         <button className="btn primary learn-go" onClick={learn.next}>
           {learn.quiz ? (learn.hint ? 'Zug spielen' : 'Zeigen') : 'Weiter'} <Icon name="next" />
+        </button>
+      )}
+      <button
+        className={`btn icon learn-auto ${learn.playing ? 'on' : ''}`}
+        onClick={learn.autoToggle}
+        aria-pressed={learn.playing}
+        aria-label={learn.playing ? 'Abspielen anhalten' : atEnd ? 'Linie noch einmal abspielen' : 'Linie abspielen'}
+        title={learn.playing ? 'Anhalten – du kannst die Stellung in Ruhe ansehen und analysieren' : 'Die neuen Züge der Linie laufen von allein ab (Tempo einstellbar)'}
+        data-testid="learn-auto"
+      >
+        <Icon name={learn.playing ? 'pause' : 'play'} />
+      </button>
+      {learn.playing && (
+        <button
+          className="btn small ghost learn-speed"
+          onClick={() => learn.setSpeed(AUTO_SPEEDS[(AUTO_SPEEDS.findIndex((s) => s.id === learn.speed) + 1) % AUTO_SPEEDS.length].id)}
+          title="Tempo wechseln"
+        >
+          {AUTO_SPEEDS.find((s) => s.id === learn.speed)?.label}
         </button>
       )}
       {/* Abschneiden steht bewusst nur im „…“-Menü der Linienkarte – neben „Weiter“ wurde es zu leicht versehentlich getroffen */}
@@ -732,6 +817,16 @@ export function LearnPlan({ learn, tree, notation }: { learn: Learn; tree: Study
             Wie in der Studie
           </button>
         </div>
+        <label className="field inline">
+          <span>Abspiel-Tempo</span>
+          <select value={learn.speed} onChange={(e) => learn.setSpeed(e.target.value as AutoSpeed)} aria-label="Abspiel-Tempo">
+            {AUTO_SPEEDS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label} ({(s.ms / 1000).toFixed(1).replace('.', ',')} s pro Zug)
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="check">
           <input type="checkbox" checked={learn.selfPlay} onChange={(e) => learn.setSelfPlay(e.target.checked)} /> Eigene Züge selbst spielen
         </label>
