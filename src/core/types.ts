@@ -202,6 +202,8 @@ export interface Settings {
     gapMinReach: number;
     /** Bewertungsbalken (Stockfish) neben dem Brett beim Bauen und in Studien; fehlt = an */
     evalBar?: boolean;
+    /** Lichess-Name für „meine Partien“ (Gegner-Statistik) */
+    lichessUser?: string;
   };
   updatedAt: number;
 }

@@ -476,6 +476,11 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .sug-name { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .sug-move { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
 .sug-note { color: var(--muted); flex-basis: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.games-block { margin-top: 10px; }
+.games-block .sug-title small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.games-res .w { color: var(--me); }
+.games-res .l { color: var(--gap); }
+.games-flag { color: var(--muted); font-size: 12px; }
 .focus-actions { margin-top: 8px; }
 .btn.crit-on { background: color-mix(in srgb, var(--gap) 14%, transparent); border-color: var(--gap); color: var(--gap); }
 .btn.crit-on svg, .crit-ico { fill: currentColor; }

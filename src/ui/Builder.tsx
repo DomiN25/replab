@@ -12,6 +12,7 @@ import { GuideBar, startGuide, stopGuide } from './GuideBar';
 import { useEngine, useExplorer, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
 import { useStudySuggestions } from './studySuggest';
+import { useOppStats } from './games';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import {
   back,
@@ -99,6 +100,7 @@ export function Builder() {
   const deviation = useMemo(() => findDeviation(line, cursor, myColor, moves), [line, cursor, myColor, moves]);
 
   const suggestions = useStudySuggestions(posKey, myColor);
+  const games = useOppStats(myColor);
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
   const evalOn = settings.ui.evalBar !== false;
@@ -418,6 +420,7 @@ export function Builder() {
             onCommit={onCommit}
             onDeleteEntry={() => setConfirmDelete(true)}
             suggestions={suggestions}
+            games={games}
             onFocus={() => {
               setSheetSnap((s) => (s === 'full' ? 'peek' : s));
               startGuide(undefined, posKey);

@@ -10,6 +10,7 @@ import type { ExplorerState, EngineState } from './hooks';
 import { saveMoveMeta, setEndOfLine, toggleOpp, updateMark, useApp } from './store';
 import { Icon } from './Icon';
 import type { StudySuggestion } from './studySuggest';
+import type { OppStats, ReplyStat } from '../core/opponentStats';
 
 interface Props {
   fen: string;
@@ -31,6 +32,8 @@ interface Props {
   suggestions: StudySuggestion[];
   /** Lückentour nur ab dieser Stellung starten („ab hier weiterbauen“) */
   onFocus: () => void;
+  /** Auswertung meiner geladenen Partien (Einstellungen → Meine Partien) */
+  games?: OppStats;
 }
 
 const pct = (x?: number) => (x === undefined ? '–' : `${(x * 100).toFixed(x < 0.1 ? 1 : 0).replace(".", ",")} %`);
@@ -202,6 +205,14 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
         </table>
       </div>
       {!rows.length && !p.ex.loading && <p className="hint">Keine Daten. Zug am Brett spielen, um ihn festzulegen.</p>}
+      <GamesBlock
+        title="In deinen Partien hier gespielt"
+        rows={p.games?.mine.get(posKey)}
+        ply={p.ply}
+        notation={p.notation}
+        onPlay={p.onPlay}
+        mark={(r) => (p.entry && r.uci !== p.entry.uci ? 'weicht ab' : undefined)}
+      />
       <StudySuggest items={p.suggestions} entry={p.entry} myTurn ply={p.ply} notation={p.notation} onPlay={p.onPlay} onCommit={p.onCommit} />
 
       {p.entry ? (
@@ -216,6 +227,56 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
       <FocusActions posKey={posKey} mark={p.mark} onFocus={p.onFocus} />
       <LabelEditor posKey={posKey} mark={p.mark} />
     </>
+  );
+}
+
+/** Aus meinen geladenen Partien: Gegnerzüge bzw. eigene Züge in dieser Stellung mit Häufigkeit und Ergebnis (aus meiner Sicht). */
+function GamesBlock({
+  title,
+  rows,
+  ply,
+  notation,
+  onPlay,
+  mark,
+}: {
+  title: string;
+  rows?: ReplyStat[];
+  ply: number;
+  notation: 'de' | 'en';
+  onPlay: (uci: string) => void;
+  mark: (r: ReplyStat) => string | undefined;
+}) {
+  if (!rows?.length) return null;
+  const total = rows.reduce((n, r) => n + r.n, 0);
+  return (
+    <div className="games-block" data-testid="games-block">
+      <div className="sug-title">
+        <Icon name="clock" /> {title} <small>({total} {total === 1 ? 'Partie' : 'Partien'})</small>
+      </div>
+      <table className="ctable">
+        <tbody>
+          {rows.slice(0, 6).map((r) => {
+            const m = mark(r);
+            return (
+              <tr key={r.uci}>
+                <td>
+                  <button className="mvbtn" onClick={() => onPlay(r.uci)} title="Zug am Brett ansehen">
+                    {moveNumberPrefix(ply) + displaySan(r.san, notation)}
+                  </button>
+                </td>
+                <td className="num">{r.n}×</td>
+                <td className="num">{pct(r.n / total)}</td>
+                <td className="num games-res" title="Deine Ergebnisse: Siege / Remis / Niederlagen">
+                  <span className="w">+{r.win}</span> <span>={r.draw}</span> <span className="l">−{r.loss}</span>
+                </td>
+                <td className={m === 'Lücke' ? 'st gap' : 'games-flag'}>{m}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {rows.length > 6 && <small className="hint">+ {rows.length - 6} seltener gespielte Züge</small>}
+    </div>
   );
 }
 
@@ -518,6 +579,21 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         </button>
       )}
       {!relevant.length && !p.ex.loading && <p className="hint">Keine relevanten Gegnerzüge bekannt.</p>}
+      <GamesBlock
+        title="Gegen dich gespielt"
+        rows={p.games?.replies.get(posKey)}
+        ply={p.ply}
+        notation={p.notation}
+        onPlay={p.onPlay}
+        mark={(r) => {
+          try {
+            const k = playUci(p.fen, r.uci).posKey;
+            return !moves.has(k) && !marks.get(k)?.endOfLine ? 'Lücke' : undefined;
+          } catch {
+            return undefined;
+          }
+        }}
+      />
       <StudySuggest items={p.suggestions} myTurn={false} ply={p.ply} notation={p.notation} onPlay={p.onPlay} onCommit={p.onCommit} />
       <div className="row-actions">
         <button className="btn small" onClick={() => void setEndOfLine(posKey, !p.mark?.endOfLine)}>

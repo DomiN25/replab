@@ -11,6 +11,7 @@ import type { Color, Settings } from '../core/types';
 import { BOARD_THEMES, useAppearance, type ThemeMode } from './theme';
 import { Icon, type IconName } from './Icon';
 import { RowMenu } from './RowMenu';
+import { clearMyGames, loadMyGames, useMyGames } from './games';
 
 const MODES: { id: ThemeMode; label: string; icon: IconName }[] = [
   { id: 'auto', label: 'System', icon: 'auto' },
@@ -294,6 +295,8 @@ export function SettingsView() {
         </div>
       </details>
 
+      <MyGamesCard settings={settings} upd={upd} />
+
       <details className="card fold">
         <summary>
           <h2>Engine</h2>
@@ -449,5 +452,66 @@ export function SettingsView() {
         </Modal>
       )}
     </div>
+  );
+}
+
+/** „Meine Partien“: Lichess-Partien laden, damit das Repertoire zeigt, was Gegner tatsächlich gegen mich spielen. */
+function MyGamesCard({ settings, upd }: { settings: Settings; upd: (fn: (s: Settings) => void) => void }) {
+  const stored = useMyGames();
+  const [busy, setBusy] = useState<number | undefined>();
+  const [max, setMax] = useState(300);
+  const [name, setName] = useState(settings.ui.lichessUser ?? stored?.user ?? '');
+  const load = async () => {
+    const user = name.trim();
+    upd((s) => (s.ui.lichessUser = user || undefined));
+    setBusy(0);
+    try {
+      const n = await loadMyGames(user, max, settings.explorer.token?.trim() || undefined, setBusy);
+      toast(n ? `${n} Partien geladen` : 'Keine gewerteten Partien gefunden (Blitz, Rapid, Klassisch, Fernschach).', n ? 'ok' : 'info');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  return (
+    <details className="card fold" data-testid="my-games">
+      <summary>
+        <h2>Meine Partien (Lichess)</h2>
+        <small>{stored ? `${stored.games.length} geladen` : 'was Gegner gegen dich spielen'}</small>
+        <Icon name="next" className="fold-ico" />
+      </summary>
+      <p className="hint">
+        Lädt deine gewerteten Partien von Lichess (ohne Token möglich). Im Repertoire erscheint dann bei jedem Gegnerzug, was deine Gegner dort tatsächlich gespielt
+        haben, und bei den Lücken, welche in deinen Partien vorkamen. Gespeichert nur auf diesem Gerät.
+      </p>
+      <label className="field">
+        <span>Lichess-Name</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="dein Benutzername" autoComplete="off" aria-label="Lichess-Name" />
+      </label>
+      <label className="field inline">
+        <span>Anzahl Partien</span>
+        <select value={max} onChange={(e) => setMax(Number(e.target.value))} aria-label="Anzahl Partien">
+          <option value={100}>letzte 100</option>
+          <option value={300}>letzte 300</option>
+          <option value={1000}>letzte 1000</option>
+        </select>
+      </label>
+      <div className="row-actions">
+        <button className="btn primary" disabled={busy !== undefined || !name.trim()} onClick={() => void load()}>
+          {busy !== undefined ? `Lade … ${busy}` : stored ? 'Neu laden' : 'Partien laden'}
+        </button>
+        {stored && (
+          <button className="btn ghost" disabled={busy !== undefined} onClick={clearMyGames}>
+            Entfernen
+          </button>
+        )}
+      </div>
+      {stored && (
+        <p className="hint">
+          {stored.games.length} Partien von {stored.user} · Stand {new Date(stored.fetchedAt).toLocaleDateString('de-DE')}
+        </p>
+      )}
+    </details>
   );
 }

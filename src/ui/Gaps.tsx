@@ -9,6 +9,8 @@ import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
 import { effectiveDepth } from '../services/engine';
 import { Icon } from './Icon';
+import { useOppStats } from './games';
+import { gamesWith } from '../core/opponentStats';
 
 export function Gaps() {
   const graph = useApp((s) => s.graph);
@@ -18,6 +20,14 @@ export function Gaps() {
   const status = useApp((s) => s.explorerStatus);
   const [sort, setSort] = useState<GapSort>('reach');
   const [onlyTraps, setOnlyTraps] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const repColor = useApp((s) => s.repertoires.find((r) => r.id === s.repId)?.color ?? 'white');
+  const stats = useOppStats(repColor);
+  /** Wie oft kam diese Lücke (Gegnerzug nach meiner Stellung) in meinen geladenen Partien vor? */
+  const seenIn = (id: number) => {
+    const n = graph?.nodes[id];
+    return n && n.parent >= 0 && n.uci ? gamesWith(stats, graph!.nodes[n.parent].posKey, n.uci) : 0;
+  };
   const minReach = settings.ui.gapMinReach;
   const [askOrphans, setAskOrphans] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -28,9 +38,10 @@ export function Gaps() {
     if (!graph) return [];
     let list = gapList(graph, sort);
     if (onlyTraps) list = list.filter((g) => g.viaTrap);
+    if (onlyMine && stats) list = list.filter((g) => seenIn(g.id) > 0);
     if (minReach > 0) list = list.filter((g) => g.reach >= minReach);
     return groupGaps(list);
-  }, [graph, sort, onlyTraps, minReach]);
+  }, [graph, sort, onlyTraps, minReach, onlyMine, stats]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = groups.reduce((s, g) => s + g.gaps.length, 0);
   // Kritische Stellungen (Markierung beim Analysieren) mit Anzahl offener Lücken darunter
   const marks = useApp((s) => s.marks);
@@ -113,6 +124,11 @@ export function Gaps() {
               <option value={0.02}>≥ 2 %</option>
             </select>
           </label>
+          {stats && (
+            <label className="check">
+              <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> nur aus meinen Partien
+            </label>
+          )}
           {settings.ui.showTraps && (
             <label className="check">
               <input type="checkbox" checked={onlyTraps} onChange={(e) => setOnlyTraps(e.target.checked)} /> nur nach <Icon name="bolt" className="trap-ico" /> Fallenzügen
@@ -212,6 +228,7 @@ export function Gaps() {
                     <span className="meta">
                       {gp.viaTrap && settings.ui.showTraps && <span className="trap" title="Gegnerzug ist eine Chance (Fehler)"><Icon name="bolt" /></span>}
                       {gp.name && gp.name !== g.family && <span className="nm">{gp.name}</span>}
+                      {stats && seenIn(gp.id) > 0 && <span className="nm" title="So oft kam dieser Gegnerzug in deinen geladenen Partien vor">{seenIn(gp.id)}× in deinen Partien</span>}
                       {settings.ui.showReach && gp.reach > 0 && <span className="reach">≈ {(gp.reach * 100).toFixed(1).replace(".", ",")} %</span>}
                     </span>
                   </button>
