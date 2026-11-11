@@ -204,6 +204,7 @@ export interface Settings {
     evalBar?: boolean;
     /** Lichess-Name für „meine Partien“ (Gegner-Statistik) */
     lichessUser?: string;
+    chesscomUser?: string;
   };
   updatedAt: number;
 }

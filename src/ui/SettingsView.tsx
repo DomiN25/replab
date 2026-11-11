@@ -11,7 +11,7 @@ import type { Color, Settings } from '../core/types';
 import { BOARD_THEMES, useAppearance, type ThemeMode } from './theme';
 import { Icon, type IconName } from './Icon';
 import { RowMenu } from './RowMenu';
-import { clearMyGames, loadMyGames, useMyGames } from './games';
+import { clearMyGames, loadMyGames, SOURCE_NAME, useMyGames, type GameSource } from './games';
 
 const MODES: { id: ThemeMode; label: string; icon: IconName }[] = [
   { id: 'auto', label: 'System', icon: 'auto' },
@@ -455,62 +455,90 @@ export function SettingsView() {
   );
 }
 
-/** „Meine Partien“: Lichess-Partien laden, damit das Repertoire zeigt, was Gegner tatsächlich gegen mich spielen. */
+/** „Meine Partien“: Lichess- und Chess.com-Partien laden – für die Gegner-Statistik und die Partienprüfung gegen das Repertoire. */
 function MyGamesCard({ settings, upd }: { settings: Settings; upd: (fn: (s: Settings) => void) => void }) {
   const stored = useMyGames();
-  const [busy, setBusy] = useState<number | undefined>();
+  const [busy, setBusy] = useState<{ source: GameSource; n: number } | undefined>();
   const [max, setMax] = useState(300);
-  const [name, setName] = useState(settings.ui.lichessUser ?? stored?.user ?? '');
-  const load = async () => {
-    const user = name.trim();
-    upd((s) => (s.ui.lichessUser = user || undefined));
-    setBusy(0);
+  const [names, setNames] = useState<Record<GameSource, string>>({
+    lichess: settings.ui.lichessUser ?? stored?.sources.lichess?.user ?? '',
+    chesscom: settings.ui.chesscomUser ?? stored?.sources.chesscom?.user ?? '',
+  });
+  const load = async (source: GameSource) => {
+    const user = names[source].trim();
+    upd((s) => {
+      if (source === 'lichess') s.ui.lichessUser = user || undefined;
+      else s.ui.chesscomUser = user || undefined;
+    });
+    setBusy({ source, n: 0 });
     try {
-      const n = await loadMyGames(user, max, settings.explorer.token?.trim() || undefined, setBusy);
-      toast(n ? `${n} Partien geladen` : 'Keine gewerteten Partien gefunden (Blitz, Rapid, Klassisch, Fernschach).', n ? 'ok' : 'info');
+      const n = await loadMyGames(source, user, max, settings.explorer.token?.trim() || undefined, (n) => setBusy({ source, n }));
+      toast(n ? `${n} Partien von ${SOURCE_NAME[source]} geladen` : 'Keine gewerteten Standard-Partien gefunden.', n ? 'ok' : 'info');
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), 'err');
     } finally {
       setBusy(undefined);
     }
   };
+  const total = stored?.games.length ?? 0;
   return (
     <details className="card fold" data-testid="my-games">
       <summary>
-        <h2>Meine Partien (Lichess)</h2>
-        <small>{stored ? `${stored.games.length} geladen` : 'was Gegner gegen dich spielen'}</small>
+        <h2>Meine Partien</h2>
+        <small>{total ? `${total} geladen` : 'Abweichungen, Fehler, Gegner-Statistik'}</small>
         <Icon name="next" className="fold-ico" />
       </summary>
       <p className="hint">
-        Lädt deine gewerteten Partien von Lichess (ohne Token möglich). Im Repertoire erscheint dann bei jedem Gegnerzug, was deine Gegner dort tatsächlich gespielt
-        haben, und bei den Lücken, welche in deinen Partien vorkamen. Gespeichert nur auf diesem Gerät.
+        Lädt deine Partien von Lichess und/oder Chess.com (nur Benutzername, kein Passwort). Du siehst dann, wo du in der Eröffnung vom Repertoire abgewichen bist
+        und wo Fehler passiert sind, und im Repertoire bei jedem Gegnerzug, was deine Gegner tatsächlich gespielt haben. Gespeichert nur auf diesem Gerät.
       </p>
-      <label className="field">
-        <span>Lichess-Name</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="dein Benutzername" autoComplete="off" aria-label="Lichess-Name" />
-      </label>
       <label className="field inline">
-        <span>Anzahl Partien</span>
+        <span>Anzahl Partien je Quelle</span>
         <select value={max} onChange={(e) => setMax(Number(e.target.value))} aria-label="Anzahl Partien">
           <option value={100}>letzte 100</option>
           <option value={300}>letzte 300</option>
           <option value={1000}>letzte 1000</option>
         </select>
       </label>
-      <div className="row-actions">
-        <button className="btn primary" disabled={busy !== undefined || !name.trim()} onClick={() => void load()}>
-          {busy !== undefined ? `Lade … ${busy}` : stored ? 'Neu laden' : 'Partien laden'}
-        </button>
-        {stored && (
-          <button className="btn ghost" disabled={busy !== undefined} onClick={clearMyGames}>
-            Entfernen
+      {(['lichess', 'chesscom'] as GameSource[]).map((src) => {
+        const info = stored?.sources[src];
+        const count = stored?.games.filter((g) => (g.src ?? 'lichess') === src).length ?? 0;
+        return (
+          <div key={src} className="games-src">
+            <label className="field">
+              <span>{SOURCE_NAME[src]}-Name</span>
+              <input
+                value={names[src]}
+                onChange={(e) => setNames({ ...names, [src]: e.target.value })}
+                placeholder="dein Benutzername"
+                autoComplete="off"
+                aria-label={`${SOURCE_NAME[src]}-Name`}
+              />
+            </label>
+            <div className="row-actions">
+              <button className="btn primary small" disabled={busy !== undefined || !names[src].trim()} onClick={() => void load(src)} data-testid={`load-${src}`}>
+                {busy?.source === src ? `Lade … ${busy.n}` : info ? 'Neu laden' : 'Partien laden'}
+              </button>
+              {info && (
+                <button className="btn ghost small" disabled={busy !== undefined} onClick={() => clearMyGames(src)}>
+                  Entfernen
+                </button>
+              )}
+              {info && (
+                <small className="hint">
+                  {count} Partien von {info.user} · Stand {new Date(info.fetchedAt).toLocaleDateString('de-DE')}
+                </small>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {total > 0 && (
+        <div className="row-actions">
+          <button className="btn primary" onClick={() => setView('games')} data-testid="open-games">
+            Partien ansehen
           </button>
-        )}
-      </div>
-      {stored && (
-        <p className="hint">
-          {stored.games.length} Partien von {stored.user} · Stand {new Date(stored.fetchedAt).toLocaleDateString('de-DE')}
-        </p>
+        </div>
       )}
     </details>
   );

@@ -5,6 +5,7 @@ import { Home } from './Home';
 import { SettingsView } from './SettingsView';
 import { Trainer } from './Trainer';
 import { Studies } from './Studies';
+import { Games } from './GamesView';
 import { dismissToast, selectRepertoire, setView, toast as showToast, useApp, type View } from './store';
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
@@ -25,8 +26,8 @@ const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'train', label: 'Training', icon: 'train' },
   { v: 'studies', label: 'Studien', icon: 'book' },
 ];
-const TITLE: Record<View, string> = { home: 'Start', build: 'Repertoire', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen' };
-const ORDER: View[] = [...NAV.map((n) => n.v), 'settings'];
+const TITLE: Record<View, string> = { home: 'Start', build: 'Repertoire', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen', games: 'Partien' };
+const ORDER: View[] = [...NAV.map((n) => n.v), 'settings', 'games'];
 
 export function App() {
   const loaded = useApp((s) => s.loaded);
@@ -302,6 +303,8 @@ function pageFor(view: View, repId?: string): ReactNode {
       return <Studies />;
     case 'settings':
       return <SettingsView />;
+    case 'games':
+      return <Games />;
   }
 }
 

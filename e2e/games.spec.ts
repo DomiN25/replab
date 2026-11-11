@@ -40,8 +40,8 @@ test('Meine Partien: Gegner-Statistik im Repertoire und bei den Lücken', async 
   const card = page.getByTestId('my-games');
   await card.locator('summary').click();
   await card.getByLabel('Lichess-Name').fill('Dom');
-  await card.getByRole('button', { name: 'Partien laden' }).click();
-  await expect(page.locator('.toast')).toContainText('4 Partien geladen');
+  await card.getByTestId('load-lichess').click();
+  await expect(page.locator('.toast')).toContainText('4 Partien von Lichess geladen');
   await expect(card).toContainText('4 Partien von Dom');
 
   await page.locator('.nav-top').getByRole('button', { name: 'Repertoire' }).click();

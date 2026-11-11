@@ -13,7 +13,7 @@ import type { GuideState } from './GuideBar';
 import type { TodayState } from './today';
 import { afterPendingBack } from './backClose';
 
-export type View = 'home' | 'build' | 'gaps' | 'train' | 'studies' | 'settings';
+export type View = 'home' | 'build' | 'gaps' | 'train' | 'studies' | 'settings' | 'games';
 export interface LineStep {
   fen: string;
   uci?: string;
@@ -209,7 +209,7 @@ function rememberView(v: View) {
 
 function viewFromHash(): View {
   const h = location.hash.replace(/^#\/?/, '').split('?')[0];
-  return (['home', 'build', 'gaps', 'train', 'studies', 'settings'] as View[]).includes(h as View) ? (h as View) : 'home';
+  return (['home', 'build', 'gaps', 'train', 'studies', 'settings', 'games'] as View[]).includes(h as View) ? (h as View) : 'home';
 }
 
 export function setView(v: View) {

@@ -17,6 +17,13 @@ export interface GameRec {
   m: string;
   /** Zeitpunkt (ms) */
   t?: number;
+  /** Quelle, Partie-ID, Gegner und Link (für die Partienliste); fehlt bei älteren Datensätzen = Lichess */
+  src?: 'lichess' | 'chesscom';
+  id?: string;
+  opp?: string;
+  url?: string;
+  /** Bewertung (cp, aus Weiß-Sicht) nach jedem Halbzug – nur wenn die Partie bei Lichess analysiert wurde */
+  ev?: number[];
 }
 
 export interface ReplyStat {

@@ -15,6 +15,7 @@ import type { BackupFile } from '../data/repo';
 import { gapCounts } from '../core/graph';
 import { pct } from './format';
 import { TodayRows } from './TodayRows';
+import { useMyGames } from './games';
 import { moveNumberPrefix, plyOfFen } from '../core/chess';
 
 export function Home() {
@@ -89,6 +90,7 @@ export function Home() {
       .sort((a, b) => b.total - a.total);
   }, [graph, cards, settings.srs.desiredRetention, now, gapMin]);
 
+  const myGames = useMyGames();
   const recent = useMemo(() => [...moves.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6), [moves]);
 
   const seed = async () => {
@@ -204,6 +206,14 @@ export function Home() {
           </div>
           <button className="btn big" onClick={() => setView('gaps')}>Lücken ansehen</button>
         </section>
+
+        {myGames && myGames.games.length > 0 && (
+          <section className="card" data-testid="home-games">
+            <h2>Meine Partien</h2>
+            <p className="hint">{myGames.games.length} geladen – prüfen, wo du vom Repertoire abgewichen bist und wo Fehler passiert sind.</p>
+            <button className="btn big" onClick={() => setView('games')}>Partien ansehen</button>
+          </section>
+        )}
 
         <section className="card stats">
           <h2>Statistik <small className="h-note">alle Repertoires und Studien</small></h2>

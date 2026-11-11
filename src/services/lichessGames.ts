@@ -3,13 +3,18 @@
 import { MAX_PLIES, type GameRec } from '../core/opponentStats';
 
 interface ApiGame {
+  id?: string;
   moves?: string;
+  analysis?: { eval?: number; mate?: number }[];
   winner?: string;
   variant?: string;
   initialFen?: string;
   createdAt?: number;
-  players?: { white?: { user?: { id?: string } }; black?: { user?: { id?: string } } };
+  players?: { white?: { user?: { id?: string; name?: string } }; black?: { user?: { id?: string; name?: string } } };
 }
+
+/** Matt zählt als sehr große Bewertung (±2000 cp), damit Verläufe vergleichbar bleiben. */
+const evalCp = (a: { eval?: number; mate?: number }) => (a.mate !== undefined ? (a.mate > 0 ? 2000 : -2000) : a.eval ?? 0);
 
 /** API-Partie → kompakter Datensatz aus meiner Sicht; undefined bei fremder Variante, Fremdstellung oder fehlendem Namen. */
 export function toGameRec(g: ApiGame, userId: string): GameRec | undefined {
@@ -20,7 +25,15 @@ export function toGameRec(g: ApiGame, userId: string): GameRec | undefined {
   if (!c) return undefined;
   const mine = c === 'w' ? 'white' : 'black';
   const r = g.winner === undefined ? 0 : g.winner === mine ? 1 : -1;
-  return { c, r, m: g.moves.split(' ').slice(0, MAX_PLIES).join(' '), t: g.createdAt };
+  const opp = c === 'w' ? g.players?.black?.user?.name : g.players?.white?.user?.name;
+  const rec: GameRec = { c, r, m: g.moves.split(' ').slice(0, MAX_PLIES).join(' '), t: g.createdAt, src: 'lichess' };
+  if (g.id) {
+    rec.id = g.id;
+    rec.url = `https://lichess.org/${g.id}`;
+  }
+  if (opp) rec.opp = opp;
+  if (g.analysis?.length) rec.ev = g.analysis.slice(0, MAX_PLIES).map(evalCp);
+  return rec;
 }
 
 export interface FetchOptions {
@@ -37,7 +50,7 @@ export async function fetchLichessGames(user: string, o: FetchOptions): Promise<
   const id = name.toLowerCase();
   const url =
     `https://lichess.org/api/games/user/${encodeURIComponent(name)}` +
-    `?max=${o.max}&rated=true&moves=true&tags=false&clocks=false&evals=false&opening=false&perfType=blitz,rapid,classical,correspondence`;
+    `?max=${o.max}&rated=true&moves=true&tags=false&clocks=false&evals=true&opening=false&perfType=blitz,rapid,classical,correspondence`;
   const headers: Record<string, string> = { Accept: 'application/x-ndjson' };
   if (o.token) headers.Authorization = `Bearer ${o.token}`;
   const res = await (o.fetchImpl ?? fetch)(url, { headers, signal: o.signal });

@@ -502,6 +502,32 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .games-res .w { color: var(--me); }
 .games-res .l { color: var(--gap); }
 .games-flag { color: var(--muted); font-size: 12px; }
+/* Partien (Abweichungen/Fehler) */
+.games-src { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.games-sum { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 12px; }
+.games-sum .gs { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line-soft); color: var(--muted); font-variant-numeric: tabular-nums; }
+.games-sum .gs b { color: var(--ink); }
+.games-sum .gs.dev b { color: var(--gap); }
+.games-sum .gs.opp b { color: var(--opp); }
+.games-sum .gs.bad b { color: var(--gap); }
+.games-top { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 12px 14px; }
+.games-filter { margin: 4px 0 10px; flex-wrap: wrap; }
+.games-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.game-row { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
+.game-row.st-my-deviation { box-shadow: inset 4px 0 0 var(--gap), var(--shadow); }
+.game-row.st-opp-new, .game-row.st-hole { box-shadow: inset 4px 0 0 var(--opp), var(--shadow); }
+.game-row.st-in-rep, .game-row.st-end { box-shadow: inset 4px 0 0 var(--me), var(--shadow); }
+.game-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.game-head .res { font: 700 12px var(--display); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.game-head .res.r1 { color: var(--me); border-color: var(--me); }
+.game-head .res.r-1 { color: var(--gap); border-color: var(--gap); }
+.game-opp { font-weight: 600; }
+.game-link { margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; color: var(--muted); }
+.game-line { margin: 6px 0 2px; font: 600 14px var(--display); overflow-wrap: anywhere; }
+.game-status { margin: 2px 0; font-size: 13.5px; color: var(--muted); }
+.game-status.my-deviation b:first-child { color: var(--gap); }
+.game-status.opp-new b:first-child, .game-status.hole b:first-child { color: var(--opp); }
+.game-status.bad, .game-status .bad { color: var(--gap); }
 .focus-actions { margin-top: 8px; }
 .btn.crit-on { background: color-mix(in srgb, var(--gap) 14%, transparent); border-color: var(--gap); color: var(--gap); }
 .btn.crit-on svg, .crit-ico { fill: currentColor; }

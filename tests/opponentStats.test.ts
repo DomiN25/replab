@@ -56,8 +56,8 @@ describe('Lichess-Partien laden', () => {
   });
 
   it('Datensatz aus meiner Sicht', () => {
-    expect(toGameRec(api({}), 'dom')).toEqual({ c: 'w', r: 1, m: 'e4 e5 Nf3', t: 5 });
-    expect(toGameRec(api({}), 'gegner')).toEqual({ c: 'b', r: -1, m: 'e4 e5 Nf3', t: 5 });
+    expect(toGameRec(api({}), 'dom')).toMatchObject({ c: 'w', r: 1, m: 'e4 e5 Nf3', t: 5, src: 'lichess' });
+    expect(toGameRec(api({}), 'gegner')).toMatchObject({ c: 'b', r: -1, m: 'e4 e5 Nf3', t: 5 });
     expect(toGameRec(api({ winner: undefined }), 'dom')!.r).toBe(0);
     expect(toGameRec(api({ variant: 'chess960' }), 'dom')).toBeUndefined();
     expect(toGameRec(api({ initialFen: 'x' }), 'dom')).toBeUndefined();
