@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { gapFamilies, nextGap, oppSiblings, openGapCount, type GuideStrategy } from '../core/guide';
 import { pathUcis } from '../core/graph';
 import { displaySan, formatLine, playUci, posKeyOf, moveNumberPrefix } from '../core/chess';
+import { Icon } from './Icon';
 import { explorer, explorerParams, gotoNode, lichessToken, requestGraph, setEndOfLine, toggleOpp, toast, useApp } from './store';
 
 export interface GuideState {
@@ -17,6 +18,8 @@ export interface GuideState {
   lastFamily?: string;
   /** Nur dieser Ast (Familie); leer = alle. */
   family?: string;
+  /** Nur Lücken unterhalb dieser Stellung (posKey) – „ab hier weiterbauen“. */
+  under?: string;
 }
 
 export const DEFAULT_GUIDE: GuideState = { active: false, strategy: 'branch', minReach: 0, skipped: [] };
@@ -64,6 +67,12 @@ function snooze(key: string) {
   }
 }
 
+/** Zufall für den Start; die E2E-Tests setzen im Dev-Build `window.__replabRng` für feste Abläufe. */
+function guideRng(): () => number {
+  const hook = import.meta.env.DEV ? (window as unknown as { __replabRng?: () => number }).__replabRng : undefined;
+  return hook ?? Math.random;
+}
+
 /** Zur nächsten passenden Lücke springen. `fresh`: Start einer Tour → erste Lücke variieren. */
 export function guideNext(fresh = false): boolean {
   const { graph, guide } = useApp.getState();
@@ -75,7 +84,8 @@ export function guideNext(fresh = false): boolean {
     lastPath: guide.lastPath,
     lastFamily: guide.lastFamily,
     family: guide.family,
-    rng: fresh ? Math.random : undefined,
+    under: underId(graph, guide.under),
+    rng: fresh ? guideRng() : undefined,
   });
   if (!gp) {
     setGuide({ currentKey: undefined });
@@ -86,8 +96,13 @@ export function guideNext(fresh = false): boolean {
   return true;
 }
 
-export function startGuide(family?: string) {
-  setGuide({ ...loadPrefs(), active: true, skipped: snoozedKeys(), currentKey: undefined, lastPath: undefined, lastFamily: undefined, family });
+function underId(graph: NonNullable<ReturnType<typeof useApp.getState>['graph']>, key?: string): number | undefined {
+  return key === undefined ? undefined : graph.byPosKey.get(key);
+}
+
+/** Lückentour starten; `under`: nur Lücken ab dieser Stellung (kritische Linie vertiefen). */
+export function startGuide(family?: string, under?: string) {
+  setGuide({ ...loadPrefs(), active: true, skipped: snoozedKeys(), currentKey: undefined, lastPath: undefined, lastFamily: undefined, family, under });
   if (!guideNext(true)) toast('Keine offenen Lücken unter den aktuellen Filtern.', 'info');
 }
 
@@ -115,12 +130,12 @@ export function GuideBar() {
   const stillGap = gapNode?.status === 'gap';
 
   const open = useMemo(
-    () => (graph ? openGapCount(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped), family: guide.family }) : 0),
-    [graph, guide.minReach, guide.skipped, guide.family],
+    () => (graph ? openGapCount(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped), family: guide.family, under: underId(graph, guide.under) }) : 0),
+    [graph, guide.minReach, guide.skipped, guide.family, guide.under],
   );
   const families = useMemo(
-    () => (graph ? gapFamilies(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped) }) : []),
-    [graph, guide.minReach, guide.skipped],
+    () => (graph ? gapFamilies(graph, { minReach: guide.minReach, skipped: new Set(guide.skipped), under: underId(graph, guide.under) }) : []),
+    [graph, guide.minReach, guide.skipped, guide.under],
   );
 
   // Lücke geschlossen (Zug festgelegt, Ende-Marker, Gegnerzug ignoriert) → automatisch weiter
@@ -206,6 +221,20 @@ export function GuideBar() {
         </select>
         <button className="btn small ghost" onClick={stopGuide}>Beenden</button>
       </div>
+      {guide.under !== undefined && graph && underId(graph, guide.under) !== undefined && (
+        <p className="guide-focus" data-testid="guide-focus">
+          <Icon name="tree" /> Nur ab: <b>{formatLine(lineSans(graph, underId(graph, guide.under)!), notation) || 'Grundstellung'}</b>
+          <button
+            className="link-btn"
+            onClick={() => {
+              setGuide({ under: undefined, skipped: snoozedKeys() });
+              setTimeout(() => guideNext(), 0);
+            }}
+          >
+            alle Äste
+          </button>
+        </p>
+      )}
 
       {!guide.currentKey ? (
         <p className="hint">

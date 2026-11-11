@@ -1,8 +1,9 @@
 // Lücken: gruppiert nach Eröffnungsfamilie (F3). Standard: nur wichtige (Mindest-Erreichbarkeit aus den Einstellungen).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { gapList, groupGaps, type GapSort } from '../core/graph';
+import { gapList, groupGaps, pathSans, type GapSort } from '../core/graph';
+import { openGapCount } from '../core/guide';
 import { formatLine, displaySan } from '../core/chess';
-import { deleteMyMoves, gotoNode, lichessToken, requestGraph, saveSettings, setEndOfLine, setView, toast, toggleOpp, useApp, engine } from './store';
+import { deleteMyMoves, gotoNode, updateMark, lichessToken, requestGraph, saveSettings, setEndOfLine, setView, toast, toggleOpp, useApp, engine } from './store';
 import { Modal } from './Modal';
 import { startGuide } from './GuideBar';
 import { repo } from '../data/repo';
@@ -31,6 +32,19 @@ export function Gaps() {
     return groupGaps(list);
   }, [graph, sort, onlyTraps, minReach]);
   const shown = groups.reduce((s, g) => s + g.gaps.length, 0);
+  // Kritische Stellungen (Markierung beim Analysieren) mit Anzahl offener Lücken darunter
+  const marks = useApp((s) => s.marks);
+  const critical = useMemo(() => {
+    if (!graph) return [];
+    const out: { posKey: string; id: number; sans: string[]; open: number }[] = [];
+    for (const m of marks.values()) {
+      if (!m.critical) continue;
+      const id = graph.byPosKey.get(m.posKey);
+      if (id === undefined) continue;
+      out.push({ posKey: m.posKey, id, sans: pathSans(graph, id), open: openGapCount(graph, { minReach: 0, skipped: new Set(), under: id }) });
+    }
+    return out.sort((a, b) => b.open - a.open || a.sans.length - b.sans.length);
+  }, [graph, marks]);
 
   if (!graph) return <p className="hint pad">Repertoire wird berechnet …</p>;
 
@@ -132,6 +146,42 @@ export function Gaps() {
             <button className="btn small" onClick={() => void runEngineScan()}>Engine-Prüfung starten</button>
           )}
         </div>
+      )}
+
+      {critical.length > 0 && (
+        <section className="gapfam critical-list" data-testid="critical-list">
+          <h2>
+            <span>
+              <Icon name="star" className="crit-ico" /> Kritische Stellungen <small>{critical.length}</small>
+            </span>
+          </h2>
+          <ul>
+            {critical.map((c) => (
+              <li key={c.posKey} className="gaprow">
+                <button className="gap-go" onClick={() => jump(c.id)}>
+                  <span className="line">{formatLine(c.sans, notation) || 'Grundstellung'}</span>
+                  <span className="meta">
+                    <span className="reach">{c.open ? `${c.open} offene Lücken darunter` : 'darunter alles beantwortet'}</span>
+                  </span>
+                </button>
+                <button
+                  className="btn small"
+                  disabled={!c.open}
+                  title="Lückentour nur ab dieser Stellung"
+                  onClick={() => {
+                    setView('build');
+                    setTimeout(() => startGuide(undefined, c.posKey), 0);
+                  }}
+                >
+                  Ab hier bauen
+                </button>
+                <button className="btn small ghost" aria-label="Markierung entfernen" title="Nicht mehr kritisch" onClick={() => void updateMark(c.posKey, { critical: false })}>
+                  <Icon name="x" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {total === 0 && <p className="empty">Keine Lücken – stark! (Oder es fehlen noch Daten, siehe oben.)</p>}

@@ -36,6 +36,8 @@ export interface PositionMark {
   extraOppMoves?: string[];
   /** Eigener Name der Stellung (z. B. „Najdorf“), aus PGN-Kommentaren oder vom Nutzer. */
   label?: string;
+  /** Kritische / besonders wichtige Stellung (Markierung beim Analysieren) – Einstieg für „ab hier weiterbauen“. */
+  critical?: boolean;
   /** Notiz zu einer Stellung, in der der Gegner gerade gezogen hat (z. B. Studienkommentar). */
   note?: string;
   updatedAt: number;

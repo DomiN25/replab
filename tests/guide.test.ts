@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph, pathSans, pathUcis, type GraphInput } from '../src/core/graph';
-import { gapFamilies, nextGap, oppSiblings, openGapCount } from '../src/core/guide';
+import { gapFamilies, isUnder, nextGap, oppSiblings, openGapCount } from '../src/core/guide';
 import { playSan, START_FEN } from '../src/core/chess';
 import { SETTINGS, explorer, keyAfter } from './helpers';
 
@@ -140,6 +140,24 @@ describe('Geführter Aufbau: nächste Lücke', () => {
     const a = nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), lastPath: pathUcis(gf, c5.id), rng: () => 0.99 })!;
     const b = nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), lastPath: pathUcis(gf, c5.id) })!;
     expect(a.posKey).toBe(b.posKey);
+  });
+
+  it('Ab hier weiterbauen: nur Lücken unterhalb der Stellung (kritische Linie vertiefen)', () => {
+    const e5 = gf.nodes[gf.byPosKey.get(keyAfter(['e4', 'e5']))!];
+    const c5 = gf.nodes[gf.byPosKey.get(keyAfter(['e4', 'c5']))!];
+    expect(isUnder(gf, e5.id, e5.id)).toBe(true);
+    expect(isUnder(gf, e5.id, 0)).toBe(true);
+    expect(isUnder(gf, e5.id, c5.id)).toBe(false);
+    const o = { minReach: 0, skipped: new Set<string>() };
+    const all = openGapCount(gf, o);
+    const below = openGapCount(gf, { ...o, under: e5.id });
+    expect(below).toBeGreaterThan(0);
+    expect(below).toBeLessThan(all);
+    for (const strategy of ['branch', 'shallow', 'line'] as const) {
+      const gp = nextGap(gf, { strategy, ...o, under: e5.id })!;
+      expect(gp.sans.slice(0, 2)).toEqual(['e4', 'e5']);
+    }
+    expect(nextGap(gf, { strategy: 'shallow', ...o, under: c5.id })!.sans.slice(0, 2)).toEqual(['e4', 'c5']);
   });
 
   it('Ast-Filter: nur Lücken des gewählten Asts; Ast-Liste mit Anzahl', () => {

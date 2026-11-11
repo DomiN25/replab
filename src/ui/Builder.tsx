@@ -418,6 +418,10 @@ export function Builder() {
             onCommit={onCommit}
             onDeleteEntry={() => setConfirmDelete(true)}
             suggestions={suggestions}
+            onFocus={() => {
+              setSheetSnap((s) => (s === 'full' ? 'peek' : s));
+              startGuide(undefined, posKey);
+            }}
           />
   );
   const side = (

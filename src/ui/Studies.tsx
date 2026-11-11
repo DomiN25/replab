@@ -918,6 +918,7 @@ function AddDialog(p: {
 }) {
   const chosen = p.planFor(p.scope);
   const n = chosen ? chosen.stats.newEntries + chosen.stats.replaced : 0;
+  const notes = chosen ? chosen.entries.filter((e) => e.note && e.status !== 'unchanged').length + chosen.marks.filter((m) => m.note).length : 0;
   return (
     <Modal
       title="Ins Repertoire übernehmen"
@@ -977,6 +978,17 @@ function AddDialog(p: {
         <p className="hint">Viele neue Karten: Im Training kommen zuerst die häufigsten Stellungen (Einstellungen → Training: „Neue Karten erst ab Erreichbarkeit“).</p>
       )}
       <p className="hint">Neue Einträge werden Lernkarten; Lernstand aus den Studien-Abfragen geht mit.</p>
+      {chosen && (
+        <ul className="hint add-rules">
+          <li>
+            <b>Kommentare</b> der Studie werden als Notiz zum Zug übernommen{notes > 0 ? ` (${notes} Notizen neu oder ergänzt)` : ''}; vorhandene Notizen bleiben, nichts wird doppelt angehängt.
+          </li>
+          <li>
+            <b>Konflikte</b>: Hat dein Repertoire in einer Stellung schon einen anderen Zug, bleibt <b>dein Zug</b> – der Ast der Studie dazu wird nicht übernommen
+            {chosen.stats.conflicts > 0 ? ` (${chosen.stats.conflicts} solche Stellungen)` : ''}. Ersetzt wird nur, wenn du in der Studie ausdrücklich einen anderen Zug gewählt hast.
+          </li>
+        </ul>
+      )}
     </Modal>
   );
 }

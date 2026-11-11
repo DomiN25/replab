@@ -16,6 +16,14 @@ export interface GuideOptions {
   family?: string;
   /** Zufallsquelle (0..1): nur beim Start einer Tour (ohne lastPath) – variiert die erste Lücke statt immer dieselbe zu nehmen. */
   rng?: () => number;
+  /** Nur Lücken unterhalb dieses Knotens (inkl. ihm selbst) – „ab hier weiterbauen“. */
+  under?: number;
+}
+
+/** Liegt der Knoten `id` im Teilbaum von `ancestor` (oder ist er es selbst)? Läuft über die Elternkette. */
+export function isUnder(g: Graph, id: number, ancestor: number): boolean {
+  for (let c = id, guard = 0; c >= 0 && guard < 400; c = g.nodes[c].parent, guard++) if (c === ancestor) return true;
+  return false;
 }
 
 /** Zufallswahl unter den ersten `top` Einträgen (Start der Tour). */
@@ -25,9 +33,13 @@ function pickTop<T>(list: T[], rng: (() => number) | undefined, top: number): T 
 }
 
 /** Offene Lücken unter den Filtern, Grundsortierung: flach vor tief, dann häufiger. */
-function candidates(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'family'>): GapInfo[] {
+function candidates(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'family' | 'under'>): GapInfo[] {
   return gapList(g, 'depth').filter(
-    (x) => !o.skipped.has(x.posKey) && (o.minReach <= 0 || x.reach >= o.minReach) && (!o.family || x.branch === o.family || x.family === o.family),
+    (x) =>
+      !o.skipped.has(x.posKey) &&
+      (o.minReach <= 0 || x.reach >= o.minReach) &&
+      (!o.family || x.branch === o.family || x.family === o.family) &&
+      (o.under === undefined || isUnder(g, x.id, o.under)),
   );
 }
 
@@ -87,18 +99,21 @@ export function nextGap(g: Graph, o: GuideOptions): GapInfo | undefined {
 }
 
 /** Äste mit offenen Lücken, nach Anzahl absteigend – für die Ast-Auswahl. */
-export function gapFamilies(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped'>): { family: string; count: number }[] {
+export function gapFamilies(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'under'>): { family: string; count: number }[] {
   const m = new Map<string, number>();
   for (const x of candidates(g, o)) m.set(x.branch, (m.get(x.branch) ?? 0) + 1);
   return [...m].map(([family, count]) => ({ family, count })).sort((a, b) => b.count - a.count || a.family.localeCompare(b.family, 'de'));
 }
 
 /** Anzahl offener Lücken unter den aktuellen Filtern. */
-export function openGapCount(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'family'>): number {
+export function openGapCount(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'family' | 'under'>): number {
   return g.gaps.filter((id) => {
     const n = g.nodes[id];
     return (
-      !o.skipped.has(n.posKey) && (o.minReach <= 0 || n.reach >= o.minReach) && (!o.family || n.topFamily === o.family || n.family === o.family)
+      !o.skipped.has(n.posKey) &&
+      (o.minReach <= 0 || n.reach >= o.minReach) &&
+      (!o.family || n.topFamily === o.family || n.family === o.family) &&
+      (o.under === undefined || isUnder(g, id, o.under))
     );
   }).length;
 }

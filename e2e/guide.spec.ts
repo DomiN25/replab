@@ -7,6 +7,8 @@ const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b';
 const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b';
 
 test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
+  // Start der Tour ist zufällig; für den Ablauf hier fester Zufall (0 = erste Möglichkeit: der schwerste Ast)
+  await page.addInitScript(() => ((window as unknown as { __replabRng: () => number }).__replabRng = () => 0));
   await mockExplorer(page, {
     [START]: [['e2e4', 'e4', 5000]],
     [AFTER_E4]: [

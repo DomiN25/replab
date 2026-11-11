@@ -29,6 +29,8 @@ interface Props {
   onDeleteEntry: () => void;
   /** Was meine Studien in dieser Stellung spielen */
   suggestions: StudySuggestion[];
+  /** Lückentour nur ab dieser Stellung starten („ab hier weiterbauen“) */
+  onFocus: () => void;
 }
 
 const pct = (x?: number) => (x === undefined ? '–' : `${(x * 100).toFixed(x < 0.1 ? 1 : 0).replace(".", ",")} %`);
@@ -211,6 +213,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
           </button>
         </div>
       )}
+      <FocusActions posKey={posKey} mark={p.mark} onFocus={p.onFocus} />
       <LabelEditor posKey={posKey} mark={p.mark} />
     </>
   );
@@ -332,6 +335,26 @@ function EntryEditor({ entry, onDelete }: { entry: RepertoireMove; onDelete: () 
       <div className="row-actions">
         <button className="btn small danger ghost" onClick={onDelete}>Zug entfernen</button>
       </div>
+    </div>
+  );
+}
+
+/** Kritische Stellung markieren und von hier aus gezielt weiterbauen (statt zufälliger Äste). */
+function FocusActions({ posKey, mark, onFocus }: { posKey: string; mark?: PositionMark; onFocus: () => void }) {
+  return (
+    <div className="row-actions focus-actions">
+      <button
+        className={`btn small ${mark?.critical ? 'crit-on' : 'ghost'}`}
+        aria-pressed={!!mark?.critical}
+        onClick={() => void updateMark(posKey, { critical: !mark?.critical })}
+        title="Wichtige Stellung merken – sie erscheint unter Lücken → Kritische Stellungen"
+        data-testid="crit-toggle"
+      >
+        <Icon name="star" /> {mark?.critical ? 'Kritisch' : 'Als kritisch markieren'}
+      </button>
+      <button className="btn small" onClick={onFocus} title="Lückentour nur für Stellungen unterhalb dieser Stellung" data-testid="focus-here">
+        <Icon name="tree" /> Ab hier weiterbauen
+      </button>
     </div>
   );
 }
@@ -501,6 +524,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
           {p.mark?.endOfLine ? 'Ende-Marker entfernen' : '■ Ende der Linie hier'}
         </button>
       </div>
+      <FocusActions posKey={posKey} mark={p.mark} onFocus={p.onFocus} />
       <LabelEditor posKey={posKey} mark={p.mark} />
     </>
   );
