@@ -19,5 +19,5 @@ test('Seitenwechsel animiert nur einmal', async ({ page }) => {
   await page.locator('.nav-bottom').getByRole('button', { name: 'Start' }).click();
   await page.waitForTimeout(900);
   const anims = await page.evaluate(() => (window as unknown as { __anims: string[] }).__anims);
-  expect(anims).toEqual(['pagePrev']);
+  expect(anims).toEqual(['pageIn']);
 });

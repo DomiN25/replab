@@ -229,11 +229,15 @@ legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
 main { padding: 14px 16px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom)); max-width: 1680px; margin: 0 auto; }
 /* Seitenwechsel: neue Seite gleitet leicht aus der Wechselrichtung herein (â€žgeteilte Achseâ€œ).
    Seiten mit Bottom-Sheet: nur die Brettspalte gleitet (ein verschobener Container wÃ¼rde das feste Sheet mitreiÃŸen). */
-main > * { animation: fadeIn 0.24s var(--ease-out); }
-main[data-enter='next'] > :not(:has(.bsheet)), main[data-enter='next'] > * > .col-board { animation: pageNext 0.3s var(--ease-out); }
-main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .col-board { animation: pagePrev 0.3s var(--ease-out); }
-@keyframes pageNext { from { opacity: 0; translate: 36px 0; } }
-@keyframes pagePrev { from { opacity: 0; translate: -36px 0; } }
+/* Ein einziger Animationsname (pageIn): Die Richtung steckt in --enter-x. Würde der Name beim Löschen von data-enter wechseln,
+   startete die Animation neu – die Seite blendete nach dem Hereingleiten ein zweites Mal ein (Flackern). */
+main { --enter-x: 0px; }
+main[data-enter='next'] { --enter-x: 36px; }
+main[data-enter='prev'] { --enter-x: -36px; }
+main > * { animation: pageIn 0.3s var(--ease-out); }
+main > :has(.bsheet) { animation: fadeIn 0.24s var(--ease-out); }
+main[data-enter] > * > .col-board { animation: pageIn 0.3s var(--ease-out); }
+@keyframes pageIn { from { opacity: 0; translate: var(--enter-x) 0; } }
 @media (min-width: 900px) {
   .nav-top { display: flex; }
   .nav-bottom { display: none; }
@@ -241,7 +245,7 @@ main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .co
   .topbar { padding-left: 22px; padding-right: 22px; }
   .topbar.show-title .brand-word { opacity: 1; translate: 0 0; }
   .brand-title { display: none; }
-  main[data-enter] > *, main[data-enter] > * > .col-board { animation: fadeIn 0.24s var(--ease-out); }
+  main[data-enter] { --enter-x: 0px; }
 }
 @media (max-width: 520px) {
   .brand-word { font-size: 20px; }

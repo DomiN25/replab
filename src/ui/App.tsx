@@ -81,8 +81,7 @@ export function App() {
     if (!main || from === to) return;
     main.dataset.enter = to > from ? 'next' : 'prev';
     const t = setTimeout(() => {
-      // data-enter bleibt bis zum nächsten Wechsel stehen: Würde es gelöscht, wechselte der Animationsname (pageNext → fadeIn)
-      // und die Seite blendete nach 320 ms noch einmal ein – das war das Flackern „wie neu geladen“.
+      delete main.dataset.enter;
       // chessground merkt sich die Brettposition – nach dem Hereingleiten neu messen lassen
       window.dispatchEvent(new Event('resize'));
     }, 320);
