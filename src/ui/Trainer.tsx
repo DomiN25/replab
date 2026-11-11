@@ -14,8 +14,10 @@ import { pathSans, subtreeIds } from '../core/graph';
 import { prefersReducedMotion } from './hooks';
 import type { Card, ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
+import { useInert } from './inert';
 import { TodayRows } from './TodayRows';
 import { buzz } from './theme';
+import { burst } from './burst';
 import { activeSession, beginSession, clearSession, pauseSession, persistSession, resumeSession, storedSession, type SavedSession } from './trainingSession';
 
 type Phase = 'context' | 'ask' | 'right' | 'wrong' | 'fixed';
@@ -31,6 +33,7 @@ export function Trainer() {
   const [saved, setSaved] = useState<SavedSession | undefined>(() => activeSession(rep?.id));
   const [stored, setStored] = useState<SavedSession | undefined>(() => (activeSession(rep?.id) ? undefined : storedSession(rep?.id)));
   const [version, setVersion] = useState(0);
+  const inert = useInert();
 
   const [logsLoaded, setLogsLoaded] = useState(false);
   useEffect(() => {
@@ -78,7 +81,7 @@ export function Trainer() {
 
   // „Training starten“ auf der Startseite: direkt loslegen (fällige zuerst, sonst neue), sobald die Zahlen stehen
   useEffect(() => {
-    if (!logsLoaded || !rep || saved || !useApp.getState().trainAuto) return;
+    if (inert || !logsLoaded || !rep || saved || !useApp.getState().trainAuto) return;
     useApp.setState({ trainAuto: false });
     if (stored) return; // angefangene Sitzung hat Vorrang – Nutzer entscheidet
     if (due.length) start('due', due);
@@ -291,9 +294,10 @@ function Runner({
   const scheduler = useMemo(() => new Scheduler(settings.srs.desiredRetention), [settings.srs.desiredRetention]);
   // Fokus-Modus am Handy: Brett ganz oben. Block-Körper nötig – scrollTo gibt in neuem Chromium ein Promise zurück,
   // das React sonst als Aufräumfunktion aufrufen würde (Absturz).
+  const inertRun = useInert();
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    if (!inertRun) window.scrollTo(0, 0); // Vorschau-Seite (Wischen) darf die echte nicht verschieben
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = currentStep(session);
   const card = step ? [...cards.values()].find((c) => c.id === step.cardId) : undefined;
@@ -457,6 +461,7 @@ function Runner({
     buzz(correct ? 12 : [35, 60, 35]);
     if (correct) {
       stats.current.right++;
+      burst();
       setBoardFen(played.fen);
       setLastUci(played.uci);
       setPhase('right');

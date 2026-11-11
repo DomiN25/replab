@@ -64,7 +64,21 @@ export function Builder() {
   const mobile = useMediaQuery('(max-width: 899px)');
   const boardRef = useRef<HTMLElement>(null);
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('peek');
-  const [sheetTab, setSheetTab] = useState<'moves' | 'map'>('moves');
+  const [sheetTab, setSheetTabRaw] = useState<'moves' | 'map'>(() => {
+    try {
+      return localStorage.getItem('replab.sheetTab') === 'map' ? 'map' : 'moves';
+    } catch {
+      return 'moves';
+    }
+  });
+  const setSheetTab = (t: 'moves' | 'map') => {
+    setSheetTabRaw(t);
+    try {
+      localStorage.setItem('replab.sheetTab', t);
+    } catch {
+      /* privat/blockiert */
+    }
+  };
   const [searching, setSearching] = useState(false);
   const [typed, setTyped] = useState('');
   // Erkunden: Züge am Brett legen nichts fest (nur der Knopf in der Zugtabelle). Pro Gerät gemerkt.

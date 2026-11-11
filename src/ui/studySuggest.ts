@@ -5,6 +5,7 @@ import { buildStudyTree, cutKey, type StudyTree } from '../core/pgn';
 import { activeChapters } from '../core/study';
 import type { Color, Study } from '../core/types';
 import { repo } from '../data/repo';
+import { useInert } from './inert';
 
 export interface SuggestMove {
   uci: string;
@@ -81,7 +82,9 @@ async function refreshIndex(color: Color, cancelled: () => boolean): Promise<boo
 /** Vorschläge für die Stellung; baut den Index beim ersten Aufruf im Hintergrund auf. */
 export function useStudySuggestions(posKey: string, color: Color): StudySuggestion[] {
   const [, setVersion] = useState(0); // erzwingt Neuzeichnen, sobald der Index fertig ist
+  const inert = useInert();
   useEffect(() => {
+    if (inert) return; // Vorschau-Seite: keinen Index aufbauen
     let dead = false;
     void refreshIndex(color, () => dead).then((changed) => {
       if (!dead && changed) setVersion((v) => v + 1);
@@ -89,6 +92,6 @@ export function useStudySuggestions(posKey: string, color: Color): StudySuggesti
     return () => {
       dead = true;
     };
-  }, [color]);
+  }, [color, inert]);
   return suggestionsFor(posKey, color);
 }

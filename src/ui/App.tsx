@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Builder } from './Builder';
 import { Gaps } from './Gaps';
 import { Home } from './Home';
@@ -9,7 +9,9 @@ import { dismissToast, selectRepertoire, setView, toast as showToast, useApp, ty
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
 import { Modal } from './Modal';
-import { useSwipeNav } from './swipeNav';
+import { swipeFlag, useSwipeNav, type PeekControl } from './swipeNav';
+import { InertContext } from './inert';
+import { createPortal } from 'react-dom';
 import { refreshToday } from './today';
 import { gapCounts } from '../core/graph';
 import { isDue, isNew } from '../core/srs';
@@ -79,6 +81,14 @@ export function App() {
     const to = ORDER.indexOf(view);
     lastView.current = view;
     if (!main || from === to) return;
+    setPeek(undefined); // Vorschau-Seite ist jetzt die echte Seite
+    if (swipeFlag.committed) {
+      // Wisch-Wechsel: die Seite steht schon im richtigen Bild. Das Attribut bleibt (kein Namenswechsel der Animation).
+      swipeFlag.committed = false;
+      main.dataset.enter = 'swipe';
+      window.dispatchEvent(new Event('resize'));
+      return;
+    }
     main.dataset.enter = to > from ? 'next' : 'prev';
     const t = setTimeout(() => {
       delete main.dataset.enter;
@@ -88,10 +98,29 @@ export function App() {
     return () => clearTimeout(t);
   }, [view]);
 
+  // Nachbarseite beim Wischen: wird nur während der Geste als Vorschau gemountet (außerhalb von .app, damit :has(.study-m) u. ä.
+  // die echte Seite nicht verändern). Kein Engine-/Netz-Zugriff dort (InertContext).
+  const [peek, setPeek] = useState<{ view: View; side: 1 | -1; top: number } | undefined>();
+  const layerRef = useRef<HTMLDivElement>(null);
   const idx = NAV.findIndex((n) => n.v === view);
+  const peekCtl = useMemo<PeekControl>(
+    () => ({
+      show: (side) => {
+        const tgt = NAV[idx + side]?.v;
+        if (!tgt) return;
+        const bar = document.querySelector<HTMLElement>('.topbar');
+        const top = bar && getComputedStyle(bar).display !== 'none' ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
+        startTransition(() => setPeek({ view: tgt, side, top }));
+      },
+      hide: () => startTransition(() => setPeek(undefined)),
+      layer: () => layerRef.current,
+    }),
+    [idx],
+  );
+
   const prev = useCallback(() => idx > 0 && navTo(NAV[idx - 1].v), [idx]);
   const next = useCallback(() => idx >= 0 && idx < NAV.length - 1 && navTo(NAV[idx + 1].v), [idx]);
-  useSwipeNav(appRef, mainRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0 });
+  useSwipeNav(appRef, mainRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0, peek: peekCtl });
 
   if (!loaded)
     return (
@@ -175,15 +204,7 @@ export function App() {
           </button>
         </div>
       </header>
-      <main ref={mainRef}>
-        {view === 'home' && <Home />}
-        {view === 'build' && <Builder />}
-        {view === 'gaps' && <Gaps />}
-        {/* key: Repertoirewechsel setzt die Trainingsseite sauber neu auf (Sitzung, Fokus) */}
-        {view === 'train' && <Trainer key={repId} />}
-        {view === 'studies' && <Studies />}
-        {view === 'settings' && <SettingsView />}
-      </main>
+      <main ref={mainRef}>{pageFor(view, repId)}</main>
       <nav className="nav-bottom" aria-label="Hauptnavigation">
         {NAV.map((n) => (
           <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>
@@ -236,6 +257,15 @@ export function App() {
           </ul>
         </Modal>
       )}
+      {peek &&
+        createPortal(
+          <div className="peek-layer" ref={layerRef} style={{ top: peek.top, ['--side' as string]: peek.side }}aria-hidden {...({ inert: '' } as object)}>
+            <InertContext.Provider value>
+              <main className="peek-main">{pageFor(peek.view, repId)}</main>
+            </InertContext.Provider>
+          </div>,
+          document.body,
+        )}
       {toast && (
         <div key={toast.id} className={`toast ${toast.kind} ${toast.action ? 'has-action' : ''}`} role="status">
           <span>{toast.text}</span>
@@ -254,6 +284,25 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** Seiteninhalt je Ansicht (auch für die Vorschau-Seite beim Wischen). */
+function pageFor(view: View, repId?: string): ReactNode {
+  switch (view) {
+    case 'home':
+      return <Home />;
+    case 'build':
+      return <Builder />;
+    case 'gaps':
+      return <Gaps />;
+    // key: Repertoirewechsel setzt die Trainingsseite sauber neu auf (Sitzung, Fokus)
+    case 'train':
+      return <Trainer key={repId} />;
+    case 'studies':
+      return <Studies />;
+    case 'settings':
+      return <SettingsView />;
+  }
 }
 
 /** Navigation; erneuter Tipp auf „Studien“ führt aus einer offenen Studie zurück zur Liste. */

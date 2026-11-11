@@ -160,9 +160,51 @@ export async function init() {
   if (!repertoires.some((r) => r.id === repId)) {
     repId = (repertoires.find((r) => r.color === 'white' && r.isMain) ?? repertoires[0])?.id;
   }
-  set({ settings, repertoires, loaded: true, view: viewFromHash() });
+  set({ settings, repertoires, loaded: true, view: startView() });
   if (repId) await selectRepertoire(repId);
-  window.addEventListener('hashchange', () => set({ view: viewFromHash() }));
+  window.addEventListener('hashchange', () => {
+    const v = viewFromHash();
+    set({ view: v });
+    rememberView(v);
+  });
+  // Zeitpunkt der letzten Nutzung merken (Hub-Idee): nach langer Pause beginnt die App wieder auf dem Start
+  const touch = () => lsSet('replab.lastActive', String(Date.now()));
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && touch());
+  window.addEventListener('pagehide', touch);
+}
+
+const lsGet = (k: string) => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const lsSet = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* privat/blockiert */
+  }
+};
+
+/** Pause, nach der die App wieder mit dem Start beginnt statt mit der zuletzt geöffneten Seite. */
+export const RESUME_MS = 30 * 60_000;
+
+/** Beim Start: Adresse mit Seite gewinnt; sonst die zuletzt geöffnete Seite, wenn die letzte Nutzung nicht länger als 30 min her ist. */
+function startView(): View {
+  if (location.hash.replace(/^#\/?/, '').length > 0) return viewFromHash();
+  const last = Number(lsGet('replab.lastActive') ?? 0);
+  const v = lsGet('replab.view') as View | null;
+  if (v && v !== 'settings' && Date.now() - last < RESUME_MS && ['home', 'build', 'gaps', 'train', 'studies'].includes(v)) {
+    location.hash = `/${v}`;
+    return v;
+  }
+  return 'home';
+}
+
+function rememberView(v: View) {
+  lsSet('replab.view', v);
 }
 
 function viewFromHash(): View {
@@ -176,6 +218,7 @@ export function setView(v: View) {
   });
   if (get().view !== v && typeof window !== 'undefined') window.scrollTo(0, 0); // neue Ansicht beginnt oben
   set({ view: v });
+  rememberView(v);
 }
 
 export async function reloadRepertoires() {

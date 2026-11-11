@@ -6,6 +6,7 @@ import { gapFamilies, nextGap, oppSiblings, openGapCount, type GuideStrategy } f
 import { pathUcis } from '../core/graph';
 import { displaySan, formatLine, playUci, posKeyOf, moveNumberPrefix } from '../core/chess';
 import { Icon } from './Icon';
+import { useInert } from './inert';
 import { explorer, explorerParams, gotoNode, lichessToken, requestGraph, setEndOfLine, toggleOpp, toast, useApp } from './store';
 
 export interface GuideState {
@@ -120,6 +121,7 @@ export function GuideBar() {
   const showReach = useApp((s) => s.settings.ui.showReach);
   const [waiting, setWaiting] = useState(false);
   const waitSince = useRef(0);
+  const inert = useInert();
 
   const boardKey = posKeyOf(line[cursor].fen);
   const prevKey = cursor > 0 ? posKeyOf(line[cursor - 1].fen) : undefined;
@@ -140,7 +142,7 @@ export function GuideBar() {
 
   // Lücke geschlossen (Zug festgelegt, Ende-Marker, Gegnerzug ignoriert) → automatisch weiter
   useEffect(() => {
-    if (!guide.active || !graph || !guide.currentKey || stillGap) return;
+    if (inert || !guide.active || !graph || !guide.currentKey || stillGap) return;
     if (!(atGap || justLeft)) return; // Nutzer erkundet frei → nicht wegspringen
     const entry = moves.get(guide.currentKey);
     // „In der Linie bleiben“: erst die Gegnerzüge nach meinem neuen Zug laden

@@ -15,9 +15,11 @@ import { AUTO_SPEEDS, autoDelay, autoNext, leadFor, type AutoSpeed } from '../co
 import { useApp } from './store';
 import { repo } from '../data/repo';
 import { Icon } from './Icon';
+import { useInert } from './inert';
 import { RowMenu } from './RowMenu';
 import { toast } from './store';
 import { buzz } from './theme';
+import { burst } from './burst';
 
 type LearnState = NonNullable<Study['learn']>;
 
@@ -110,6 +112,7 @@ export function useLearn(p: {
   const selfPlay = !!st?.learn?.selfPlay;
   const [hint, setHint] = useState(false);
   // Geführtes Abspielen: nicht gespeichert (Neustart der Seite = angehalten). lead = noch auszublendende Orientierungszüge
+  const inert = useInert();
   const [playing, setPlaying] = useState(false);
   const [lead, setLead] = useState(0);
   const speed: AutoSpeed = st?.learn?.speed ?? 'normal';
@@ -167,7 +170,7 @@ export function useLearn(p: {
 
   // Selbst spielen: Gegnerzüge kommen von allein (kurz warten, damit man mitlesen kann)
   useEffect(() => {
-    if (!on || !selfPlay || playing || !line || !expNode || !st || turnOf(expNode.fen) === st.color) return;
+    if (inert || !on || !selfPlay || playing || !line || !expNode || !st || turnOf(expNode.fen) === st.color) return;
     const t = setTimeout(() => setLearnRaw({ line: line.id, step: step + 1 }), step === 0 ? 1000 : 650);
     return () => clearTimeout(t);
     // nur bei neuer Position neu starten (nicht bei jedem Engine-Update)
@@ -176,7 +179,7 @@ export function useLearn(p: {
   // Geführtes Abspielen: erst die letzten Züge vor dem Abzweig, dann die neuen Züge im eingestellten Tempo
   const checking = !!checkItem;
   useEffect(() => {
-    if (!playing || !line || checking) return;
+    if (inert || !playing || !line || checking) return;
     const a = autoNext({ lead, step, len: line.steps.length });
     if (a.kind === 'stop') return setPlaying(false);
     const t = setTimeout(() => {
@@ -311,6 +314,7 @@ export function useLearn(p: {
       if (o) setLearn({ line: lines[o.line].id, step: o.step });
     },
     markDone: () => {
+      burst();
       const ids = new Set(done).add(line.id);
       const n = nextOpenLine(plan, ids, idx);
       const prevDone = st.linesDone ?? [];
@@ -377,6 +381,7 @@ export function useLearn(p: {
         if (check.phase === 'ask') rate(item, true);
         setCheck({ ...check, phase: 'right', right: check.right + (check.phase === 'ask' ? 1 : 0) });
         buzz(15);
+        if (check.phase === 'ask') burst();
         setTimeout(checkNext, check.phase === 'ask' ? 700 : 450);
         return;
       }

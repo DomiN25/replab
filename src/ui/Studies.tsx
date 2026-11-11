@@ -5,6 +5,7 @@ import type { DrawShape } from 'chessground/draw';
 import { Board, uciSquares } from './Board';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import { Icon } from './Icon';
+import { useInert } from './inert';
 import { Modal, trapFocus } from './Modal';
 import { useBackClose } from './backClose';
 import { useEngine, useMediaQuery } from './hooks';
@@ -373,8 +374,9 @@ function StudyEditor({ id }: { id: string }) {
   const learn = useLearn({ tree, st, active, existing, update, setPath });
   // Von „Auch heute fällig“ geöffnet: gleich die fälligen Karten abfragen (nur im Lernmodus)
   const learnReady = !!learn?.on && learn.checkAvailable > 0;
+  const inert = useInert();
   useEffect(() => {
-    if (!learnReady || !useApp.getState().studyCheck) return;
+    if (inert || !learnReady || !useApp.getState().studyCheck) return;
     useApp.setState({ studyCheck: false });
     learn?.startCheck();
   }, [learnReady]); // eslint-disable-line react-hooks/exhaustive-deps

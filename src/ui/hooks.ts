@@ -5,6 +5,7 @@ import { posKeyOf } from '../core/chess';
 import { effectiveDepth, MAX_DEPTH } from '../services/engine';
 import type { EngineLine, ExplorerData } from '../core/types';
 import { ExplorerAuthError } from '../services/explorer';
+import { useInert } from './inert';
 
 export interface ExplorerState {
   data?: ExplorerData;
@@ -16,6 +17,7 @@ export interface ExplorerState {
 export function useExplorer(fen: string, source: 'lichess' | 'masters'): ExplorerState {
   const [st, setSt] = useState<ExplorerState>({ loading: true });
   const settingsVersion = useApp((s) => s.settings.updatedAt);
+  const inert = useInert();
   useEffect(() => {
     let alive = true;
     const params = explorerParams(source);
@@ -27,6 +29,7 @@ export function useExplorer(fen: string, source: 'lichess' | 'masters'): Explore
         setSt({ data: cached, loading: false });
         return;
       }
+      if (inert) return setSt({ loading: false }); // Vorschau: nur aus dem Cache
       if (!lichessToken()) {
         setSt({ loading: false, error: 'Kein Lichess-Token – Datenbank nicht verfügbar (Einstellungen).' });
         return;
@@ -47,7 +50,7 @@ export function useExplorer(fen: string, source: 'lichess' | 'masters'): Explore
     return () => {
       alive = false;
     };
-  }, [fen, source, settingsVersion]);
+  }, [fen, source, settingsVersion, inert]);
   return st;
 }
 
@@ -83,11 +86,12 @@ export function useEngine(fen: string, enabled: boolean, opts: EngineOptions = {
   const extraKey = (opts.extraMoves ?? []).join(' ');
   const [st, setSt] = useState<EngineState>({ fen, lines: [], extra: [], depth: 0, running: false, target });
   const handle = useRef<{ cancel: () => void } | undefined>(undefined);
+  const inert = useInert();
 
   useEffect(() => {
     let alive = true;
     setSt({ fen, lines: [], extra: [], depth: 0, running: false, target });
-    if (!enabled) return;
+    if (!enabled || inert) return;
     const posKey = posKeyOf(fen);
     const run = (o: { depth: number; multipv: number; searchmoves?: string[] }, onUpdate: (lines: EngineLine[], depth: number) => void) => {
       const h = engine().analyse(fen, o, (lines, depth) => alive && onUpdate(lines, depth));
@@ -154,7 +158,7 @@ export function useEngine(fen: string, enabled: boolean, opts: EngineOptions = {
       handle.current?.cancel();
       handle.current = undefined;
     };
-  }, [fen, enabled, target, multipv, deep, extraKey]);
+  }, [fen, enabled, inert, target, multipv, deep, extraKey]);
   return st;
 }
 

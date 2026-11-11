@@ -140,6 +140,16 @@ a { color: var(--acc); }
 /* Druck-Feedback */
 :is(.btn, .tile, .chip, .seg button, .nav-bottom button, .recent-list button, .gapfam button, .brand, .board-pick, .picker-row, .rowmenu .dots):active:not(:disabled) { scale: 0.97; transition-duration: 0.06s; }
 .btn.icon:active:not(:disabled) { scale: 0.9; }
+/* weitere tippbare Elemente: gleiches Druck-Feedback (Hub-Idee), unterbrechbar und billig (nur scale) */
+:is(.mvbtn, .gap-go, .line-row, .crumbs button, .link-btn, .var-chip, .tree-row button, .study-row, .today-row, .rowmenu-pop button):active:not(:disabled) { scale: 0.97; transition-duration: 0.06s; }
+:is(.mvbtn, .gap-go, .line-row, .crumbs button, .link-btn, .var-chip, .study-row, .today-row) { transition: scale 0.18s var(--ease-out), background-color 0.15s, color 0.15s; }
+/* Trefferflächen (Hub-Idee): kleine Ziele bekommen eine unsichtbar größere Fläche (~44 px), ohne das Layout zu ändern */
+:is(.lmap-cell, .rowmenu .dots, .link-btn, .mvbtn, .eng-depth, .line-cut, .st-gap-label) { position: relative; }
+:is(.lmap-cell, .mvbtn, .link-btn, .eng-depth)::after { content: ''; position: absolute; inset: -6px -4px; }
+.lmap-cell::after { inset: -4px; }
+.rowmenu .dots::after { content: ''; position: absolute; inset: -4px; }
+/* alle Zahlen gleich breit (springt nicht beim Zählen) */
+:is(.ev, .games-res, .learn-count, .count, .nav-count, .nav-badge, .toast, .add-n, .study-progress, .check-chip, .eng-depth, .sug-note, .lvl-row small, .learn-total b) { font-variant-numeric: tabular-nums; }
 
 /* ---------- Formulare ---------- */
 input, select, textarea {
@@ -238,6 +248,10 @@ main > * { animation: pageIn 0.3s var(--ease-out); }
 main > :has(.bsheet) { animation: fadeIn 0.24s var(--ease-out); }
 main[data-enter] > * > .col-board { animation: pageIn 0.3s var(--ease-out); }
 @keyframes pageIn { from { opacity: 0; translate: var(--enter-x) 0; } }
+/* Nachbarseite beim Wischen: liegt neben der aktuellen und wird mitgezogen (Position setzt swipeNav.ts per translate) */
+.peek-layer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; overflow: hidden; background: var(--bg); translate: calc(var(--side) * 100vw) 0; pointer-events: none; contain: layout paint; }
+.peek-main, .peek-main > *, .peek-main > * > .col-board { animation: none !important; }
+main[data-enter='swipe'], main[data-enter='swipe'] > *, main[data-enter='swipe'] > * > .col-board { animation: none !important; }
 @media (min-width: 900px) {
   .nav-top { display: flex; }
   .nav-bottom { display: none; }
@@ -629,6 +643,8 @@ button.tile:hover:not(:disabled) { translate: 0 -2px; box-shadow: var(--shadow-l
 .done-check :is(circle, path) { fill: none; stroke: var(--me); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 0.6s var(--ease-out) 0.15s forwards; }
 .done-check path { animation-delay: 0.6s; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
+.burst { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
+.burst i { position: absolute; width: 7px; height: 7px; margin: -3px 0 0 -3px; border-radius: 50%; }
 .confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
 .confetti i { position: absolute; width: 8px; height: 12px; margin: -6px 0 0 -4px; border-radius: 2px; }
 @media (max-width: 899px) {
