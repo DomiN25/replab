@@ -41,8 +41,31 @@ function setGuide(p: Partial<GuideState>) {
   }
 }
 
-/** Zur nächsten passenden Lücke springen. */
-export function guideNext(): boolean {
+// „Überspringen“ merkt sich die Lücke 7 Tage (pro Gerät), sonst käme sie bei jedem Start der Tour wieder zuerst
+const SNOOZE_MS = 7 * 24 * 3600 * 1000;
+function snoozedKeys(): string[] {
+  try {
+    const m: Record<string, number> = JSON.parse(localStorage.getItem('replab.guideSnooze') ?? '{}');
+    const now = Date.now();
+    return Object.keys(m).filter((k) => m[k] > now);
+  } catch {
+    return [];
+  }
+}
+function snooze(key: string) {
+  try {
+    const m: Record<string, number> = JSON.parse(localStorage.getItem('replab.guideSnooze') ?? '{}');
+    const now = Date.now();
+    for (const k of Object.keys(m)) if (m[k] <= now) delete m[k];
+    m[key] = now + SNOOZE_MS;
+    localStorage.setItem('replab.guideSnooze', JSON.stringify(m));
+  } catch {
+    /* egal */
+  }
+}
+
+/** Zur nächsten passenden Lücke springen. `fresh`: Start einer Tour → erste Lücke variieren. */
+export function guideNext(fresh = false): boolean {
   const { graph, guide } = useApp.getState();
   if (!graph) return false;
   const gp = nextGap(graph, {
@@ -52,6 +75,7 @@ export function guideNext(): boolean {
     lastPath: guide.lastPath,
     lastFamily: guide.lastFamily,
     family: guide.family,
+    rng: fresh ? Math.random : undefined,
   });
   if (!gp) {
     setGuide({ currentKey: undefined });
@@ -63,8 +87,8 @@ export function guideNext(): boolean {
 }
 
 export function startGuide(family?: string) {
-  setGuide({ ...loadPrefs(), active: true, skipped: [], currentKey: undefined, lastPath: undefined, lastFamily: undefined, family });
-  if (!guideNext()) toast('Keine offenen Lücken unter den aktuellen Filtern.', 'info');
+  setGuide({ ...loadPrefs(), active: true, skipped: snoozedKeys(), currentKey: undefined, lastPath: undefined, lastFamily: undefined, family });
+  if (!guideNext(true)) toast('Keine offenen Lücken unter den aktuellen Filtern.', 'info');
 }
 
 export function stopGuide() {
@@ -161,7 +185,7 @@ export function GuideBar() {
           aria-label="Ast"
           value={guide.family ?? ''}
           onChange={(e) => {
-            setGuide({ family: e.target.value || undefined, skipped: [] });
+            setGuide({ family: e.target.value || undefined, skipped: snoozedKeys() });
             setTimeout(() => guideNext(), 0);
           }}
         >
@@ -173,7 +197,7 @@ export function GuideBar() {
             </option>
           ))}
         </select>
-        <select aria-label="Mindest-Erreichbarkeit" value={guide.minReach} onChange={(e) => setGuide({ minReach: Number(e.target.value), skipped: [] })}>
+        <select aria-label="Mindest-Erreichbarkeit" value={guide.minReach} onChange={(e) => setGuide({ minReach: Number(e.target.value), skipped: snoozedKeys() })}>
           <option value={0}>alle</option>
           <option value={0.001}>≥ 0,1 %</option>
           <option value={0.005}>≥ 0,5 %</option>
@@ -226,7 +250,9 @@ export function GuideBar() {
             )}
             <button
               className="btn small ghost"
+              title="Diese Lücke 7 Tage lang nicht mehr vorschlagen"
               onClick={() => {
+                snooze(guide.currentKey!);
                 setGuide({ skipped: [...guide.skipped, guide.currentKey!] });
                 setTimeout(() => guideNext(), 0);
               }}

@@ -184,6 +184,15 @@ export function myCandidates(fen: string, explorer?: ExplorerData, engine?: Engi
   return [...map.values()].sort((a, b) => b.games - a.games || (a.engineRank ?? 99) - (b.engineRank ?? 99));
 }
 
+/** Ab diesem Vorsprung (cp) des besten Zugs vor dem zweitbesten wird er stärker hervorgehoben. */
+export const STANDOUT_CP = 50;
+
+/** Bester Zug, falls er mit Abstand vorn liegt (≥ minCp vor dem Zweitbesten); Linien sind nach Stärke sortiert. */
+export function standoutMove(lines: Pick<EngineLine, 'uci' | 'cp' | 'mate'>[], minCp = STANDOUT_CP): string | undefined {
+  if (lines.length < 2) return undefined;
+  return lineScore(lines[0]) - lineScore(lines[1]) >= minCp ? lines[0].uci : undefined;
+}
+
 /** Anzeige einer Bewertung: "+0,35", "#3", "−1,20". */
 export function formatEval(cp?: number, mate?: number): string {
   if (mate !== undefined && mate !== null) return (mate > 0 ? '#' : '#−') + Math.abs(mate);

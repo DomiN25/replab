@@ -116,7 +116,7 @@ async function run(scheme) {
   await nav('Start');
   await shot('home', true);
 
-  await nav('Bauen');
+  await nav('Repertoire');
   await page.waitForSelector('.ctable');
   await shot('build-start');
   await shot('build-start-full', true);
@@ -157,7 +157,7 @@ async function run(scheme) {
   await shot('build-outside');
   // Wischen auf freien Brettfeldern (Reihe 5, g5 → b5): Bauen → Lücken
   const cg = await page.locator('.cg-wrap').boundingBox();
-  await expectSwipe('Bauen, Brett', cg.y + (cg.height * 3.5) / 8, cg.x + (cg.width * 6.5) / 8, cg.x + cg.width / 8, '#/gaps');
+  await expectSwipe('Repertoire, Brett', cg.y + (cg.height * 3.5) / 8, cg.x + (cg.width * 6.5) / 8, cg.x + cg.width / 8, '#/gaps');
 
   await nav('Lücken');
   await shot('gaps', true);

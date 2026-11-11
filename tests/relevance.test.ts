@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { oppCandidates, myCandidates, formatEval, lineScore } from '../src/core/relevance';
+import { oppCandidates, myCandidates, formatEval, lineScore, standoutMove } from '../src/core/relevance';
 import { SETTINGS, engine, explorer, fenAfter, mark } from './helpers';
 
 const after = ['e4'];
+
+describe('Hervorhebung des klar besten Zugs', () => {
+  const L = (uci: string, cp: number) => ({ uci, cp });
+  it('ab 50 cp Vorsprung vor dem Zweiten', () => {
+    expect(standoutMove([L('e2e4', 80), L('d2d4', 30)])).toBe('e2e4');
+    expect(standoutMove([L('e2e4', 80), L('d2d4', 31)])).toBeUndefined();
+  });
+  it('ohne zweite Linie oder bei Matt', () => {
+    expect(standoutMove([L('e2e4', 300)])).toBeUndefined();
+    expect(standoutMove([{ uci: 'h5f7', mate: 2 }, L('d2d4', 300)])).toBe('h5f7');
+  });
+});
 
 describe('Relevanzregel Gegnerzüge (F3)', () => {
   it('Anteil ≥ 5 % und ≥ 20 Partien', () => {

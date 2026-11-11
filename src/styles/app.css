@@ -462,6 +462,14 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .ctable td.st.gap { color: var(--gap); }
 .ctable td.st.end { color: var(--muted); }
 .ctable .reach { color: var(--muted); font-size: 12px; }
+/* Zug mit Abstand der beste (≥ 0,5 Vorsprung): kräftiger + Randstreifen */
+.ctable tr.standout td { font-weight: 700; }
+.ctable tr.standout td:first-child { box-shadow: inset 3px 0 0 var(--accent, var(--me)); }
+.ctable tr.standout td.num:not(.reach) { color: var(--text); }
+.pv.standout .ev { font-weight: 800; }
+.pv.standout .mvbtn { font-weight: 800; }
+.cands-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.cands-foot .hint { margin: 0; }
 .ctable tr:hover td { background: var(--panel2); }
 .ctable tr.mine:hover td { background: color-mix(in srgb, var(--me) 14%, transparent); }
 .mvbtn { background: none; border: 0; cursor: pointer; font: 700 14px var(--display); color: var(--me); padding: 6px 2px; min-height: 36px; }

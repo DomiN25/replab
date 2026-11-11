@@ -14,6 +14,14 @@ export interface GuideOptions {
   lastFamily?: string;
   /** Nur Lücken dieses Asts oder dieser (feineren) Familie, leer = alle. */
   family?: string;
+  /** Zufallsquelle (0..1): nur beim Start einer Tour (ohne lastPath) – variiert die erste Lücke statt immer dieselbe zu nehmen. */
+  rng?: () => number;
+}
+
+/** Zufallswahl unter den ersten `top` Einträgen (Start der Tour). */
+function pickTop<T>(list: T[], rng: (() => number) | undefined, top: number): T {
+  if (!rng || list.length < 2) return list[0];
+  return list[Math.floor(rng() * Math.min(list.length, top))];
 }
 
 /** Offene Lücken unter den Filtern, Grundsortierung: flach vor tief, dann häufiger. */
@@ -45,10 +53,22 @@ export function nextGap(g: Graph, o: GuideOptions): GapInfo | undefined {
       for (const x of list) weight.set(x.branch, (weight.get(x.branch) ?? 0) + x.reach);
       let best = list[0].branch;
       for (const [f, w] of weight) if (w > (weight.get(best) ?? 0)) best = f;
+      // Start der Tour: Ast zufällig, gewichtet nach Erreichbarkeit (große Äste öfter, aber nicht immer derselbe)
+      if (o.rng && !o.lastPath?.length) {
+        let r = o.rng() * [...weight.values()].reduce((a, b) => a + b, 0);
+        for (const [f, w] of weight) {
+          r -= w;
+          if (r <= 0) {
+            best = f;
+            break;
+          }
+        }
+      }
       list = list.filter((x) => x.branch === best);
     }
     const cp = new Map(list.map((x) => [x.id, cpOf(x)]));
-    return [...list].sort((a, b) => a.ply - b.ply || cp.get(b.id)! - cp.get(a.id)! || b.reach - a.reach)[0];
+    const sorted = [...list].sort((a, b) => a.ply - b.ply || cp.get(b.id)! - cp.get(a.id)! || b.reach - a.reach);
+    return o.lastPath?.length ? sorted[0] : pickTop(sorted, o.rng, 4);
   }
 
   if (o.strategy === 'line' && o.lastPath?.length) {
@@ -63,7 +83,7 @@ export function nextGap(g: Graph, o: GuideOptions): GapInfo | undefined {
     }
     return best;
   }
-  return list[0]; // gapList('depth') ist schon nach Tiefe, dann Erreichbarkeit sortiert
+  return o.lastPath?.length ? list[0] : pickTop(list, o.rng, 5); // gapList('depth') ist schon nach Tiefe, dann Erreichbarkeit sortiert
 }
 
 /** Äste mit offenen Lücken, nach Anzahl absteigend – für die Ast-Auswahl. */

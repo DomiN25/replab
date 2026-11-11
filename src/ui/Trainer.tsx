@@ -169,9 +169,9 @@ export function Trainer() {
       {cardList.length === 0 && (
         <div className="empty card empty-cta">
           <Icon name="train" />
-          <p>Noch nichts zu lernen: Lernkarten entstehen aus deinen eigenen Zügen. Lege Züge beim Bauen fest oder übernimm eine Studie.</p>
+          <p>Noch nichts zu lernen: Lernkarten entstehen aus deinen eigenen Zügen. Lege Züge im Repertoire fest oder übernimm eine Studie.</p>
           <div className="row-actions center">
-            <button className="btn primary" onClick={() => setView('build')}>Zum Bauen</button>
+            <button className="btn primary" onClick={() => setView('build')}>Zum Repertoire</button>
             <button
               className="btn"
               onClick={() => {

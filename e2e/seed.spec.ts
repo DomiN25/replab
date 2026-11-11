@@ -12,7 +12,7 @@ test('Seed-Import → Galaxie zeigt Äste', async ({ page }) => {
   await dlg.getByRole('button', { name: 'Importieren' }).click();
   await expect(dlg).toHaveCount(0);
 
-  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  await page.locator('.nav-top').getByRole('button', { name: 'Repertoire' }).click();
   const paths = page.locator('.galaxy-svg path');
   await expect.poll(async () => paths.count()).toBeGreaterThan(20);
   await expect(page.locator('.legend')).toContainText('Sizilianisch');

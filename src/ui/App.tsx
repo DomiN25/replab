@@ -18,12 +18,12 @@ import { pct } from './format';
 // Fünf Hauptseiten (Wisch-Reihenfolge). Einstellungen liegen hinter dem Zahnrad oben rechts.
 const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'home', label: 'Start', icon: 'home' },
-  { v: 'build', label: 'Bauen', icon: 'tree' },
+  { v: 'build', label: 'Repertoire', icon: 'tree' },
   { v: 'gaps', label: 'Lücken', icon: 'gap' },
   { v: 'train', label: 'Training', icon: 'train' },
   { v: 'studies', label: 'Studien', icon: 'book' },
 ];
-const TITLE: Record<View, string> = { home: 'Start', build: 'Bauen', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen' };
+const TITLE: Record<View, string> = { home: 'Start', build: 'Repertoire', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen' };
 const ORDER: View[] = [...NAV.map((n) => n.v), 'settings'];
 
 export function App() {

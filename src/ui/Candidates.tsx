@@ -1,7 +1,7 @@
 // Kandidaten-Panel (F2): ich am Zug → Tabelle + Festlegen/Ändern + Notizen; Gegner am Zug → relevante Züge.
 import { useMemo, useState } from 'react';
 import { displaySan, moveNumberPrefix, plyOfFen, playUci, posKeyOf, formatLine } from '../core/chess';
-import { formatEval, myCandidates, oppCandidates, type OppCandidate } from '../core/relevance';
+import { formatEval, myCandidates, oppCandidates, standoutMove, type OppCandidate } from '../core/relevance';
 import type { Graph, GNode } from '../core/graph';
 import { pathSans } from '../core/graph';
 import type { EngineLine, PositionMark, RepertoireMove } from '../core/types';
@@ -66,10 +66,6 @@ export function Candidates(p: Props) {
           <div className="turn">{p.myTurn ? 'Du bist am Zug' : 'Gegner am Zug'}</div>
           {opening && <div className="opening">{opening}</div>}
         </div>
-        <div className="seg small" role="group" aria-label="Datenbank">
-          <button aria-pressed={p.source === 'lichess'} onClick={() => p.onSource('lichess')}>Lichess</button>
-          <button aria-pressed={p.source === 'masters'} onClick={() => p.onSource('masters')}>Meister</button>
-        </div>
       </div>
 
       {p.myTurn ? (
@@ -79,6 +75,13 @@ export function Candidates(p: Props) {
       )}
 
       <EngineBox engine={p.engine} fen={p.fen} ply={ply} notation={notation} myTurn={p.myTurn} onPlay={p.onPlay} />
+      <div className="cands-foot">
+        <span className="hint">Datenbank</span>
+        <div className="seg small" role="group" aria-label="Datenbank">
+          <button aria-pressed={p.source === 'lichess'} onClick={() => p.onSource('lichess')}>Lichess</button>
+          <button aria-pressed={p.source === 'masters'} onClick={() => p.onSource('masters')}>Meister</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -99,6 +102,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
     [p.fen, p.ex.data, p.engineLines],
   );
   const posKey = posKeyOf(p.fen);
+  const standout = useMemo(() => standoutMove(p.engineLines), [p.engineLines]);
   const isGap = p.node?.status === 'gap';
   const showAll = rows.slice(0, 12);
   const entryInRows = p.entry && rows.some((r) => r.uci === p.entry!.uci);
@@ -151,7 +155,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
               const more = r.cp === undefined && r.mate === undefined ? p.engine.extra.find((e) => e.uci === r.uci) : undefined;
               const myCp = r.cp ?? more?.cp;
               return (
-                <tr key={r.uci} className={mine ? 'mine' : ''}>
+                <tr key={r.uci} className={`${mine ? 'mine' : ''} ${standout === r.uci ? 'standout' : ''}`} title={standout === r.uci ? 'Mit Abstand der beste Zug (≥ 0,5 Vorsprung)' : undefined}>
                   <td>
                     <button className="mvbtn" onClick={() => p.onPlay(r.uci)} title="Zug am Brett ansehen">
                       {displaySan(r.san, p.notation)}
@@ -331,6 +335,8 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
       }),
     [p.fen, p.ex.data, p.explorer.data, p.engineData, p.mark, settings, p.source],
   );
+  // Engine-Linien sind aus Sicht des Ziehenden (Gegner) sortiert
+  const standout = useMemo(() => standoutMove(p.engineData?.lines ?? []), [p.engineData]);
   const relevant = cands.filter((c) => c.relevant);
   const others = cands.filter((c) => !c.relevant);
 
@@ -354,7 +360,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
     const more = c.moverCp === undefined ? p.engine.extra.find((e) => e.uci === c.uci) : undefined;
     const myCp = c.moverCp !== undefined ? -c.moverCp : more?.cp !== undefined ? -more.cp : undefined;
     return (
-      <tr key={c.uci} className={c.relevant ? '' : 'dim'}>
+      <tr key={c.uci} className={`${c.relevant ? '' : 'dim'} ${standout === c.uci ? 'standout' : ''}`} title={standout === c.uci ? 'Stärkster Gegnerzug (≥ 0,5 Vorsprung)' : undefined}>
         <td>
           <button className="mvbtn opp" onClick={() => p.onPlay(c.uci)} title="Zug am Brett spielen">
             {displaySan(c.san, p.notation)}
@@ -515,6 +521,7 @@ interface PvProps {
 
 /** Beste Engine-Linien (Bewertung aus meiner Sicht, erster Zug spielbar). */
 function PvLines({ engine, fen, ply, notation, myTurn, onPlay, max }: PvProps) {
+  const standout = standoutMove(engine.lines);
   return (
     <>
       {engine.lines.slice(0, max).map((l, i) => {
@@ -523,7 +530,7 @@ function PvLines({ engine, fen, ply, notation, myTurn, onPlay, max }: PvProps) {
         const mate = l.mate !== undefined ? l.mate * sign : undefined;
         const sans = l.pv.length ? pvSans(fen, l.pv) : [l.san];
         return (
-          <div key={i} className="pv">
+          <div key={i} className={`pv ${i === 0 && standout ? 'standout' : ''}`}>
             <span className="ev">{formatEval(cp, mate)}</span>
             <button className="mvbtn" onClick={() => onPlay(l.uci)}>{moveNumberPrefix(ply) + displaySan(l.san, notation)}</button>
             <span className="line">{formatLine(sans.slice(1, 8), notation, ply + 1)}</span>

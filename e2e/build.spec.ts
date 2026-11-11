@@ -29,7 +29,7 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   await token.fill('lip_e2e_test');
   await token.blur();
 
-  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  await page.locator('.nav-top').getByRole('button', { name: 'Repertoire' }).click();
   // Engine aus, damit die Engine-Regel das Ergebnis nicht verändert
   await page.getByRole('button', { name: /Stockfish an/ }).click();
 
@@ -55,7 +55,7 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   expect(lines.sort()).toEqual(['1.e4 c5', '1.e4 e5 2.Sf3 Sc6', '1.e4 e5 2.Sf3 Sf6']);
 
   // Suche: Zugfolge deutsch → Stellung; Treffer springt hin
-  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  await page.locator('.nav-top').getByRole('button', { name: 'Repertoire' }).click();
   await page.getByRole('button', { name: /Im Repertoire suchen/ }).click();
   await page.getByLabel('Suchbegriff').fill('Sf3 Sc6');
   await page.locator('.search-hits button').first().click();

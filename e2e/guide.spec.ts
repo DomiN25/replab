@@ -24,7 +24,7 @@ test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
   const token = page.getByPlaceholder('lip_…');
   await token.fill('lip_e2e_test');
   await token.blur();
-  await page.locator('.nav-top').getByRole('button', { name: 'Bauen' }).click();
+  await page.locator('.nav-top').getByRole('button', { name: 'Repertoire' }).click();
   await page.getByRole('button', { name: /Stockfish an/ }).click();
 
   // 1.e4 festlegen

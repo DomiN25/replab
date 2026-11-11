@@ -129,6 +129,19 @@ describe('Geführter Aufbau: nächste Lücke', () => {
     expect(next.sans).toEqual(['e4', 'e5', 'Nf3', 'Nc6']);
   });
 
+  it('Start der Tour mit Zufall: variiert die erste Lücke, ohne rng immer dieselbe', () => {
+    const first = nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set() })!;
+    const seen = new Set<string>();
+    for (const r of [0, 0.34, 0.67, 0.99]) seen.add(nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), rng: () => r })!.posKey);
+    expect(seen.size).toBeGreaterThan(1);
+    expect(nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), rng: () => 0 })!.posKey).toBe(first.posKey);
+    // mitten in der Tour (lastPath) bleibt es deterministisch
+    const c5 = gf.nodes[gf.byPosKey.get(keyAfter(['e4', 'c5']))!];
+    const a = nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), lastPath: pathUcis(gf, c5.id), rng: () => 0.99 })!;
+    const b = nextGap(gf, { strategy: 'shallow', minReach: 0, skipped: new Set(), lastPath: pathUcis(gf, c5.id) })!;
+    expect(a.posKey).toBe(b.posKey);
+  });
+
   it('Ast-Filter: nur Lücken des gewählten Asts; Ast-Liste mit Anzahl', () => {
     const e6 = gf.nodes[gf.byPosKey.get(keyAfter(['e4', 'e6']))!];
     expect(openGapCount(gf, { minReach: 0, skipped: new Set(), family: e6.family })).toBe(1);
