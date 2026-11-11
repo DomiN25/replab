@@ -245,7 +245,7 @@ export function Trainer() {
         Karteikarten-Prinzip (FSRS, wie Anki): Jede Stellung ist eine Karte. Weißt du sie, kommt sie in immer größeren Abständen wieder (Tage, Wochen, Monate),
         vergisst du sie, kommt sie bald wieder. Die Abstände werden so gewählt, dass du dich mit {Math.round(settings.srs.desiredRetention * 100)} % Wahrscheinlichkeit
         erinnerst (Behaltensziel in den Einstellungen). Neue Züge lernst du in kleinen Blöcken (bis 4 zeigen, dann gleich abfragen). Ablauf: Die letzten {settings.srs.contextPlies} Halbzüge werden vorgespielt, dann spielst du deinen Zug.
-        Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Neue Karten:{' '}
+        Bewertung automatisch: falsch = nochmal, &gt; {settings.srs.hardMs / 1000} s = schwer, &lt; {settings.srs.easyMs / 1000} s = leicht, sonst gut. Es zählt nur die erste Antwort; die Wiederholung in derselben Sitzung übt nur. Neue Karten:{' '}
         {settings.srs.newOrder === 'line' ? 'Linie für Linie' : 'wichtigste (häufigste) Stellungen zuerst'}. Funktioniert offline.
         </p>
       </details>
@@ -378,6 +378,9 @@ function Runner({
 
   const record = async (correct: boolean, ms: number, wrong?: string) => {
     if (!card || !step) return;
+    // Wiederholung in derselben Sitzung (2. Versuch) übt nur: Der Langzeitstand hängt allein an der Erstantwort,
+    // sonst zählte ein Fehler doppelt bzw. ein „gewusst“ direkt nach dem Vorsagen als echtes Wissen.
+    if (step.attempt === 2) return;
     const rating = ratingFor(correct, ms, settings.srs);
     const mode = session.mode;
     // Linien-Modus: nur Fehler fließen in FSRS ein (bewusst dieselbe Linie am Stück)
@@ -408,7 +411,7 @@ function Runner({
   // „Verklickt“: falsche Bewertung zurücknehmen und als richtig werten (ohne Relearning in dieser Sitzung)
   const misclick = async () => {
     const lr = lastReview.current;
-    if (!lr || !move || phase !== 'wrong') return;
+    if (!lr || !move || phase !== 'wrong' || step?.attempt === 2) return;
     lastReview.current = undefined;
     await repo.undoReview(lr.prev, lr.prev.srs, lr.uid);
     stats.current.wrong = Math.max(0, stats.current.wrong - 1);
@@ -583,8 +586,10 @@ function Runner({
         {phase === 'wrong' && (
           <div>
             <p className="bad big"><Icon name="x" />Richtig ist {moveNumberPrefix(ply) + displaySan(move.san, notation)}</p>
-            <p className="hint">Spiel den richtigen Zug nach. Die Stellung kommt in dieser Sitzung noch einmal.</p>
-            {session.mode !== 'line' && (
+            <p className="hint">
+              {step.attempt === 2 || session.mode === 'line' ? 'Spiel den richtigen Zug nach.' : 'Spiel den richtigen Zug nach. Die Stellung kommt in dieser Sitzung noch einmal.'}
+            </p>
+            {session.mode !== 'line' && step.attempt === 1 && (
               <button className="link-btn" onClick={() => void misclick()} title="Bewertung zurücknehmen und als richtig werten">
                 Verklickt – ich wusste den Zug
               </button>

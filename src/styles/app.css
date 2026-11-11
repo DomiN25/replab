@@ -349,13 +349,17 @@ main[data-enter='prev'] > :not(:has(.bsheet)), main[data-enter='prev'] > * > .co
 .col-board, .col-panel, .col-side { min-width: 0; }
 .col-panel, .col-side { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
 @media (min-width: 900px) {
-  .builder { grid-template-columns: minmax(320px, 460px) minmax(0, 1fr); }
-  .col-side { grid-column: 1 / -1; }
+  /* Laptop-Breite: Übersicht (Galaxie/Liste) direkt unter dem Brett, Zugtabelle rechts daneben über beide Zeilen –
+     vorher lag die Übersicht unter der langen Tabelle und war nie zusammen mit dem Brett zu sehen */
+  .builder { grid-template-columns: minmax(320px, 460px) minmax(0, 1fr); grid-template-areas: 'board panel' 'side panel'; }
+  .builder > .col-board { grid-area: board; }
+  .builder > .col-panel { grid-area: panel; }
+  .builder > .col-side { grid-area: side; }
 }
 @media (min-width: 1360px) {
   /* Kandidaten-Spalte bekommt Vorrang (vorher 326 px bei 1440 px â†’ Aktionen nur per Querscrollen erreichbar) */
-  .builder { grid-template-columns: minmax(360px, 480px) minmax(470px, 1fr) minmax(320px, 420px); }
-  .col-side { grid-column: auto; position: sticky; top: 74px; }
+  .builder { grid-template-columns: minmax(360px, 480px) minmax(470px, 1fr) minmax(320px, 420px); grid-template-areas: 'board panel side'; }
+  .col-side { position: sticky; top: 74px; }
   .col-board { position: sticky; top: 74px; }
 }
 .crumbs { display: flex; gap: 2px; overflow-x: auto; white-space: nowrap; padding: 2px 0 10px; scrollbar-width: thin; }
@@ -478,6 +482,13 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .label-edit { display: flex; gap: 6px; margin: 6px 0; }
 .engine { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
 .engine-head { display: flex; align-items: center; gap: 10px; }
+/* Stockfish-Tiefe über der Zugtabelle: Tipp klappt die besten Linien auf */
+button.eng-depth { background: none; border: 0; padding: 4px 0; margin: -4px 0; color: var(--eng); font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; }
+button.eng-depth .ico { width: 13px; height: 13px; transition: rotate 0.2s; }
+button.eng-depth .ico.up { rotate: 180deg; }
+.pv-top { margin: 0 0 8px; padding: 6px 8px; border-radius: 12px; background: var(--panel2); }
+/* gezielt nachgerechnete (flachere) Bewertung */
+.ctable .num.approx { color: var(--muted); }
 .pv { display: flex; align-items: baseline; gap: 8px; font-size: 13px; overflow: hidden; white-space: nowrap; }
 .pv .ev { font: 700 13px var(--display); min-width: 52px; text-align: right; color: var(--eng); font-variant-numeric: tabular-nums; }
 .pv .line { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }

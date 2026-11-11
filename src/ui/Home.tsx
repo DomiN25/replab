@@ -206,7 +206,7 @@ export function Home() {
         </section>
 
         <section className="card stats">
-          <h2>Statistik <small className="h-note">alle Repertoires</small></h2>
+          <h2>Statistik <small className="h-note">alle Repertoires und Studien</small></h2>
           <ul className="kv">
             <li><span>Heute gelernt</span><b>{stats.reviewsToday}</b></li>
             <li><span>Trefferquote 7 Tage</span><b>{stats.hitRate7 !== undefined ? `${Math.round(stats.hitRate7 * 100)} %` : '–'}</b></li>

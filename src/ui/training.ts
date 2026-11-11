@@ -25,7 +25,8 @@ export function inFocus(g: Graph | undefined, focus: Focus | undefined): ((posKe
 
 export function buildPool(cards: Card[], logs: ReviewLog[], settings: Settings, now: number, g?: Graph, focus?: Focus): Pool {
   const today = dayKey(now);
-  const todays = logs.filter((l) => dayKey(l.at) === today);
+  // Studien-Abfragen zählen nicht gegen die Tageslimits des Repertoire-Trainings
+  const todays = logs.filter((l) => dayKey(l.at) === today && l.mode !== 'study');
   const newToday = new Set(todays.filter((l) => l.mode === 'new').map((l) => l.cardId)).size;
   const sch = new Scheduler(settings.srs.desiredRetention);
   const filt = inFocus(g, focus);

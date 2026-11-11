@@ -130,7 +130,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
 
       {p.mark?.note && <p className="note">{p.mark.note}</p>}
 
-      <ExplorerStatusLine ex={p.ex} engine={p.engine} />
+      <ExplorerStatusLine ex={p.ex} engine={p.engine} fen={p.fen} ply={p.ply} notation={p.notation} myTurn={p.myTurn} onPlay={p.onPlay} />
       <div className="table-wrap">
         <table className="ctable">
           <thead>
@@ -160,7 +160,10 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                   <td className="num">{pct(r.share)}</td>
                   <td className="num hide-s" title={r.games ? r.games.toLocaleString('de-DE') : undefined}>{r.games ? compactCount(r.games) : '–'}</td>
                   <td className="hide-s">{r.games ? <WdlBar w={r.white} d={r.draws} l={r.black} /> : null}</td>
-                  <td className="num" title={more ? 'gezielt nachgerechnet (geringere Tiefe)' : undefined}>{formatEval(myCp, r.mate ?? more?.mate)}</td>
+                  <td className={`num ${more ? 'approx' : ''}`} title={more ? 'gezielt nachgerechnet (geringere Tiefe)' : undefined}>
+                    {more ? '~' : ''}
+                    {formatEval(myCp, r.mate ?? more?.mate)}
+                  </td>
                   <td className="num hide-s">{r.deltaCp !== undefined ? (r.deltaCp === 0 ? '★' : `−${(r.deltaCp / 100).toFixed(2).replace('.', ',')}`) : ''}</td>
                   <td className="act">
                     {mine ? (
@@ -362,7 +365,10 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
         </td>
         <td className="num">{pct(c.share)}</td>
         <td className="num hide-s" title={c.games ? c.games.toLocaleString('de-DE') : undefined}>{c.games ? compactCount(c.games) : '–'}</td>
-        <td className="num">{formatEval(myCp)}</td>
+        <td className={`num ${more ? 'approx' : ''}`} title={more ? 'gezielt nachgerechnet (geringere Tiefe)' : undefined}>
+          {more ? '~' : ''}
+          {formatEval(myCp)}
+        </td>
         <td className={`st ${st.cls}`} title={st.cls === 'ok' ? 'beantwortet' : st.cls === 'end' ? 'Ende-Marker' : 'Lücke'}>
           {st.cls === 'gap' && st.icon ? (
             <span className="st-gap-label">
@@ -403,7 +409,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
   return (
     <>
       {p.mark?.note && <p className="note">{p.mark.note}</p>}
-      <ExplorerStatusLine ex={p.ex} engine={p.engine} />
+      <ExplorerStatusLine ex={p.ex} engine={p.engine} fen={p.fen} ply={p.ply} notation={p.notation} myTurn={p.myTurn} onPlay={p.onPlay} />
       {p.mark?.endOfLine && <p className="hint">■ Ende-Marker: ab hier keine Lücken mehr.</p>}
       <div className="table-wrap">
         <table className="ctable">
@@ -441,8 +447,24 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
 }
 
 /** Zeile über der Tabelle: Datenbank-Status und – direkt bei den Bewertungen – die aktuelle Stockfish-Tiefe. */
-function ExplorerStatusLine({ ex, engine }: { ex: ExplorerState; engine: EngineState }) {
+function ExplorerStatusLine({ ex, engine, ...pv }: { ex: ExplorerState; engine: EngineState } & Omit<PvProps, 'engine' | 'max'>) {
   const st = useApp((s) => s.explorerStatus);
+  // Hauptvarianten direkt hier aufklappen (am Handy steht der Engine-Kasten sonst ganz unten im Blatt); pro Gerät gemerkt
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem('replab.pv') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      localStorage.setItem('replab.pv', open ? '0' : '1');
+    } catch {
+      /* privat/blockiert */
+    }
+  };
   const on = useApp((s) => s.engineOn);
   const warn = !!ex.error || (!ex.loading && st.state === 'backoff');
   const text = ex.loading
@@ -458,18 +480,57 @@ function ExplorerStatusLine({ ex, engine }: { ex: ExplorerState; engine: EngineS
             : '';
   const eng =
     on && (engine.depth > 0 || engine.running) ? (
-      <span className="eng-depth" data-testid="engine-depth" title="Stockfish rechnet weiter, solange die Stellung offen ist">
+      <button className="eng-depth" data-testid="engine-depth" aria-expanded={open} onClick={toggle} title="Stockfish rechnet weiter, solange die Stellung offen ist – tippen zeigt die besten Linien">
         Stockfish Tiefe {engine.depth}
         {engine.running ? ' …' : ''}
-      </span>
+        <Icon name="down" className={open ? 'up' : ''} />
+      </button>
     ) : null;
   if (!text && !eng) return null;
   return (
-    <p className={`hint ${warn ? 'warn' : ''}`}>
-      {text}
-      {text && eng ? ' · ' : ''}
-      {eng}
-    </p>
+    <>
+      <p className={`hint ${warn ? 'warn' : ''}`}>
+        {text}
+        {text && eng ? ' · ' : ''}
+        {eng}
+      </p>
+      {open && eng && (
+        <div className="pv-top">
+          <PvLines engine={engine} max={3} {...pv} />
+        </div>
+      )}
+    </>
+  );
+}
+
+interface PvProps {
+  engine: EngineState;
+  fen: string;
+  ply: number;
+  notation: 'de' | 'en';
+  myTurn: boolean;
+  onPlay: (u: string) => void;
+  max: number;
+}
+
+/** Beste Engine-Linien (Bewertung aus meiner Sicht, erster Zug spielbar). */
+function PvLines({ engine, fen, ply, notation, myTurn, onPlay, max }: PvProps) {
+  return (
+    <>
+      {engine.lines.slice(0, max).map((l, i) => {
+        const sign = myTurn ? 1 : -1;
+        const cp = l.cp !== undefined ? l.cp * sign : undefined;
+        const mate = l.mate !== undefined ? l.mate * sign : undefined;
+        const sans = l.pv.length ? pvSans(fen, l.pv) : [l.san];
+        return (
+          <div key={i} className="pv">
+            <span className="ev">{formatEval(cp, mate)}</span>
+            <button className="mvbtn" onClick={() => onPlay(l.uci)}>{moveNumberPrefix(ply) + displaySan(l.san, notation)}</button>
+            <span className="line">{formatLine(sans.slice(1, 8), notation, ply + 1)}</span>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -490,21 +551,7 @@ function EngineBox({ engine, fen, ply, notation, myTurn, onPlay }: { engine: Eng
           </span>
         )}
       </div>
-      {on &&
-        engine.lines.slice(0, 5).map((l, i) => {
-          // Bewertung aus meiner Sicht
-          const sign = myTurn ? 1 : -1;
-          const cp = l.cp !== undefined ? l.cp * sign : undefined;
-          const mate = l.mate !== undefined ? l.mate * sign : undefined;
-          const sans = l.pv.length ? pvSans(fen, l.pv) : [l.san];
-          return (
-            <div key={i} className="pv">
-              <span className="ev">{formatEval(cp, mate)}</span>
-              <button className="mvbtn" onClick={() => onPlay(l.uci)}>{moveNumberPrefix(ply) + displaySan(l.san, notation)}</button>
-              <span className="line">{formatLine(sans.slice(1, 8), notation, ply + 1)}</span>
-            </div>
-          );
-        })}
+      {on && <PvLines engine={engine} fen={fen} ply={ply} notation={notation} myTurn={myTurn} onPlay={onPlay} max={5} />}
     </div>
   );
 }

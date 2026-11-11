@@ -12,6 +12,7 @@ import type { Study } from '../core/types';
 import { addLineCards, buildRound, CHECK_LOAD, checkCount, freshLoad, linePositions, type CheckItem, type CheckPace } from '../core/studyCards';
 import { ratingFor, Scheduler } from '../core/srs';
 import { useApp } from './store';
+import { repo } from '../data/repo';
 import { Icon } from './Icon';
 import { RowMenu } from './RowMenu';
 import { toast } from './store';
@@ -170,8 +171,12 @@ export function useLearn(p: {
   /** Karte bewerten und speichern */
   const rate = (item: CheckItem, correct: boolean) => {
     const card = st.cards?.[item.key];
-    if (!card) return;
-    const rating = ratingFor(correct, Date.now() - (check?.t0 ?? Date.now()), srsSet);
+    // „noch einmal“ am Rundenende übt nur – der Langzeitstand hängt allein an der Erstantwort
+    if (!card || item.retry) return;
+    const ms = Date.now() - (check?.t0 ?? Date.now());
+    const rating = ratingFor(correct, ms, srsSet);
+    // ins Protokoll: Studien-Abfragen zählen für Serie und Trefferquote auf der Startseite
+    void repo.addReview({ cardId: `study:${st.id}:${item.key}`, repertoireId: `study:${st.id}`, posKey: item.key, at: Date.now(), rating, correct, msToAnswer: Math.round(ms), mode: 'study' });
     update({ cards: { ...st.cards, [item.key]: { ...card, srs: scheduler.review(card.srs, rating, Date.now()) } } });
   };
   const checkNext = () =>

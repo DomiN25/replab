@@ -261,6 +261,11 @@ export class Repo {
     });
   }
 
+  /** Wiederholung ohne Repertoire-Karte protokollieren (Studien-Abfragen) – für Serie und Trefferquote. */
+  async addReview(log: Omit<ReviewLog, 'id'>): Promise<void> {
+    await this.db.reviews.add({ ...log, uid: log.uid ?? newId() } as ReviewLog);
+  }
+
   reviewsSince(ts: number): Promise<ReviewLog[]> {
     return this.db.reviews.where('at').aboveOrEqual(ts).toArray();
   }

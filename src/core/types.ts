@@ -161,7 +161,8 @@ export interface ReviewLog {
   correct: boolean;
   msToAnswer: number;
   wrongMoveUci?: string;
-  mode: TrainingMode;
+  /** 'study' = Abfrage im Studien-Lernmodus (zählt für Serie/Trefferquote, nicht für die Tageslimits des Trainings) */
+  mode: TrainingMode | 'study';
 }
 
 export type TrainingMode = 'due' | 'new' | 'line';
