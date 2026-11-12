@@ -296,7 +296,10 @@ function Runner({
   // das React sonst als Aufräumfunktion aufrufen würde (Absturz).
   const inertRun = useInert();
   useEffect(() => {
-    if (!inertRun) window.scrollTo(0, 0); // Vorschau-Seite (Wischen) darf die echte nicht verschieben
+    if (!inertRun) {
+      window.scrollTo(0, 0); // Vorschau-Seite (Wischen) darf die echte nicht verschieben
+      document.querySelector('.app > main')?.scrollTo(0, 0);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = currentStep(session);

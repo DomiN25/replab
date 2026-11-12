@@ -68,10 +68,16 @@ export function App() {
 
   // Kopfleiste: Trennlinie und kleiner Seitentitel erst beim Scrollen (große Überschrift ist dann weg)
   useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 24);
+    // Am Handy scrollt nur main (App-Hülle), am Laptop das Fenster
+    const main = mainRef.current;
+    const on = () => setScrolled(window.scrollY > 24 || (main?.scrollTop ?? 0) > 24);
     on();
     window.addEventListener('scroll', on, { passive: true });
-    return () => window.removeEventListener('scroll', on);
+    main?.addEventListener('scroll', on, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', on);
+      main?.removeEventListener('scroll', on);
+    };
   }, []);
 
   // Seitenwechsel: neue Seite gleitet aus der Richtung herein, in die gewechselt wurde
@@ -88,7 +94,8 @@ export function App() {
       swipeFlag.committed = false;
       main.dataset.enter = 'swipe';
       window.dispatchEvent(new Event('resize'));
-      return;
+      const t = setTimeout(() => main.dataset.enter === 'swipe' && delete main.dataset.enter, 1200);
+      return () => clearTimeout(t);
     }
     main.dataset.enter = to > from ? 'next' : 'prev';
     const t = setTimeout(() => {

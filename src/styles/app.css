@@ -249,7 +249,22 @@ main > :has(.bsheet) { animation: fadeIn 0.24s var(--ease-out); }
 main[data-enter] > * > .col-board { animation: pageIn 0.3s var(--ease-out); }
 @keyframes pageIn { from { opacity: 0; translate: var(--enter-x) 0; } }
 /* Nachbarseite beim Wischen: liegt neben der aktuellen und wird mitgezogen (Position setzt swipeNav.ts per translate) */
-.peek-layer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; overflow: hidden; background: var(--bg); translate: calc(var(--side) * 100vw) 0; pointer-events: none; contain: layout paint; }
+/* App-Hülle am Handy (Hub-Prinzip): Das Fenster scrollt nie, nur der Seiteninhalt (main). Kopfleiste und untere Leiste sind feste
+   Teile der Hülle – kein Mitwandern der Browser-Leiste, kein Neu-Layouten beim Scrollen, die untere Leiste ist immer da. */
+@media (max-width: 899px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { min-height: 0; }
+  #root { height: 100%; }
+  .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { position: relative; flex: none; }
+  .app > main { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(24px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+  .app > main:has(.study-m) { padding-bottom: 8px; }
+  .nav-bottom { position: relative; flex: none; }
+  .peek-main { height: 100%; overflow: hidden; padding-bottom: 0; }
+}
+/* Nach einem Wisch-Wechsel steht die Seite schon im Bild: keine Einblend-Animationen der Innenteile (sonst „blitzt“ sie neu auf) */
+main[data-enter='swipe'] * { animation-duration: 0.001s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+.peek-layer { will-change: translate; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; overflow: hidden; background: var(--bg); translate: calc(var(--side) * 100vw) 0; pointer-events: none; contain: layout paint; }
 .peek-main, .peek-main > *, .peek-main > * > .col-board { animation: none !important; }
 main[data-enter='swipe'], main[data-enter='swipe'] > *, main[data-enter='swipe'] > * > .col-board { animation: none !important; }
 @media (min-width: 900px) {

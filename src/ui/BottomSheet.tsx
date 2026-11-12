@@ -52,10 +52,13 @@ export function BottomSheet({ anchorRef, snap, onSnap, header, children, hiddenA
     if (anchorRef.current) ro.observe(anchorRef.current);
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, { passive: true });
+    const scroller = document.querySelector('.app > main'); // Handy: nur main scrollt
+    scroller?.addEventListener('scroll', measure, { passive: true });
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure);
+      scroller?.removeEventListener('scroll', measure);
     };
   }, [measure, anchorRef]);
 

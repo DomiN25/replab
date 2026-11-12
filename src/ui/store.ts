@@ -216,7 +216,11 @@ export function setView(v: View) {
   afterPendingBack(() => {
     if (viewFromHash() !== v) location.hash = `/${v}`;
   });
-  if (get().view !== v && typeof window !== 'undefined') window.scrollTo(0, 0); // neue Ansicht beginnt oben
+  if (get().view !== v && typeof window !== 'undefined') {
+    // neue Ansicht beginnt oben (Fenster am Laptop, main in der App-Hülle am Handy)
+    window.scrollTo(0, 0);
+    document.querySelector('main')?.scrollTo(0, 0);
+  }
   set({ view: v });
   rememberView(v);
 }

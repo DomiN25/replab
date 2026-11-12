@@ -77,6 +77,8 @@ export function useSwipeNav(
       if (!(target instanceof Element) || target.closest(BLOCK) || inHorizontalScroller(target as HTMLElement, root)) return;
       if (document.querySelector('.modal-backdrop, .trainer')) return;
       s = { x: t.clientX, y: t.clientY, t: performance.now(), dx: 0, els: [] };
+      // Compositor-Ebene schon beim Berühren anlegen: das Rastern der Seite passiert vor dem ersten Ziehen, nicht mittendrin
+      for (const el of movers(main)) el.style.willChange = 'translate';
     };
 
     const onMove = (e: TouchEvent) => {
@@ -88,11 +90,11 @@ export function useSwipeNav(
         if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
         s.dir = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'h' : 'v';
         if (s.dir === 'v') {
+          clear(movers(main), false); // Ebenen wieder abbauen
           s = undefined;
           return;
         }
         s.els = movers(main);
-        // eigene Compositor-Ebene: Verschieben läuft ohne Neuzeichnen der ganzen Seite
         for (const el of s.els) el.style.willChange = 'translate';
       }
       e.preventDefault(); // waagerecht: Seite nicht gleichzeitig scrollen
@@ -122,7 +124,11 @@ export function useSwipeNav(
     const onEnd = () => {
       const st = s;
       s = undefined;
-      if (!st || st.dir !== 'h') return;
+      if (!st) return;
+      if (st.dir !== 'h') {
+        clear(movers(main), false); // Tippen/senkrechtes Scrollen: Ebenen wieder abbauen
+        return;
+      }
       const v = Math.abs(st.dx) / Math.max(1, performance.now() - st.t);
       const go = st.dx < 0 ? next : prev;
       const far = Math.abs(st.dx) > innerWidth * 0.28 || (v > 0.45 && Math.abs(st.dx) > 40);
