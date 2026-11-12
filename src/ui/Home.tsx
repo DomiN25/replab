@@ -15,7 +15,7 @@ import type { BackupFile } from '../data/repo';
 import { gapCounts } from '../core/graph';
 import { pct } from './format';
 import { TodayRows } from './TodayRows';
-import { useMyGames } from './games';
+import { loadMyGames, useMyGames } from './games';
 import { moveNumberPrefix, plyOfFen } from '../core/chess';
 
 export function Home() {
@@ -91,6 +91,22 @@ export function Home() {
   }, [graph, cards, settings.srs.desiredRetention, now, gapMin]);
 
   const myGames = useMyGames();
+  const [loadingGames, setLoadingGames] = useState(false);
+  const knownNames = [settings.ui.lichessUser, settings.ui.chesscomUser].filter(Boolean).length;
+  /** Partien dieses Geräts nachladen: die Namen kommen per Sync, die Partien selbst liegen nur lokal (Handy lädt sie selbst) */
+  const loadKnown = async () => {
+    setLoadingGames(true);
+    try {
+      let n = 0;
+      if (settings.ui.lichessUser) n += await loadMyGames('lichess', settings.ui.lichessUser, 300, settings.explorer.token?.trim() || undefined);
+      if (settings.ui.chesscomUser) n += await loadMyGames('chesscom', settings.ui.chesscomUser, 300, undefined);
+      toast(n ? `${n} Partien geladen` : 'Keine gewerteten Standard-Partien gefunden.', n ? 'ok' : 'info');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'err');
+    } finally {
+      setLoadingGames(false);
+    }
+  };
   const recent = useMemo(() => [...moves.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6), [moves]);
 
   const seed = async () => {
@@ -207,6 +223,15 @@ export function Home() {
           <button className="btn big" onClick={() => setView('gaps')}>Lücken ansehen</button>
         </section>
 
+        {!myGames?.games.length && knownNames > 0 && (
+          <section className="card" data-testid="home-load-games">
+            <h2>Meine Partien</h2>
+            <p className="hint">Dein Benutzername ist hinterlegt, die Partien selbst liegen aber nur auf dem Gerät, auf dem sie geladen wurden. Hier auf diesem Gerät laden:</p>
+            <button className="btn big" disabled={loadingGames} onClick={() => void loadKnown()}>
+              {loadingGames ? 'Lade …' : 'Partien laden'}
+            </button>
+          </section>
+        )}
         {myGames && myGames.games.length > 0 && (
           <section className="card" data-testid="home-games">
             <h2>Meine Partien</h2>

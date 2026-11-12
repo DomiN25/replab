@@ -25,6 +25,7 @@ export interface GuideState {
 
 export const DEFAULT_GUIDE: GuideState = { active: false, strategy: 'branch', minReach: 0, skipped: [] };
 const STRATEGIES: GuideStrategy[] = ['branch', 'shallow', 'line'];
+const STRATEGY_LABEL: Record<GuideStrategy, string> = { branch: 'Ast für Ast', shallow: 'flachste zuerst', line: 'Linie zu Ende' };
 
 function loadPrefs(): Pick<GuideState, 'strategy' | 'minReach'> {
   try {
@@ -119,6 +120,22 @@ export function GuideBar() {
   const moves = useApp((s) => s.moves);
   const notation = useApp((s) => s.settings.ui.notation);
   const showReach = useApp((s) => s.settings.ui.showReach);
+  const [showOpts, setShowOpts] = useState(() => {
+    try {
+      return localStorage.getItem('replab.guideOpts') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleOpts = () => {
+    const on = !showOpts;
+    setShowOpts(on);
+    try {
+      localStorage.setItem('replab.guideOpts', on ? '1' : '0');
+    } catch {
+      /* privat/blockiert */
+    }
+  };
   const [waiting, setWaiting] = useState(false);
   const waitSince = useRef(0);
   const inert = useInert();
@@ -187,42 +204,73 @@ export function GuideBar() {
   return (
     <div className="guide" data-testid="guide">
       <div className="guide-head">
-        <b>Lückentour</b>
-        <span className="count gap" data-testid="guide-open">{open}</span>
-        <select
-          aria-label="Strategie"
-          value={guide.strategy}
-          onChange={(e) => setGuide({ strategy: e.target.value as GuideStrategy })}
-        >
-          <option value="branch">Ast für Ast</option>
-          <option value="shallow">flachste zuerst</option>
-          <option value="line">Linie zu Ende</option>
-        </select>
-        <select
-          aria-label="Ast"
-          value={guide.family ?? ''}
-          onChange={(e) => {
-            setGuide({ family: e.target.value || undefined, skipped: snoozedKeys() });
-            setTimeout(() => guideNext(), 0);
-          }}
-        >
-          <option value="">alle Äste</option>
-          {guide.family && !families.some((f) => f.family === guide.family) && <option value={guide.family}>{guide.family} (0)</option>}
-          {families.map((f) => (
-            <option key={f.family} value={f.family}>
-              {f.family} ({f.count})
-            </option>
-          ))}
-        </select>
-        <select aria-label="Mindest-Erreichbarkeit" value={guide.minReach} onChange={(e) => setGuide({ minReach: Number(e.target.value), skipped: snoozedKeys() })}>
-          <option value={0}>alle</option>
-          <option value={0.001}>≥ 0,1 %</option>
-          <option value={0.005}>≥ 0,5 %</option>
-          <option value={0.01}>≥ 1 %</option>
-          <option value={0.02}>≥ 2 %</option>
-        </select>
-        <button className="btn small ghost" onClick={stopGuide}>Beenden</button>
+        <span className="guide-title">
+          <Icon name="tree" /> Lückentour
+        </span>
+        <span className="count gap" data-testid="guide-open" title="offene Lücken unter den aktuellen Filtern">
+          {open}
+        </span>
+        <span className="guide-head-actions">
+          <button
+            className={`btn icon small ghost guide-gear ${showOpts ? 'on' : ''}`}
+            aria-expanded={showOpts}
+            aria-label="Tour einstellen"
+            title="Reihenfolge, Ast und Mindest-Erreichbarkeit"
+            onClick={toggleOpts}
+            data-testid="guide-opts"
+          >
+            <Icon name="gear" />
+          </button>
+          <button className="btn small ghost" onClick={stopGuide}>
+            Beenden
+          </button>
+        </span>
       </div>
+      {showOpts ? (
+        <div className="guide-opts">
+          <label className="field inline">
+            <span>Reihenfolge</span>
+            <select aria-label="Strategie" value={guide.strategy} onChange={(e) => setGuide({ strategy: e.target.value as GuideStrategy })}>
+              <option value="branch">Ast für Ast</option>
+              <option value="shallow">flachste zuerst</option>
+              <option value="line">Linie zu Ende</option>
+            </select>
+          </label>
+          <label className="field inline">
+            <span>Ast</span>
+            <select
+              aria-label="Ast"
+              value={guide.family ?? ''}
+              onChange={(e) => {
+                setGuide({ family: e.target.value || undefined, skipped: snoozedKeys() });
+                setTimeout(() => guideNext(), 0);
+              }}
+            >
+              <option value="">alle Äste</option>
+              {guide.family && !families.some((f) => f.family === guide.family) && <option value={guide.family}>{guide.family} (0)</option>}
+              {families.map((f) => (
+                <option key={f.family} value={f.family}>
+                  {f.family} ({f.count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field inline">
+            <span>Erreichbarkeit</span>
+            <select aria-label="Mindest-Erreichbarkeit" value={guide.minReach} onChange={(e) => setGuide({ minReach: Number(e.target.value), skipped: snoozedKeys() })}>
+              <option value={0}>alle</option>
+              <option value={0.001}>≥ 0,1 %</option>
+              <option value={0.005}>≥ 0,5 %</option>
+              <option value={0.01}>≥ 1 %</option>
+              <option value={0.02}>≥ 2 %</option>
+            </select>
+          </label>
+        </div>
+      ) : (
+        <button className="guide-sub" onClick={toggleOpts} title="Einstellungen öffnen">
+          {STRATEGY_LABEL[guide.strategy]} · {guide.family ?? 'alle Äste'} · {guide.minReach > 0 ? `≥ ${String(guide.minReach * 100).replace('.', ',')} %` : 'alle Lücken'}
+        </button>
+      )}
       {guide.under !== undefined && graph && underId(graph, guide.under) !== undefined && (
         <p className="guide-focus" data-testid="guide-focus">
           <Icon name="tree" /> Nur ab: <b>{formatLine(lineSans(graph, underId(graph, guide.under)!), notation) || 'Grundstellung'}</b>

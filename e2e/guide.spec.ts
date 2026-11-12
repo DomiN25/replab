@@ -65,5 +65,6 @@ test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
   await expect(guide).toContainText('Keine offene Lücke');
 
   // Ast-Auswahl bietet nur Äste mit offenen Lücken an
+  await page.getByTestId('guide-opts').click(); // Einstellungen sind eingeklappt
   await expect(guide.getByRole('combobox', { name: 'Ast' })).toContainText('alle Äste');
 });

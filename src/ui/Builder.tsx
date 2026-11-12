@@ -517,7 +517,6 @@ export function Builder() {
         <>
           <section className="col-board">
             {modeSwitch}
-            <GuideBar />
             <Crumbs devIndex={deviation?.index} />
             {board}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -544,6 +543,8 @@ export function Builder() {
             </p>
           </section>
           <section className="col-panel sheet">
+            {/* Lückentour oben im Panel (nicht über dem Brett): das Brett braucht die Höhe */}
+            <GuideBar />
             {outsideBanner}
             {candidates}
           </section>

@@ -53,8 +53,7 @@ test('Meine Partien: Gegner-Statistik im Repertoire und bei den Lücken', async 
   const rows = block.locator('tbody tr');
   await expect(rows.nth(0)).toContainText('e5');
   await expect(rows.nth(0)).toContainText('3×');
-  await expect(rows.nth(0)).toContainText('+2'); // e5-Partien: Sieg, Niederlage, Sieg → +2 =0 −1
-  await expect(rows.nth(0)).toContainText('−1');
+  await expect(rows.nth(0)).toContainText('2 S · 0 R · 1 N'); // e5-Partien: Sieg, Niederlage, Sieg
   await expect(rows.nth(1)).toContainText('c5');
   await expect(rows.nth(0)).toContainText('Lücke');
 
@@ -62,4 +61,15 @@ test('Meine Partien: Gegner-Statistik im Repertoire und bei den Lücken', async 
   await expect(page.locator('.gaprow').first()).toContainText('in deinen Partien');
   await page.getByLabel('nur aus meinen Partien').check();
   await expect(page.locator('.gaprow')).toHaveCount(2);
+
+  // Anderes Gerät: Name ist da (per Sync), Partien nicht → Startseite bietet „Partien laden“ an
+  await page.goto('/#/settings');
+  await page.getByTestId('my-games').locator('summary').click();
+  await page.getByTestId('my-games').getByRole('button', { name: 'Entfernen' }).click();
+  await page.locator('.nav-top').getByRole('button', { name: 'Start' }).click();
+  const home = page.getByTestId('home-load-games');
+  await expect(home).toBeVisible();
+  await home.getByRole('button', { name: 'Partien laden' }).click();
+  await expect(page.locator('.toast')).toContainText('4 Partien geladen');
+  await expect(page.getByTestId('home-games')).toBeVisible();
 });

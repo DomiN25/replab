@@ -464,6 +464,10 @@ function MyGamesCard({ settings, upd }: { settings: Settings; upd: (fn: (s: Sett
     lichess: settings.ui.lichessUser ?? stored?.sources.lichess?.user ?? '',
     chesscom: settings.ui.chesscomUser ?? stored?.sources.chesscom?.user ?? '',
   });
+  // Namen kommen über den Sync von einem anderen Gerät: leere Felder füllen, getippte Eingaben nie überschreiben
+  useEffect(() => {
+    setNames((n) => ({ lichess: n.lichess || settings.ui.lichessUser || '', chesscom: n.chesscom || settings.ui.chesscomUser || '' }));
+  }, [settings.ui.lichessUser, settings.ui.chesscomUser]);
   const load = async (source: GameSource) => {
     const user = names[source].trim();
     upd((s) => {

@@ -163,7 +163,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
               const more = r.cp === undefined && r.mate === undefined ? p.engine.extra.find((e) => e.uci === r.uci) : undefined;
               const myCp = r.cp ?? more?.cp;
               return (
-                <tr key={r.uci} className={`${mine ? 'mine' : ''} ${standout === r.uci ? 'standout' : ''}`} title={standout === r.uci ? 'Mit Abstand der beste Zug (≥ 0,5 Vorsprung)' : undefined}>
+                <tr key={r.uci} className={`clickable ${mine ? 'mine' : ''} ${standout === r.uci ? 'standout' : ''}`} onClick={() => p.onPlay(r.uci)} title={standout === r.uci ? 'Mit Abstand der beste Zug (≥ 0,5 Vorsprung)' : undefined}>
                   <td>
                     <button className="mvbtn" onClick={() => p.onPlay(r.uci)} title="Zug am Brett ansehen">
                       {displaySan(r.san, p.notation)}
@@ -177,7 +177,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                     {formatEval(myCp, r.mate ?? more?.mate)}
                   </td>
                   <td className="num hide-s">{r.deltaCp !== undefined ? (r.deltaCp === 0 ? '★' : `−${(r.deltaCp / 100).toFixed(2).replace('.', ',')}`) : ''}</td>
-                  <td className="act">
+                  <td className="act" onClick={(e) => e.stopPropagation()}>
                     {mine ? (
                       <span className="ok">✓</span>
                     ) : (
@@ -198,7 +198,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
                 <td className="hide-s" />
                 <td className="num">–</td>
                 <td className="hide-s" />
-                <td className="act"><span className="ok">✓</span></td>
+                <td className="act" onClick={(e) => e.stopPropagation()}><span className="ok">✓</span></td>
               </tr>
             )}
           </tbody>
@@ -207,6 +207,7 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
       {!rows.length && !p.ex.loading && <p className="hint">Keine Daten. Zug am Brett spielen, um ihn festzulegen.</p>}
       <GamesBlock
         title="In deinen Partien hier gespielt"
+        myTurn
         rows={p.games?.mine.get(posKey)}
         ply={p.ply}
         notation={p.notation}
@@ -238,8 +239,10 @@ function GamesBlock({
   notation,
   onPlay,
   mark,
+  myTurn,
 }: {
   title: string;
+  myTurn: boolean;
   rows?: ReplyStat[];
   ply: number;
   notation: 'de' | 'en';
@@ -253,23 +256,51 @@ function GamesBlock({
       <div className="sug-title">
         <Icon name="clock" /> {title} <small>({total} {total === 1 ? 'Partie' : 'Partien'})</small>
       </div>
-      <table className="ctable">
+      <p className="hint games-help">
+        {myTurn ? 'Was du hier gespielt hast' : 'Was deine Gegner hier gespielt haben'} – und wie du in diesen Partien abgeschnitten hast. Tippen spielt den Zug am Brett.
+      </p>
+      <table className="ctable games-tbl">
+        <thead>
+          <tr>
+            <th>Zug</th>
+            <th className="num" title="So oft kam dieser Zug in deinen Partien vor">Partien</th>
+            <th className="num hide-s" title="Anteil an den Partien in dieser Stellung">Anteil</th>
+            <th title="Deine Bilanz in diesen Partien: Siege, Remis, Niederlagen">Deine Bilanz</th>
+            <th />
+          </tr>
+        </thead>
         <tbody>
           {rows.slice(0, 6).map((r) => {
             const m = mark(r);
+            const pts = (r.win + r.draw / 2) / r.n;
             return (
-              <tr key={r.uci}>
+              <tr key={r.uci} className="clickable" onClick={() => onPlay(r.uci)}>
                 <td>
-                  <button className="mvbtn" onClick={() => onPlay(r.uci)} title="Zug am Brett ansehen">
+                  <button className="mvbtn" onClick={(e) => { e.stopPropagation(); onPlay(r.uci); }} title="Zug am Brett spielen">
                     {moveNumberPrefix(ply) + displaySan(r.san, notation)}
                   </button>
                 </td>
                 <td className="num">{r.n}×</td>
-                <td className="num">{pct(r.n / total)}</td>
-                <td className="num games-res" title="Deine Ergebnisse: Siege / Remis / Niederlagen">
-                  <span className="w">+{r.win}</span> <span>={r.draw}</span> <span className="l">−{r.loss}</span>
+                <td className="num hide-s">{pct(r.n / total)}</td>
+                <td className="games-res" title={`${r.win} Siege, ${r.draw} Remis, ${r.loss} Niederlagen – ${Math.round(pts * 100)} % der Punkte`}>
+                  <span className="wl" aria-hidden>
+                    <i className="w" style={{ width: `${(r.win / r.n) * 100}%` }} />
+                    <i className="d" style={{ width: `${(r.draw / r.n) * 100}%` }} />
+                    <i className="l" style={{ width: `${(r.loss / r.n) * 100}%` }} />
+                  </span>
+                  <span className="wl-txt">
+                    <b className="w">{r.win}</b> S · <b>{r.draw}</b> R · <b className="l">{r.loss}</b> N
+                  </span>
                 </td>
-                <td className={m === 'Lücke' ? 'st gap' : 'games-flag'}>{m}</td>
+                <td className={m === 'Lücke' ? 'st gap' : 'games-flag'}>
+                  {m === 'Lücke' ? (
+                    <span className="st-gap-label" title="Auf diesen Zug hast du noch keine Antwort im Repertoire">
+                      <Icon name="gap" /> Lücke
+                    </span>
+                  ) : (
+                    m
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -497,7 +528,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
     const more = c.moverCp === undefined ? p.engine.extra.find((e) => e.uci === c.uci) : undefined;
     const myCp = c.moverCp !== undefined ? -c.moverCp : more?.cp !== undefined ? -more.cp : undefined;
     return (
-      <tr key={c.uci} className={`${c.relevant ? '' : 'dim'} ${standout === c.uci ? 'standout' : ''}`} title={standout === c.uci ? 'Stärkster Gegnerzug (≥ 0,5 Vorsprung)' : undefined}>
+      <tr key={c.uci} className={`clickable ${c.relevant ? '' : 'dim'} ${standout === c.uci ? 'standout' : ''}`} onClick={() => p.onPlay(c.uci)} title={standout === c.uci ? 'Stärkster Gegnerzug (≥ 0,5 Vorsprung)' : undefined}>
         <td>
           <button className="mvbtn opp" onClick={() => p.onPlay(c.uci)} title="Zug am Brett spielen">
             {displaySan(c.san, p.notation)}
@@ -522,7 +553,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
           )}
         </td>
         {settings.ui.showReach && <td className="num reach hide-s">{st.reach ? `≈ ${(st.reach * 100).toFixed(1).replace(".", ",")} %` : ''}</td>}
-        <td className="act">
+        <td className="act" onClick={(e) => e.stopPropagation()}>
           <div className="rowmenu">
             <button className="dots" aria-label={`Aktionen für ${c.san}`} aria-expanded={menu === c.uci} onClick={() => setMenu(menu === c.uci ? undefined : c.uci)}>
               <Icon name="dots" />
@@ -581,6 +612,7 @@ function OppTurn(p: Props & { ply: number; engineData?: { posKey: string; depth:
       {!relevant.length && !p.ex.loading && <p className="hint">Keine relevanten Gegnerzüge bekannt.</p>}
       <GamesBlock
         title="Gegen dich gespielt"
+        myTurn={false}
         rows={p.games?.replies.get(posKey)}
         ply={p.ply}
         notation={p.notation}
