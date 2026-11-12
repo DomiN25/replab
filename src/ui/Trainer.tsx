@@ -298,7 +298,7 @@ function Runner({
   useEffect(() => {
     if (!inertRun) {
       window.scrollTo(0, 0); // Vorschau-Seite (Wischen) darf die echte nicht verschieben
-      document.querySelector('.app > main')?.scrollTo(0, 0);
+      document.querySelector('.pages > .active')?.scrollTo(0, 0);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -492,11 +492,11 @@ function Runner({
   // Enter = weiter
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && (phase === 'right' || phase === 'fixed')) next();
+      if (e.key === 'Enter' && (phase === 'right' || phase === 'fixed') && !inertRun) next();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, next]);
+  }, [phase, next, inertRun]);
 
   if (isFinished(session)) {
     const dur = Math.round((Date.now() - startedAt) / 1000);

@@ -13,7 +13,9 @@ test('Seitenwechsel animiert nur einmal', async ({ page }) => {
   await page.evaluate(() => {
     (window as unknown as { __anims: string[] }).__anims = [];
     document.addEventListener('animationstart', (e) => {
-      if ((e.target as HTMLElement).parentElement?.tagName === 'MAIN') (window as unknown as { __anims: string[] }).__anims.push((e as AnimationEvent).animationName);
+      // nur die sichtbare (aktive) Seite zählt – vorgeladene Nachbarn animieren unsichtbar beim Aufbau
+      const p = (e.target as HTMLElement).parentElement;
+      if (p?.tagName === 'MAIN' && p.classList.contains('active')) (window as unknown as { __anims: string[] }).__anims.push((e as AnimationEvent).animationName);
     }, true);
   });
   await page.locator('.nav-bottom').getByRole('button', { name: 'Start' }).click();

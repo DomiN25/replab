@@ -438,7 +438,7 @@ function StudyEditor({ id }: { id: string }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest('input, textarea, select')) return;
+      if (inert || (e.target as HTMLElement)?.closest('input, textarea, select')) return;
       if (e.key === 'ArrowLeft') back();
       if (e.key === 'ArrowRight') forward();
     };

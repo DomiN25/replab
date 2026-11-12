@@ -218,8 +218,7 @@ export function setView(v: View) {
   });
   if (get().view !== v && typeof window !== 'undefined') {
     // neue Ansicht beginnt oben (Fenster am Laptop, main in der App-Hülle am Handy)
-    window.scrollTo(0, 0);
-    document.querySelector('main')?.scrollTo(0, 0);
+    window.scrollTo(0, 0); // (die Seiten am Handy setzt App.tsx selbst zurück)
   }
   set({ view: v });
   rememberView(v);

@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Builder } from './Builder';
 import { Gaps } from './Gaps';
 import { Home } from './Home';
@@ -10,9 +10,8 @@ import { dismissToast, selectRepertoire, setView, toast as showToast, useApp, ty
 import { syncNow, syncTitle } from './sync';
 import { Icon, type IconName } from './Icon';
 import { Modal } from './Modal';
-import { swipeFlag, useSwipeNav, type PeekControl } from './swipeNav';
+import { resetPages, swipeFlag, useSwipeNav } from './swipeNav';
 import { InertContext } from './inert';
-import { createPortal } from 'react-dom';
 import { refreshToday } from './today';
 import { gapCounts } from '../core/graph';
 import { isDue, isNew } from '../core/srs';
@@ -28,6 +27,19 @@ const NAV: { v: View; label: string; icon: IconName }[] = [
 ];
 const TITLE: Record<View, string> = { home: 'Start', build: 'Repertoire', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen', games: 'Partien' };
 const ORDER: View[] = [...NAV.map((n) => n.v), 'settings', 'games'];
+
+const PHONE = '(max-width: 899px)';
+function usePhone() {
+  const [m, setM] = useState(() => matchMedia(PHONE).matches);
+  useEffect(() => {
+    const q = matchMedia(PHONE);
+    const on = () => setM(q.matches);
+    q.addEventListener('change', on);
+    return () => q.removeEventListener('change', on);
+  }, []);
+  return m;
+}
+const navIdx = (v: View) => NAV.findIndex((n) => n.v === v);
 
 export function App() {
   const loaded = useApp((s) => s.loaded);
@@ -62,40 +74,61 @@ export function App() {
   const sync = useApp((s) => s.sync);
   const [picker, setPicker] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const mainRef = useRef<HTMLElement>(null);
+  const pagesRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLDivElement>(null);
+  const phone = usePhone();
+  const idx = navIdx(view);
+  // Vorgeladene Nachbarseiten (nur Handy): bleiben gemountet, damit Wischen und Wechseln nichts neu aufbauen müssen
+  const [warm, setWarm] = useState<View[]>([]);
+  const [tracked, setTracked] = useState(view);
+  if (tracked !== view) {
+    // Die verlassene Seite bleibt als Nachbar stehen (statt ab- und gleich wieder aufgebaut zu werden); Nicht-Nachbarn fallen weg
+    setTracked(view);
+    setWarm((w) => [...new Set([...w, tracked])].filter((v) => idx >= 0 && navIdx(v) >= 0 && Math.abs(navIdx(v) - idx) === 1));
+  }
+  const shown = useMemo(() => ORDER.filter((v) => v === view || (phone && warm.includes(v))), [view, phone, warm]);
+  const shownRef = useRef<View[]>([]);
   const rep = repertoires.find((r) => r.id === repId);
 
   // Kopfleiste: Trennlinie und kleiner Seitentitel erst beim Scrollen (große Überschrift ist dann weg)
   useEffect(() => {
-    // Am Handy scrollt nur main (App-Hülle), am Laptop das Fenster
-    const main = mainRef.current;
-    const on = () => setScrolled(window.scrollY > 24 || (main?.scrollTop ?? 0) > 24);
+    // Am Handy scrollt nur die aktive Seite (eigener Scroller je Seite), am Laptop das Fenster
+    const pages = pagesRef.current;
+    const on = () => {
+      const m = pages?.querySelector<HTMLElement>(':scope > .page.active');
+      setScrolled(window.scrollY > 24 || (m?.scrollTop ?? 0) > 24);
+    };
     on();
     window.addEventListener('scroll', on, { passive: true });
-    main?.addEventListener('scroll', on, { passive: true });
+    pages?.addEventListener('scroll', on, { passive: true, capture: true }); // Scroll-Ereignisse bubbeln nicht
     return () => {
       window.removeEventListener('scroll', on);
-      main?.removeEventListener('scroll', on);
+      pages?.removeEventListener('scroll', on, { capture: true });
     };
-  }, []);
+  }, [loaded, view]);
 
-  // Seitenwechsel: neue Seite gleitet aus der Richtung herein, in die gewechselt wurde
+  // Seitenwechsel. Ist die Seite schon vorgeladen (Wischen oder Nachbar-Tipp), tauschen nur die Rollen: nichts wird neu aufgebaut.
+  // Eine frisch gemountete Seite gleitet aus der Richtung herein, in die gewechselt wurde.
   const lastView = useRef(view);
   useLayoutEffect(() => {
-    const main = mainRef.current;
-    const from = ORDER.indexOf(lastView.current);
+    const pages = pagesRef.current;
+    const main = pages?.querySelector<HTMLElement>(':scope > .page.active');
+    const left = lastView.current;
+    const from = ORDER.indexOf(left);
     const to = ORDER.indexOf(view);
     lastView.current = view;
-    if (!main || from === to) return;
-    setPeek(undefined); // Vorschau-Seite ist jetzt die echte Seite
-    if (swipeFlag.committed) {
-      // Wisch-Wechsel: die Seite steht schon im richtigen Bild. Das Attribut bleibt (kein Namenswechsel der Animation).
+    if (!pages || !main || from === to) return;
+    // Verschiebungen/Sichtbarkeit der Wisch-Geste zurücksetzen (im selben Bild, vor dem Zeichnen); verlassene Seite beginnt wieder oben
+    resetPages(pages);
+    const old = pages.querySelector<HTMLElement>(`:scope > [data-view="${left}"]`);
+    if (old) old.scrollTop = 0;
+    const wasWarm = shownRef.current.includes(view);
+    if (swipeFlag.committed || wasWarm) {
       swipeFlag.committed = false;
-      main.dataset.enter = 'swipe';
-      window.dispatchEvent(new Event('resize'));
-      const t = setTimeout(() => main.dataset.enter === 'swipe' && delete main.dataset.enter, 1200);
-      return () => clearTimeout(t);
+      // chessground/Sheet neu messen – erst im nächsten Frame: Im selben Commit abgebaute Bretter sind sonst schon aus dem DOM,
+      // aber noch nicht aufgeräumt und würden mit Größe 0 neu zeichnen (NaN-Pfeile)
+      const raf = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+      return () => cancelAnimationFrame(raf);
     }
     main.dataset.enter = to > from ? 'next' : 'prev';
     const t = setTimeout(() => {
@@ -105,30 +138,48 @@ export function App() {
     }, 320);
     return () => clearTimeout(t);
   }, [view]);
+  useLayoutEffect(() => {
+    shownRef.current = shown;
+  }, [shown]);
 
-  // Nachbarseite beim Wischen: wird nur während der Geste als Vorschau gemountet (außerhalb von .app, damit :has(.study-m) u. ä.
-  // die echte Seite nicht verändern). Kein Engine-/Netz-Zugriff dort (InertContext).
-  const [peek, setPeek] = useState<{ view: View; side: 1 | -1; top: number } | undefined>();
-  const layerRef = useRef<HTMLDivElement>(null);
-  const idx = NAV.findIndex((n) => n.v === view);
-  const peekCtl = useMemo<PeekControl>(
-    () => ({
-      show: (side) => {
-        const tgt = NAV[idx + side]?.v;
-        if (!tgt) return;
-        const bar = document.querySelector<HTMLElement>('.topbar');
-        const top = bar && getComputedStyle(bar).display !== 'none' ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
-        startTransition(() => setPeek({ view: tgt, side, top }));
-      },
-      hide: () => startTransition(() => setPeek(undefined)),
-      layer: () => layerRef.current,
-    }),
+  // Nachbarseiten nach dem Wechsel in Ruhe nachladen (erst die nächste, dann die vorige) – unterbrechbar, damit Eingaben vorgehen
+  useEffect(() => {
+    if (!loaded || !phone || idx < 0) {
+      setWarm((w) => (w.length ? [] : w));
+      return;
+    }
+    const wanted = [NAV[idx + 1]?.v, NAV[idx - 1]?.v].filter(Boolean) as View[];
+    let dead = false;
+    const timers = wanted.map((v, i) =>
+      window.setTimeout(() => {
+        const run = () => !dead && startTransition(() => setWarm((w) => (w.includes(v) ? w : [...w, v])));
+        if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 1500 });
+        else run();
+      }, 450 + i * 600),
+    );
+    return () => {
+      dead = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [view, phone, loaded, idx]);
+
+  const neighbor = useCallback(
+    (side: 1 | -1) => {
+      const v = NAV[idx + side]?.v;
+      return v ? pagesRef.current?.querySelector<HTMLElement>(`:scope > [data-view="${v}"]`) ?? null : null;
+    },
     [idx],
   );
-
+  const want = useCallback(
+    (side: 1 | -1) => {
+      const v = NAV[idx + side]?.v;
+      if (v) setWarm((w) => (w.includes(v) ? w : [...w, v]));
+    },
+    [idx],
+  );
   const prev = useCallback(() => idx > 0 && navTo(NAV[idx - 1].v), [idx]);
   const next = useCallback(() => idx >= 0 && idx < NAV.length - 1 && navTo(NAV[idx + 1].v), [idx]);
-  useSwipeNav(appRef, mainRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0, peek: peekCtl });
+  useSwipeNav(appRef, { prev: idx > 0 ? prev : undefined, next: idx >= 0 && idx < NAV.length - 1 ? next : undefined, enabled: loaded && idx >= 0, pages: pagesRef, neighbor, want });
 
   if (!loaded)
     return (
@@ -212,7 +263,11 @@ export function App() {
           </button>
         </div>
       </header>
-      <main ref={mainRef}>{pageFor(view, repId)}</main>
+      <div className="pages" ref={pagesRef}>
+        {shown.map((v) => (
+          <Page key={v} v={v} active={v === view} repId={repId} />
+        ))}
+      </div>
       <nav className="nav-bottom" aria-label="Hauptnavigation">
         {NAV.map((n) => (
           <button key={n.v} aria-current={view === n.v ? 'page' : undefined} onClick={() => navTo(n.v)}>
@@ -265,15 +320,6 @@ export function App() {
           </ul>
         </Modal>
       )}
-      {peek &&
-        createPortal(
-          <div className="peek-layer" ref={layerRef} style={{ top: peek.top, ['--side' as string]: peek.side }}aria-hidden {...({ inert: '' } as object)}>
-            <InertContext.Provider value>
-              <main className="peek-main">{pageFor(peek.view, repId)}</main>
-            </InertContext.Provider>
-          </div>,
-          document.body,
-        )}
       {toast && (
         <div key={toast.id} className={`toast ${toast.kind} ${toast.action ? 'has-action' : ''}`} role="status">
           <span>{toast.text}</span>
@@ -294,7 +340,16 @@ export function App() {
   );
 }
 
-/** Seiteninhalt je Ansicht (auch für die Vorschau-Seite beim Wischen). */
+/** Eine Seite in der Spur. Nachbarseiten sind „inert“: gemountet und gezeichnet, aber ohne Engine, Netz, Tastatur und Fokus. */
+const Page = memo(function Page({ v, active, repId }: { v: View; active: boolean; repId?: string }) {
+  return (
+    <main className={`page${active ? ' active' : ''}`} data-view={v} aria-hidden={active ? undefined : true} {...(active ? {} : ({ inert: '' } as object))}>
+      <InertContext.Provider value={!active}>{pageFor(v, repId)}</InertContext.Provider>
+    </main>
+  );
+});
+
+/** Seiteninhalt je Ansicht. */
 function pageFor(view: View, repId?: string): ReactNode {
   switch (view) {
     case 'home':

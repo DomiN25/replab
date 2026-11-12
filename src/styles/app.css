@@ -248,8 +248,10 @@ main > * { animation: pageIn 0.3s var(--ease-out); }
 main > :has(.bsheet) { animation: fadeIn 0.24s var(--ease-out); }
 main[data-enter] > * > .col-board { animation: pageIn 0.3s var(--ease-out); }
 @keyframes pageIn { from { opacity: 0; translate: var(--enter-x) 0; } }
-/* Nachbarseite beim Wischen: liegt neben der aktuellen und wird mitgezogen (Position setzt swipeNav.ts per translate) */
-/* App-Hülle am Handy (Hub-Prinzip): Das Fenster scrollt nie, nur der Seiteninhalt (main). Kopfleiste und untere Leiste sind feste
+/* Seiten-Spur: Am Laptop ist nur die aktive Seite da (kein eigener Rahmen). Am Handy liegen die Seiten übereinander, jede mit eigenem
+   Scroller; die Nachbarn sind vorgeladen und unsichtbar (swipeNav.ts blendet sie beim Wischen ein und verschiebt sie). */
+.pages { display: contents; }
+/* App-Hülle am Handy (Hub-Prinzip): Das Fenster scrollt nie, nur der Seiteninhalt. Kopfleiste und untere Leiste sind feste
    Teile der Hülle – kein Mitwandern der Browser-Leiste, kein Neu-Layouten beim Scrollen, die untere Leiste ist immer da. */
 @media (max-width: 899px) {
   html, body { height: 100%; overflow: hidden; }
@@ -257,16 +259,14 @@ main[data-enter] > * > .col-board { animation: pageIn 0.3s var(--ease-out); }
   #root { height: 100%; }
   .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   .topbar { position: relative; flex: none; }
-  .app > main { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(24px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
-  .app > main:has(.study-m) { padding-bottom: 8px; }
+  .pages { display: block; position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .pages > main { position: absolute; inset: 0; margin: 0; max-width: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(24px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+  .pages > main:has(.study-m) { padding-bottom: 8px; }
+  /* vorgeladene Nachbarn: gezeichnet wird nichts, Layout bleibt (Sheet/Brett messen weiter); Einblend-Animationen ruhen */
+  .pages > main:not(.active) { visibility: hidden; pointer-events: none; }
+  .pages > main:not(.active) * { animation-duration: 0s !important; animation-delay: 0s !important; }
   .nav-bottom { position: relative; flex: none; }
-  .peek-main { height: 100%; overflow: hidden; padding-bottom: 0; }
 }
-/* Nach einem Wisch-Wechsel steht die Seite schon im Bild: keine Einblend-Animationen der Innenteile (sonst „blitzt“ sie neu auf) */
-main[data-enter='swipe'] * { animation-duration: 0.001s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
-.peek-layer { will-change: translate; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; overflow: hidden; background: var(--bg); translate: calc(var(--side) * 100vw) 0; pointer-events: none; contain: layout paint; }
-.peek-main, .peek-main > *, .peek-main > * > .col-board { animation: none !important; }
-main[data-enter='swipe'], main[data-enter='swipe'] > *, main[data-enter='swipe'] > * > .col-board { animation: none !important; }
 @media (min-width: 900px) {
   .nav-top { display: flex; }
   .nav-bottom { display: none; }
@@ -684,9 +684,9 @@ button.tile:hover:not(:disabled) { translate: 0 -2px; box-shadow: var(--shadow-l
 @keyframes shake { 20% { translate: -7px 0; } 40% { translate: 6px 0; } 60% { translate: -4px 0; } 80% { translate: 2px 0; } }
 /* Fokus-Modus am Handy: wÃ¤hrend einer Sitzung keine Kopf- und Navigationsleiste (Beenden fÃ¼hrt zurÃ¼ck) */
 @media (max-width: 899px) {
-  .app:has(.trainer) .topbar, .app:has(.trainer) .nav-bottom { display: none; }
-  .app:has(.trainer) main { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
-  .app:has(.trainer) .toast { bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .app:has(main.active .trainer) .topbar, .app:has(main.active .trainer) .nav-bottom { display: none; }
+  main:has(.trainer) { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .app:has(main.active .trainer) .toast { bottom: calc(16px + env(safe-area-inset-bottom)); }
   .train-feedback .btn.big { width: 100%; min-height: 56px; }
 }
 .trainer-done { text-align: center; }
@@ -913,7 +913,7 @@ kbd { font: 600 11px var(--body); padding: 1px 6px; border: 1px solid var(--line
 /* Handy: Kurzmeldungen oben â€“ unten liegen Navigation und Sheet */
 @media (max-width: 899px) {
   .toast { bottom: auto; top: calc(64px + env(safe-area-inset-top)); animation-name: toastDown; }
-  .app:has(.trainer) .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
+  .app:has(main.active .trainer) .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
 }
 @keyframes toastDown { from { opacity: 0; translate: 0 -16px; scale: 0.96; } }
 
@@ -1138,9 +1138,9 @@ button.study-progress .ico { position: relative; width: 13px; height: 13px; colo
 /* Studien am Handy: Fokus ohne App-Kopfleiste (die Studien-Kopfzeile hat Zurück + Plan).
    Lernmodus: Brett, Zugleiste und Knöpfe stehen fest; nur der Text darunter scrollt – kein Springen beim Weiterklicken. */
 @media (max-width: 899px) {
-  .app:has(.study-m) .topbar { display: none; }
-  .app:has(.study-m) main { padding-top: calc(6px + env(safe-area-inset-top)); }
-  .app:has(.study-m) .toast { top: calc(10px + env(safe-area-inset-top)); }
+  .app:has(main.active .study-m) .topbar { display: none; }
+  main:has(.study-m) { padding-top: calc(6px + env(safe-area-inset-top)); }
+  .app:has(main.active .study-m) .toast { top: calc(10px + env(safe-area-inset-top)); }
   main:has(.learn-fixed) { padding-bottom: 0; }
   .study-m .learn-fixed { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 10px); }
   .learn-fixed > * { flex: none; }
@@ -1175,9 +1175,9 @@ button.study-progress small { position: relative; color: var(--muted); font-size
 .add-n small { display: block; font: 500 11px var(--body); }
 /* Kurzmeldungen in der Studie am Handy unten – oben liegt die Studien-Kopfzeile mit Fortschritt */
 @media (max-width: 899px) {
-  .app:has(.study-m) .toast { top: auto; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); animation-name: toastIn; }
+  .app:has(main.active .study-m) .toast { top: auto; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); animation-name: toastIn; }
 }
 @media (max-width: 899px) {
   /* offener Dialog: Kurzmeldung nach oben, damit sie die Dialog-Knöpfe nicht verdeckt */
-  .app:has(.study-m):has(.modal-backdrop) .toast { bottom: auto; top: calc(10px + env(safe-area-inset-top)); animation-name: toastDown; }
+  .app:has(main.active .study-m):has(.modal-backdrop) .toast { bottom: auto; top: calc(10px + env(safe-area-inset-top)); animation-name: toastDown; }
 }

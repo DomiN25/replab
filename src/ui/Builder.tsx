@@ -1,5 +1,6 @@
 // Ansicht „Bauen“: Brett | Kandidaten + Notizen | Galaxie/Liste.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInert } from './inert';
 import type { DrawShape } from 'chessground/draw';
 import type { Color, RepertoireMove } from '../core/types';
 import type { LineStep } from './store';
@@ -300,9 +301,13 @@ export function Builder() {
     gotoNode(graph.nodes[focusId].parent);
   };
 
-  // Tastatur: ← → Navigation, f drehen, Leertaste Engine
+  // Tastatur: ← → Navigation, f drehen, Leertaste Engine (nicht auf einer vorgeladenen Nachbarseite)
+  const inertNow = useInert();
+  const inertRef = useRef(inertNow);
+  inertRef.current = inertNow;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (inertRef.current) return;
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (document.querySelector('.modal')) return;

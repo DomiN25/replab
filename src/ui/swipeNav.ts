@@ -1,6 +1,7 @@
 // Wischen zwischen den Hauptseiten am Handy (Start ↔ Bauen ↔ Lücken ↔ Training ↔ Studien).
-// Die Seite folgt dem Finger und die Nachbarseite wird schon daneben eingeblendet (wie die Slides im Hub): Sie wird beim Ziehen
-// als Vorschau gemountet (App.tsx, „inert“ = ohne Engine/Abfragen). Ab ~28 % Breite oder schnellem Wisch wechselt die Seite, sonst federt sie zurück.
+// Wie die Slides im Hub: Die Nachbarseiten sind schon gemountet (App.tsx, „Spur“ mit eigenem Scroller je Seite) und warten unsichtbar
+// neben der aktuellen. Beim Ziehen wird die Nachbarseite nur eingeblendet und mitverschoben – es wird nichts neu aufgebaut. Ab ~28 %
+// Breite oder schnellem Wisch wechselt die Seite (nur die Rollen „aktiv/Nachbar“ tauschen), sonst federt sie zurück.
 // Geht überall in der App (Kopf, Inhalt, Sheet, Navigation) – außer dort, wo Gesten schon etwas bedeuten:
 // - Brett: nur auf freien Feldern. chessground ruft bei Absicht zum Ziehen (Figur, Auswahl, Figur in der Nähe)
 //   preventDefault auf; solche Gesten bleiben beim Brett.
@@ -24,39 +25,66 @@ function inHorizontalScroller(el: HTMLElement | null, stop: HTMLElement): boolea
   return false;
 }
 
-/** Elemente, die beim Ziehen mitwandern. Ein fest positioniertes Sheet würde in einem verschobenen
+/** Elemente einer Seite, die beim Ziehen mitwandern. Ein fest positioniertes Sheet würde in einem verschobenen
  *  Container mitspringen – daher auf Seiten mit Sheet Brettspalte und Sheet einzeln verschieben. */
-function movers(main: HTMLElement): HTMLElement[] {
-  const page = main.firstElementChild as HTMLElement | null;
-  if (!page) return [];
-  const sheet = page.querySelector<HTMLElement>('.bsheet');
-  if (!sheet) return [page];
-  return [...page.querySelectorAll<HTMLElement>(':scope > .col-board'), sheet];
+function movers(page: HTMLElement): HTMLElement[] {
+  const root = page.firstElementChild as HTMLElement | null;
+  if (!root) return [];
+  const sheet = root.querySelector<HTMLElement>('.bsheet');
+  if (!sheet) return [root];
+  return [...root.querySelectorAll<HTMLElement>(':scope > .col-board'), sheet];
 }
 
-/** Wird nach einem Wisch-Wechsel gesetzt: die neue Seite steht schon im richtigen Bild und braucht keine Einblend-Animation. */
+/** Wird nach einem Wisch-Wechsel gesetzt: die neue Seite steht schon im richtigen Bild (kein Einblenden nötig). */
 export const swipeFlag = { committed: false };
 
-export interface PeekControl {
-  /** Nachbarseite zeigen (side 1 = rechts/nächste, −1 = links/vorige) */
-  show: (side: 1 | -1) => void;
-  hide: () => void;
-  /** die Vorschau-Ebene (nach show, sobald gerendert) */
-  layer: () => HTMLElement | null;
+/** Alle Spuren-Seiten in den Ruhezustand: keine Verschiebung, keine Übergänge, Nachbarn wieder unsichtbar. */
+export function resetPages(pages: HTMLElement | null) {
+  if (!pages) return;
+  for (const page of Array.from(pages.children) as HTMLElement[]) {
+    page.style.visibility = '';
+    for (const el of movers(page)) {
+      el.style.transition = '';
+      el.style.translate = '';
+      el.style.willChange = '';
+    }
+  }
 }
 
-/** rootRef: Bereich, in dem gewischt werden kann (ganze App); mainRef: Seiteninhalt, der mitwandert. */
-export function useSwipeNav(
-  rootRef: RefObject<HTMLElement>,
-  mainRef: RefObject<HTMLElement>,
-  opts: { prev?: () => void; next?: () => void; enabled: boolean; peek?: PeekControl },
-) {
-  const { prev, next, enabled, peek } = opts;
+export interface SwipeOpts {
+  prev?: () => void;
+  next?: () => void;
+  enabled: boolean;
+  /** der Spuren-Container (.pages) */
+  pages: RefObject<HTMLElement>;
+  /** Nachbarseite (side 1 = nächste, −1 = vorige), falls schon gemountet */
+  neighbor: (side: 1 | -1) => HTMLElement | null;
+  /** Nachbarseite sofort mounten lassen (falls sie noch nicht da ist) */
+  want: (side: 1 | -1) => void;
+}
+
+interface Gesture {
+  x: number;
+  y: number;
+  t: number;
+  dir?: 'h' | 'v';
+  dx: number;
+  act: HTMLElement;
+  actEls: HTMLElement[];
+  side?: 1 | -1;
+  nb?: HTMLElement;
+  nbEls: HTMLElement[];
+}
+
+/** rootRef: Bereich, in dem gewischt werden kann (ganze App). */
+export function useSwipeNav(rootRef: RefObject<HTMLElement>, opts: SwipeOpts) {
+  const { prev, next, enabled, pages, neighbor, want } = opts;
   useEffect(() => {
     const root = rootRef.current;
-    const main = mainRef.current;
-    if (!root || !main || !enabled || !matchMedia('(max-width: 899px)').matches) return;
-    let s: { x: number; y: number; t: number; dir?: 'h' | 'v'; dx: number; els: HTMLElement[]; side?: 1 | -1 } | undefined;
+    if (!root || !enabled || !matchMedia('(max-width: 899px)').matches) return;
+    let s: Gesture | undefined;
+
+    const activePage = () => pages.current?.querySelector<HTMLElement>(':scope > .page.active') ?? null;
 
     const clear = (els: HTMLElement[], animate: boolean) => {
       for (const el of els) {
@@ -65,6 +93,28 @@ export function useSwipeNav(
         el.style.willChange = '';
       }
       if (animate) setTimeout(() => els.forEach((el) => (el.style.transition = '')), 300);
+    };
+    /** Nachbarseite wieder verstecken (Geste abgebrochen oder vorbei) */
+    const conceal = (nb: HTMLElement | undefined, els: HTMLElement[]) => {
+      if (!nb) return;
+      clear(els, false);
+      nb.style.visibility = '';
+    };
+    /** Nachbarseite einblenden: gleich neben der aktuellen, auf eigener Compositor-Ebene */
+    const reveal = (g: Gesture, side: 1 | -1) => {
+      const nb = neighbor(side);
+      if (!nb) {
+        want(side); // noch nicht gemountet: laden lassen, mit der nächsten Bewegung erneut versuchen
+        return;
+      }
+      g.nb = nb;
+      g.nbEls = movers(nb);
+      nb.style.visibility = 'visible';
+      for (const el of g.nbEls) {
+        el.style.willChange = 'translate';
+        el.style.transition = 'none';
+        el.style.translate = `${side * innerWidth + g.dx}px 0`;
+      }
     };
 
     const onStart = (e: TouchEvent) => {
@@ -75,10 +125,10 @@ export function useSwipeNav(
       if (t.clientX < EDGE || t.clientX > innerWidth - EDGE) return;
       if (e.defaultPrevented) return; // Brett will ziehen (Figur/Auswahl in der Nähe)
       if (!(target instanceof Element) || target.closest(BLOCK) || inHorizontalScroller(target as HTMLElement, root)) return;
-      if (document.querySelector('.modal-backdrop, .trainer')) return;
-      s = { x: t.clientX, y: t.clientY, t: performance.now(), dx: 0, els: [] };
-      // Compositor-Ebene schon beim Berühren anlegen: das Rastern der Seite passiert vor dem ersten Ziehen, nicht mittendrin
-      for (const el of movers(main)) el.style.willChange = 'translate';
+      if (document.querySelector('.modal-backdrop, .pages > .active .trainer')) return;
+      const act = activePage();
+      if (!act) return;
+      s = { x: t.clientX, y: t.clientY, t: performance.now(), dx: 0, act, actEls: [], nbEls: [] };
     };
 
     const onMove = (e: TouchEvent) => {
@@ -90,12 +140,11 @@ export function useSwipeNav(
         if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
         s.dir = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'h' : 'v';
         if (s.dir === 'v') {
-          clear(movers(main), false); // Ebenen wieder abbauen
           s = undefined;
           return;
         }
-        s.els = movers(main);
-        for (const el of s.els) el.style.willChange = 'translate';
+        s.actEls = movers(s.act);
+        for (const el of s.actEls) el.style.willChange = 'translate';
       }
       e.preventDefault(); // waagerecht: Seite nicht gleichzeitig scrollen
       const side: 1 | -1 = dx < 0 ? 1 : -1;
@@ -103,21 +152,25 @@ export function useSwipeNav(
       // Ohne Nachbarn nur leichter Widerstand (Gummiband)
       const shown = has ? dx : dx * 0.18;
       s.dx = dx;
-      if (has && s.side !== side) {
-        s.side = side;
-        peek?.show(side);
-      } else if (!has && s.side) {
+      if (s.side !== undefined && (!has || s.side !== side)) {
+        // Richtung gewechselt: vorherige Nachbarseite wieder wegräumen
+        conceal(s.nb, s.nbEls);
+        s.nb = undefined;
+        s.nbEls = [];
         s.side = undefined;
-        peek?.hide();
       }
-      for (const el of s.els) {
+      if (has && s.side === undefined) {
+        s.side = side;
+        reveal(s, side);
+      } else if (has && !s.nb) {
+        reveal(s, side);
+      }
+      for (const el of s.actEls) {
         el.style.transition = 'none';
         el.style.translate = `${shown}px 0`;
       }
-      const layer = s.side ? peek?.layer() : null;
-      if (layer) {
-        layer.style.transition = 'none';
-        layer.style.translate = `${s.side! * innerWidth + dx}px 0`;
+      if (s.nb && s.side) {
+        for (const el of s.nbEls) el.style.translate = `${s.side * innerWidth + dx}px 0`;
       }
     };
 
@@ -125,45 +178,44 @@ export function useSwipeNav(
       const st = s;
       s = undefined;
       if (!st) return;
-      if (st.dir !== 'h') {
-        clear(movers(main), false); // Tippen/senkrechtes Scrollen: Ebenen wieder abbauen
-        return;
-      }
+      if (st.dir !== 'h') return; // Tippen/senkrechtes Scrollen: nichts angefasst
       const v = Math.abs(st.dx) / Math.max(1, performance.now() - st.t);
       const go = st.dx < 0 ? next : prev;
       const far = Math.abs(st.dx) > innerWidth * 0.28 || (v > 0.45 && Math.abs(st.dx) > 40);
-      const layer = st.side ? peek?.layer() : null;
       if (!go || !far) {
-        // zurückfedern: aktuelle Seite an den Platz, Vorschau wieder nach außen, dann abbauen
-        clear(st.els, true);
-        if (layer) {
-          layer.style.transition = 'translate 0.28s var(--ease-out)';
-          layer.style.translate = `${st.side! * innerWidth}px 0`;
+        // zurückfedern: aktuelle Seite an den Platz, Nachbarseite wieder nach außen, dann verstecken
+        clear(st.actEls, true);
+        for (const el of st.nbEls) {
+          el.style.transition = 'translate 0.28s var(--ease-out)';
+          el.style.translate = `${st.side! * innerWidth}px 0`;
         }
-        if (st.side) setTimeout(() => peek?.hide(), 300);
+        if (st.nb) setTimeout(() => !s && conceal(st.nb, st.nbEls), 300);
         return;
       }
-      // Weiter: die aktuelle Seite gleitet hinaus, die Nachbarseite an ihren Platz – ein Bild ohne Sprung. Danach wechselt die
-      // echte Seite (gleiches Bild, deshalb ohne Einblend-Animation) und die Vorschau verschwindet im selben Schritt.
+      // Weiter: die aktuelle Seite gleitet hinaus, die Nachbarseite an ihren Platz – ein Bild ohne Sprung. Danach tauschen nur die
+      // Rollen (aktiv/Nachbar); App.tsx setzt die Verschiebungen im selben Schritt zurück. Die Animation läuft auf dem Compositor
+      // und bleibt flüssig, auch wenn der Hauptthread gerade arbeitet.
       const rest = Math.max(0.12, Math.min(0.26, (1 - Math.abs(st.dx) / innerWidth) * 0.34));
       const out = -Math.sign(st.dx) * innerWidth;
-      for (const el of st.els) {
+      for (const el of st.actEls) {
         el.style.transition = `translate ${rest}s var(--ease-out)`;
         el.style.translate = `${out}px 0`;
       }
-      if (layer) {
-        layer.style.transition = `translate ${rest}s var(--ease-out)`;
-        layer.style.translate = '0px 0';
+      for (const el of st.nbEls) {
+        el.style.transition = `translate ${rest}s var(--ease-out)`;
+        el.style.translate = '0px 0';
       }
       setTimeout(() => {
-        swipeFlag.committed = !!layer;
+        swipeFlag.committed = !!st.nb;
         go();
         // Wechsel nicht zustande gekommen (gleiche Seite bleibt)? Dann aufräumen.
         setTimeout(() => {
           swipeFlag.committed = false;
           if (s) return; // schon die nächste Geste
-          clear(st.els.filter((el) => el.isConnected), true);
-          peek?.hide();
+          if (activePage() === st.act) {
+            clear(st.actEls.filter((el) => el.isConnected), true);
+            conceal(st.nb, st.nbEls);
+          }
         }, 450);
       }, rest * 1000 + 20);
     };
@@ -178,5 +230,5 @@ export function useSwipeNav(
       root.removeEventListener('touchend', onEnd);
       root.removeEventListener('touchcancel', onEnd);
     };
-  }, [rootRef, mainRef, prev, next, enabled, peek]);
+  }, [rootRef, pages, prev, next, enabled, neighbor, want]);
 }
