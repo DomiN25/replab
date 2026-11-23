@@ -6,6 +6,8 @@ const PATHS = {
   tree: 'M6 3v18M6 16c0-5.5 12-3 12-8M18 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4',
   // gestrichelter Kreis = Lücke
   gap: 'M12 3a9 9 0 0 1 3.4.67M19.3 6.6A9 9 0 0 1 21 12M20.3 15.4a9 9 0 0 1-2.4 3.4M15.4 20.3A9 9 0 0 1 12 21M8.6 20.3a9 9 0 0 1-3.4-2.4M3.7 15.4A9 9 0 0 1 3 12M3.7 8.6a9 9 0 0 1 2.4-3.4M8.6 3.7 M12 12h.01',
+  // Uhr mit Rückwärtspfeil = gespielte Partien (Verlauf)
+  history: 'M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5M12 7.5V12l3 2',
   train: 'M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4',
   more: 'M4 7h10M18 7h2M4 17h4M12 17h8 M16 5v4 M10 15v4',
   first: 'M6 5v14M18 6l-7 6 7 6',

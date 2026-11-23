@@ -61,6 +61,8 @@ export interface AppState {
   studyCheck?: boolean;
   /** Trainingsseite soll direkt eine Sitzung starten (Knopf „Training starten“ auf Start) */
   trainAuto?: boolean;
+  /** Trainingsseite soll genau diese Stellungen abfragen (z. B. meine Abweichungen aus den Partien) */
+  trainDrill?: import('../core/session').SessionItem[];
   /** Fälliges über alle Repertoires und Studien (ui/today.ts) – für Startseite, Reiter-Zähler, Studienliste */
   today?: TodayState;
 }

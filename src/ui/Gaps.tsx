@@ -11,6 +11,10 @@ import { effectiveDepth } from '../services/engine';
 import { Icon } from './Icon';
 import { useOppStats } from './games';
 import { gamesWith } from '../core/opponentStats';
+import { hotspots } from '../core/gameReview';
+import { useReviewedGames } from './gameRows';
+import { openInRepertoire, prefixSans } from './GamesView';
+import { useInert } from './inert';
 
 export function Gaps() {
   const graph = useApp((s) => s.graph);
@@ -29,6 +33,10 @@ export function Gaps() {
     return n && n.parent >= 0 && n.uci ? gamesWith(stats, graph!.nodes[n.parent].posKey, n.uci) : 0;
   };
   const minReach = settings.ui.gapMinReach;
+  // Aus deinen Partien: wo ein Gegner dich aus der Vorbereitung gebracht hat (unvorbereiteter Zug) oder dir ein Zug fehlte
+  const inert = useInert();
+  const { rows: gameRows } = useReviewedGames(!inert);
+  const fromGames = useMemo(() => hotspots(gameRows.filter((r) => r.rev.status === 'opp-new' || r.rev.status === 'hole'), 8), [gameRows]);
   const [askOrphans, setAskOrphans] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [engineScan, setEngineScan] = useState<{ done: number; total: number } | undefined>();
@@ -193,6 +201,35 @@ export function Gaps() {
                 </button>
                 <button className="btn small ghost" aria-label="Markierung entfernen" title="Nicht mehr kritisch" onClick={() => void updateMark(c.posKey, { critical: false })}>
                   <Icon name="x" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {fromGames.length > 0 && (
+        <section className="gapfam from-games" data-testid="from-games">
+          <h2>
+            <span>
+              <Icon name="history" /> Aus deinen Partien <small>{fromGames.length}</small>
+            </span>
+            <button className="btn small ghost" onClick={() => setView('games')}>
+              Partien
+            </button>
+          </h2>
+          <p className="hint">Hier hat dich ein Gegner aus der Vorbereitung gebracht oder dir fehlte ein Zug – häufigste zuerst.</p>
+          <ul>
+            {fromGames.map((h) => (
+              <li key={`${h.kind}|${h.keyAt}|${h.played.uci}`} className="gaprow">
+                <button className="gap-go" onClick={() => openInRepertoire(h.prefix, h.kind === 'opp' ? h.played.uci : undefined)}>
+                  <span className="line">{formatLine(h.kind === 'opp' ? [...prefixSans(h.prefix), h.played.san] : prefixSans(h.prefix), notation) || 'Grundstellung'}</span>
+                  <span className="meta">
+                    <span className="who">{h.kind === 'opp' ? 'Gegner neu' : 'kein Zug festgelegt'}</span>
+                    <span className="nm">
+                      {h.n}× in deinen Partien · {h.score} % Punkte
+                    </span>
+                  </span>
                 </button>
               </li>
             ))}

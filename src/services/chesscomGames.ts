@@ -1,10 +1,11 @@
 // Eigene Chess.com-Partien laden (öffentliche API ohne Anmeldung): Monatsarchive, neueste zuerst.
-import { MAX_PLIES, type GameRec } from '../core/opponentStats';
+import { asSpeed, MAX_PLIES, type GameRec } from '../core/opponentStats';
 import { readPgn } from '../core/pgn';
 
 interface CcPlayer {
   username?: string;
   result?: string;
+  rating?: number;
 }
 export interface CcGame {
   url?: string;
@@ -43,7 +44,10 @@ export function toGameRecCc(g: CcGame, userId: string): GameRec | undefined {
   const moves = pgnMoves(g.pgn);
   if (!moves?.length) return undefined;
   const id = g.url?.split('/').pop();
+  const sp = asSpeed(g.time_class);
   return {
+    ...(sp ? { sp } : {}),
+    ...(other?.rating ? { or: other.rating } : {}),
     c,
     r,
     m: moves.slice(0, MAX_PLIES).join(' '),

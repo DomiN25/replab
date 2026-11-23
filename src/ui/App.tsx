@@ -17,16 +17,17 @@ import { gapCounts } from '../core/graph';
 import { isDue, isNew } from '../core/srs';
 import { pct } from './format';
 
-// Fünf Hauptseiten (Wisch-Reihenfolge). Einstellungen liegen hinter dem Zahnrad oben rechts.
+// Sechs Hauptseiten (Wisch-Reihenfolge). Einstellungen liegen hinter dem Zahnrad oben rechts.
 const NAV: { v: View; label: string; icon: IconName }[] = [
   { v: 'home', label: 'Start', icon: 'home' },
   { v: 'build', label: 'Repertoire', icon: 'tree' },
   { v: 'gaps', label: 'Lücken', icon: 'gap' },
   { v: 'train', label: 'Training', icon: 'train' },
   { v: 'studies', label: 'Studien', icon: 'book' },
+  { v: 'games', label: 'Partien', icon: 'history' },
 ];
 const TITLE: Record<View, string> = { home: 'Start', build: 'Repertoire', gaps: 'Lücken', train: 'Training', studies: 'Studien', settings: 'Einstellungen', games: 'Partien' };
-const ORDER: View[] = [...NAV.map((n) => n.v), 'settings', 'games'];
+const ORDER: View[] = [...NAV.map((n) => n.v), 'settings'];
 
 const PHONE = '(max-width: 899px)';
 function usePhone() {

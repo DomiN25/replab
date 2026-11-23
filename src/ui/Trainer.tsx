@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { Board, uciSquares } from './Board';
-import { currentRep, gotoPosKey, loadRepData, setView, useApp } from './store';
+import { currentRep, gotoPosKey, loadRepData, setView, toast, useApp } from './store';
 import { repo } from '../data/repo';
 import { answer, createSession, currentStep, isFinished, type Session, type SessionItem } from '../core/session';
 import { isDue, isNew, ratingFor, Scheduler } from '../core/srs';
@@ -80,13 +80,22 @@ export function Trainer() {
   }, [cardList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // „Training starten“ auf der Startseite: direkt loslegen (fällige zuerst, sonst neue), sobald die Zahlen stehen
+  const drill = useApp((s) => s.trainDrill);
   useEffect(() => {
-    if (inert || !logsLoaded || !rep || saved || !useApp.getState().trainAuto) return;
+    if (inert || !logsLoaded || !rep) return;
+    if (drill?.length) {
+      useApp.setState({ trainDrill: undefined, trainAuto: false });
+      // angefangene Sitzung nicht stillschweigend ersetzen
+      if (saved || stored) return toast('Es gibt noch eine angefangene Sitzung – erst beenden oder verwerfen, dann erneut starten.', 'info');
+      start('due', drill);
+      return;
+    }
+    if (saved || !useApp.getState().trainAuto) return;
     useApp.setState({ trainAuto: false });
     if (stored) return; // angefangene Sitzung hat Vorrang – Nutzer entscheidet
     if (due.length) start('due', due);
     else if (fresh.length) start('new', fresh);
-  }, [logsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [logsLoaded, inert, drill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!rep) return <p className="empty">Kein Repertoire ausgewählt.</p>;
 

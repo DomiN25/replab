@@ -24,7 +24,15 @@ export interface GameRec {
   url?: string;
   /** Bewertung (cp, aus Weiß-Sicht) nach jedem Halbzug – nur wenn die Partie bei Lichess analysiert wurde */
   ev?: number[];
+  /** Tempo (fehlt bei älteren Datensätzen) und Wertung des Gegners */
+  sp?: Speed;
+  or?: number;
 }
+
+export type Speed = 'bullet' | 'blitz' | 'rapid' | 'classical' | 'correspondence';
+export const SPEED_NAME: Record<Speed, string> = { bullet: 'Bullet', blitz: 'Blitz', rapid: 'Schnellschach', classical: 'Klassisch', correspondence: 'Fernschach' };
+const SPEEDS = Object.keys(SPEED_NAME);
+export const asSpeed = (s: string | undefined): Speed | undefined => (s === 'daily' ? 'correspondence' : s && SPEEDS.includes(s) ? (s as Speed) : undefined);
 
 export interface ReplyStat {
   uci: string;

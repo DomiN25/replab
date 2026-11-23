@@ -1,6 +1,6 @@
 // Eigene Lichess-Partien laden (öffentliche API, NDJSON-Stream). Ein Token ist optional (höheres Limit).
 // Der Token wird nur als Header gesendet, nie protokolliert.
-import { MAX_PLIES, type GameRec } from '../core/opponentStats';
+import { asSpeed, MAX_PLIES, type GameRec } from '../core/opponentStats';
 
 interface ApiGame {
   id?: string;
@@ -10,7 +10,8 @@ interface ApiGame {
   variant?: string;
   initialFen?: string;
   createdAt?: number;
-  players?: { white?: { user?: { id?: string; name?: string } }; black?: { user?: { id?: string; name?: string } } };
+  speed?: string;
+  players?: { white?: { user?: { id?: string; name?: string }; rating?: number }; black?: { user?: { id?: string; name?: string }; rating?: number } };
 }
 
 /** Matt zählt als sehr große Bewertung (±2000 cp), damit Verläufe vergleichbar bleiben. */
@@ -32,6 +33,10 @@ export function toGameRec(g: ApiGame, userId: string): GameRec | undefined {
     rec.url = `https://lichess.org/${g.id}`;
   }
   if (opp) rec.opp = opp;
+  const sp = asSpeed(g.speed);
+  if (sp) rec.sp = sp;
+  const or = c === 'w' ? g.players?.black?.rating : g.players?.white?.rating;
+  if (or) rec.or = or;
   if (g.analysis?.length) rec.ev = g.analysis.slice(0, MAX_PLIES).map(evalCp);
   return rec;
 }

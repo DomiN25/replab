@@ -99,3 +99,128 @@ export function reviewGame(game: GameRec, color: Color, rep: RepView): GameRevie
 function fenOfPos(pos: Chess): string {
   return `${posKeyOf(pos)} 0 1`;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Auswertung über mehrere Partien (Partien-Seite, Lücken „aus deinen Partien“)
+
+/** Einfärbung je Halbzug für die Zugleiste: im Repertoire, Ereignis (Abweichung/Gegner neu/Lücke/Ende) oder danach frei. */
+export type PlyMark = 'rep' | 'dev' | 'opp' | 'hole' | 'end' | 'out';
+
+const MARK_OF: Record<Exclude<ReviewStatus, 'in-rep'>, PlyMark> = { 'my-deviation': 'dev', 'opp-new': 'opp', hole: 'hole', end: 'end' };
+
+export function plyMarks(rev: GameReview, len: number): PlyMark[] {
+  const out: PlyMark[] = [];
+  for (let i = 0; i < len; i++) {
+    if (rev.status === 'in-rep' || rev.ply === undefined) out.push(i < rev.inRepPlies ? 'rep' : 'out');
+    else out.push(i < rev.ply ? 'rep' : i === rev.ply ? MARK_OF[rev.status] : 'out');
+  }
+  return out;
+}
+
+export interface Reviewed {
+  game: GameRec;
+  rev: GameReview;
+}
+
+export interface ReviewSummary {
+  games: number;
+  count: Record<ReviewStatus, number>;
+  /** Punkte in Prozent (Sieg 1, Remis ½) je Ausgang; undefined ohne Partien */
+  score: Partial<Record<ReviewStatus, number>>;
+  /** Gesamtpunkte in Prozent */
+  total?: number;
+  /** durchschnittliche Zugnummer (volle Züge) des Ereignisses */
+  avgMove: { dev?: number; opp?: number; hole?: number };
+  /** Median: bis zu welchem Zug (volle Züge) die Partie in der Vorbereitung blieb */
+  heldMove?: number;
+  mistakes: number;
+}
+
+/** Halbzug-Index → Zugnummer (0 → 1, 1 → 1, 2 → 2 …) */
+export const moveNo = (ply: number) => Math.floor(ply / 2) + 1;
+
+export function summarize(items: Reviewed[]): ReviewSummary {
+  const count: Record<ReviewStatus, number> = { 'in-rep': 0, 'my-deviation': 0, 'opp-new': 0, hole: 0, end: 0 };
+  const pts: Partial<Record<ReviewStatus, number>> = {};
+  const plies: Record<'dev' | 'opp' | 'hole', number[]> = { dev: [], opp: [], hole: [] };
+  const held: number[] = [];
+  let mistakes = 0;
+  let all = 0;
+  for (const { game, rev } of items) {
+    count[rev.status]++;
+    const p = (game.r + 1) / 2;
+    pts[rev.status] = (pts[rev.status] ?? 0) + p;
+    all += p;
+    if (rev.mistake) mistakes++;
+    held.push(rev.inRepPlies);
+    if (rev.ply !== undefined) {
+      if (rev.status === 'my-deviation') plies.dev.push(rev.ply);
+      else if (rev.status === 'opp-new') plies.opp.push(rev.ply);
+      else if (rev.status === 'hole') plies.hole.push(rev.ply);
+    }
+  }
+  const score: Partial<Record<ReviewStatus, number>> = {};
+  for (const k of Object.keys(count) as ReviewStatus[]) if (count[k]) score[k] = Math.round((100 * (pts[k] ?? 0)) / count[k]);
+  const avg = (a: number[]) => (a.length ? Math.round((10 * a.reduce((s, x) => s + moveNo(x), 0)) / a.length) / 10 : undefined);
+  held.sort((a, b) => a - b);
+  // inRepPlies = Anzahl Halbzüge im Repertoire → letzter Zug in der Vorbereitung
+  const med = held.length ? held[Math.floor((held.length - 1) / 2)] : undefined;
+  return {
+    games: items.length,
+    count,
+    score,
+    total: items.length ? Math.round((100 * all) / items.length) : undefined,
+    avgMove: { dev: avg(plies.dev), opp: avg(plies.opp), hole: avg(plies.hole) },
+    heldMove: med === undefined ? undefined : med === 0 ? 0 : moveNo(med - 1),
+    mistakes,
+  };
+}
+
+export interface Hotspot {
+  kind: 'dev' | 'opp' | 'hole';
+  keyAt: string;
+  ply: number;
+  /** Weg bis vor den Ereignis-Halbzug (aus der ersten Partie) */
+  prefix: string[];
+  played: { uci: string; san: string };
+  rep?: { uci: string; san: string };
+  n: number;
+  /** Punkte in Prozent in diesen Partien */
+  score: number;
+  /** Indizes der Partien in der übergebenen Liste */
+  idx: number[];
+}
+
+/** Wiederkehrende Brennpunkte: gleiche Stellung + gleicher gespielter Zug, nach Häufigkeit (dann früher Zug zuerst). */
+export function hotspots(items: Reviewed[], max = 6): Hotspot[] {
+  const m = new Map<string, Hotspot & { pts: number }>();
+  items.forEach(({ game, rev }, i) => {
+    const kind = rev.status === 'my-deviation' ? 'dev' : rev.status === 'opp-new' ? 'opp' : rev.status === 'hole' ? 'hole' : undefined;
+    if (!kind || !rev.keyAt || !rev.played || rev.ply === undefined) return;
+    const k = `${kind}|${rev.keyAt}|${rev.played.uci}`;
+    const cur = m.get(k);
+    const p = (game.r + 1) / 2;
+    if (cur) {
+      cur.n++;
+      cur.pts += p;
+      cur.idx.push(i);
+    } else m.set(k, { kind, keyAt: rev.keyAt, ply: rev.ply, prefix: rev.prefix, played: rev.played, rep: rev.rep, n: 1, pts: p, score: 0, idx: [i] });
+  });
+  return [...m.values()]
+    .map(({ pts, ...h }) => ({ ...h, score: Math.round((100 * pts) / h.n) }))
+    .sort((a, b) => b.n - a.n || a.ply - b.ply)
+    .slice(0, max);
+}
+
+/** Eröffnungsname der Partie: tiefste Stellung mit Namen (Tabelle posKey → Lichess-Name). */
+export function openingOf(sans: string[], eco: Record<string, string>): string | undefined {
+  let pos: Chess = positionFromFen(START_FEN);
+  let name: string | undefined;
+  for (const san of sans) {
+    const mv = parseSan(pos, san);
+    if (!mv) break;
+    pos.play(mv);
+    name = eco[posKeyOf(pos)] ?? name;
+  }
+  return name;
+}

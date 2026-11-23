@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findMistake, reviewGame, type RepView } from '../src/core/gameReview';
+import { findMistake, hotspots, openingOf, plyMarks, reviewGame, summarize, type RepView } from '../src/core/gameReview';
 import type { GameRec } from '../src/core/opponentStats';
 import { keyAfter } from './helpers';
 
@@ -60,5 +60,50 @@ describe('Partien gegen das Repertoire prüfen', () => {
     expect(findMistake([20, 20], ['e4', 'e5'], 'white')).toBeUndefined();
     const r = reviewGame(g('e4 e5 Nf3 Nc6 Bb5', { ev: [20, 20, 20, 20, -400] }), 'white', rep);
     expect(r.mistake).toMatchObject({ ply: 4, san: 'Bb5' });
+  });
+});
+
+describe('Auswertung über mehrere Partien', () => {
+  const items = [
+    g('e4 e5 Bc4 Nc6', { r: -1 }), // Abweichung Zug 2
+    g('e4 e5 Bc4 Nf6', { r: 0 }), // gleiche Abweichung
+    g('e4 d5 exd5', { r: 1 }), // Gegner neu Zug 1
+    g('e4 e5 Nf3 Nc6 Bb5 a6 Ba4', { r: 1 }), // Ende-Marker
+  ].map((game) => ({ game, rev: reviewGame(game, 'white', rep) }));
+
+  it('summarize: Anzahl, Punkte, Ø-Zug, gehaltene Vorbereitung', () => {
+    const s = summarize(items);
+    expect(s.games).toBe(4);
+    expect(s.count['my-deviation']).toBe(2);
+    expect(s.count['opp-new']).toBe(1);
+    expect(s.count.end).toBe(1);
+    expect(s.score['my-deviation']).toBe(25); // Niederlage + Remis
+    expect(s.score['opp-new']).toBe(100);
+    expect(s.total).toBe(63); // 2,5 / 4
+    expect(s.avgMove.dev).toBe(2);
+    expect(s.avgMove.opp).toBe(1);
+    expect(s.heldMove).toBe(1); // Median der Halbzüge im Repertoire (1, 2, 2, 6 → 2) → letzter Halbzug 1 = Zug 1
+  });
+
+  it('hotspots: gleiche Stellung + gleicher Zug zusammen, häufigste zuerst', () => {
+    const h = hotspots(items);
+    expect(h[0]).toMatchObject({ kind: 'dev', n: 2, score: 25, ply: 2, idx: [0, 1] });
+    expect(h[0].played.san).toBe('Bc4');
+    expect(h[0].rep!.san).toBe('Nf3');
+    expect(h[1]).toMatchObject({ kind: 'opp', n: 1 });
+    expect(h.find((x) => x.kind === ('end' as never))).toBeUndefined();
+  });
+
+  it('plyMarks: Repertoire bis zum Ereignis, dann frei', () => {
+    expect(plyMarks(items[0].rev, 4)).toEqual(['rep', 'rep', 'dev', 'out']);
+    expect(plyMarks(items[2].rev, 3)).toEqual(['rep', 'opp', 'out']);
+    const all = reviewGame(g('e4 e5'), 'white', rep);
+    expect(plyMarks(all, 2)).toEqual(['rep', 'rep']);
+  });
+
+  it('openingOf: tiefster bekannter Name', () => {
+    const eco = { [keyAfter(['e4'])]: "King's Pawn Game", [keyAfter(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])]: 'Ruy Lopez' };
+    expect(openingOf(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6'], eco)).toBe('Ruy Lopez');
+    expect(openingOf(['d4'], eco)).toBeUndefined();
   });
 });
