@@ -55,6 +55,30 @@ export async function loadMyGames(source: GameSource, user: string, max: number,
   return games.length;
 }
 
+/** stabiler Schlüssel einer Partie (Quelle + ID) */
+export const gameKey = (g: GameRec) => `${g.src ?? 'lichess'}:${g.id ?? g.url ?? g.t}`;
+
+/**
+ * Nur neue Partien seit der letzten geladenen holen und dazumischen (Start der App). Ohne gespeicherte Partien dieser Quelle:
+ * die letzten 100. Gibt die Anzahl neuer Partien zurück.
+ */
+export async function loadNewGames(source: GameSource, user: string, token: string | undefined): Promise<number> {
+  const mine = (state?.games ?? []).filter((g) => (g.src ?? 'lichess') === source);
+  const since = mine.length ? Math.max(...mine.map((g) => g.t ?? 0)) : undefined;
+  const fresh =
+    source === 'lichess'
+      ? await fetchLichessGames(user, { max: 100, token, since })
+      : await fetchChesscomGames(user, { max: 100, since });
+  const known = new Set((state?.games ?? []).map(gameKey));
+  const add = fresh.filter((g) => !known.has(gameKey(g)));
+  if (!add.length && state?.sources[source]?.user === user.trim()) return 0;
+  set({
+    sources: { ...state?.sources, [source]: { user: user.trim(), fetchedAt: Date.now() } },
+    games: [...(state?.games ?? []), ...add].sort((a, b) => (b.t ?? 0) - (a.t ?? 0)).slice(0, 600),
+  });
+  return add.length;
+}
+
 export function clearMyGames(source?: GameSource) {
   if (!source || !state) return set(undefined);
   const sources = { ...state.sources };

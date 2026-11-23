@@ -41,4 +41,18 @@ describe('Chess.com-Partien laden', () => {
     await expect(fetchChesscomGames('Nix', { max: 5, fetchImpl: nf })).rejects.toThrow(/kennt den Namen/);
     await expect(fetchChesscomGames(' ', { max: 5 })).rejects.toThrow(/Namen/);
   });
+
+  it('since: nur neuere Partien, ältere Monate werden nicht mehr abgefragt', async () => {
+    const calls: string[] = [];
+    const t = { '11': [1800, 1700], '10': [1600, 1500], '09': [1400] } as Record<string, number[]>;
+    const f = (async (url: string) => {
+      calls.push(url);
+      if (url.endsWith('/archives')) return new Response(JSON.stringify({ archives: ['https://x/2026/09', 'https://x/2026/10', 'https://x/2026/11'] }));
+      const m = url.slice(-2);
+      return new Response(JSON.stringify({ games: t[m].map((s, i) => game({ url: `${url}/${i}`, end_time: s })).reverse() }));
+    }) as unknown as typeof fetch;
+    const out = await fetchChesscomGames('Dom', { max: 100, since: 1650 * 1000, fetchImpl: f });
+    expect(out.map((g) => g.t)).toEqual([1800_000, 1700_000]);
+    expect(calls.slice(1)).toEqual(['https://x/2026/11', 'https://x/2026/10']); // Oktober enthält ältere → Schluss
+  });
 });

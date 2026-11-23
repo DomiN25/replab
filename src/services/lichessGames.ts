@@ -43,6 +43,8 @@ export function toGameRec(g: ApiGame, userId: string): GameRec | undefined {
 
 export interface FetchOptions {
   max: number;
+  /** nur Partien nach diesem Zeitpunkt (ms) – für das Nachladen beim Start */
+  since?: number;
   token?: string;
   signal?: AbortSignal;
   onProgress?: (n: number) => void;
@@ -55,7 +57,8 @@ export async function fetchLichessGames(user: string, o: FetchOptions): Promise<
   const id = name.toLowerCase();
   const url =
     `https://lichess.org/api/games/user/${encodeURIComponent(name)}` +
-    `?max=${o.max}&rated=true&moves=true&tags=false&clocks=false&evals=true&opening=false&perfType=blitz,rapid,classical,correspondence`;
+    `?max=${o.max}&rated=true&moves=true&tags=false&clocks=false&evals=true&opening=false&perfType=blitz,rapid,classical,correspondence` +
+    (o.since !== undefined ? `&since=${o.since + 1}` : '');
   const headers: Record<string, string> = { Accept: 'application/x-ndjson' };
   if (o.token) headers.Authorization = `Bearer ${o.token}`;
   const res = await (o.fetchImpl ?? fetch)(url, { headers, signal: o.signal });

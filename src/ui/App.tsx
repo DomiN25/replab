@@ -13,6 +13,7 @@ import { Modal } from './Modal';
 import { resetPages, swipeFlag, useSwipeNav } from './swipeNav';
 import { InertContext } from './inert';
 import { refreshToday } from './today';
+import { installAutoGames } from './autoGames';
 import { gapCounts } from '../core/graph';
 import { isDue, isNew } from '../core/srs';
 import { pct } from './format';
@@ -64,6 +65,10 @@ export function App() {
   const studyId = useApp((s) => s.studyId);
   const dueAll = useMemo(() => (today ? Object.values(today.reps).reduce((n, r) => n + r.due, 0) : due), [today, due]);
   const studyDueAll = useMemo(() => (today ? today.studies.reduce((n, s) => n + s.due, 0) : 0), [today]);
+  // Neue eigene Partien (Chess.com/Lichess) beim Start und beim Zurückkehren in die App automatisch holen
+  useEffect(() => {
+    if (loaded) installAutoGames();
+  }, [loaded]);
   useEffect(() => {
     if (!loaded) return;
     // Studien nur dort neu zählen, wo man die Zahl sieht (braucht ggf. den Studienbaum) – nicht bei jeder Trainingsantwort

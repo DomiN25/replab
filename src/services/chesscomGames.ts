@@ -61,6 +61,8 @@ export function toGameRecCc(g: CcGame, userId: string): GameRec | undefined {
 
 export interface CcFetchOptions {
   max: number;
+  /** nur Partien nach diesem Zeitpunkt (ms) – für das Nachladen beim Start */
+  since?: number;
   signal?: AbortSignal;
   onProgress?: (n: number) => void;
   fetchImpl?: typeof fetch;
@@ -87,12 +89,18 @@ export async function fetchChesscomGames(user: string, o: CcFetchOptions): Promi
       continue;
     }
     const games = ((await r.json()) as { games?: CcGame[] }).games ?? [];
+    let older = false;
     for (const g of [...games].reverse()) {
       const rec = toGameRecCc(g, id);
+      if (rec && o.since !== undefined && (rec.t ?? 0) <= o.since) {
+        older = true;
+        continue;
+      }
       if (rec) out.push(rec);
       if (out.length >= o.max) break;
     }
     o.onProgress?.(out.length);
+    if (older) break; // ältere Monate sind schon geladen
   }
   return out;
 }

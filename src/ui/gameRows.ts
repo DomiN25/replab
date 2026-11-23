@@ -2,7 +2,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { reviewGame, type RepView, type Reviewed } from '../core/gameReview';
 import { useApp } from './store';
-import { useMyGames } from './games';
+import { gameKey, useMyGames } from './games';
 
 export interface Row extends Reviewed {
   key: string;
@@ -35,7 +35,7 @@ export function useReviewedGames(enabled = true): { rows: Row[]; color: 'white' 
   const mine = useMemo(() => (stored?.games ?? []).filter((g) => g.c === (color === 'white' ? 'w' : 'b')), [stored, color]);
   const deferred = useDeferredValue(mine);
   const rows = useMemo(
-    () => (!enabled ? [] : deferred).map((g, i) => ({ game: g, rev: reviewGame(g, color, view), key: g.id ? `${g.src ?? 'lichess'}:${g.id}` : `${g.src ?? 'l'}${i}` })),
+    () => (!enabled ? [] : deferred).map((g) => ({ game: g, rev: reviewGame(g, color, view), key: gameKey(g) })),
     [deferred, color, view, enabled],
   );
   return { rows, color, loaded: !!stored?.games.length };

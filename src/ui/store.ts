@@ -65,6 +65,8 @@ export interface AppState {
   trainDrill?: import('../core/session').SessionItem[];
   /** Partien-Seite soll diese Partie (Row-Key) in der Brett-Ansicht öffnen (Startseite „Letzte Partien“) */
   gameOpen?: string;
+  /** Partien-Seite soll mit diesem Reiter öffnen (Startseite → Statistik) */
+  gamesTab?: 'list' | 'stats';
   /** Fälliges über alle Repertoires und Studien (ui/today.ts) – für Startseite, Reiter-Zähler, Studienliste */
   today?: TodayState;
 }

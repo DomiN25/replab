@@ -8,10 +8,12 @@ import { hotspots, openingOf, plyMarks, summarize, type GameReview, type Hotspot
 import { SPEED_NAME, type Speed } from '../core/opponentStats';
 import { familyDe, nameDe } from '../core/openings';
 import type { SessionItem } from '../core/session';
+import { bestWorst, errorSpots, openingStats, type OpeningStat } from '../core/openingStats';
 import { lichessToken, lineFromUcis, selectRepertoire, setLine, setView, toast, useApp } from './store';
-import { loadMyGames, SOURCE_NAME, useMyGames, type GameSource } from './games';
+import { gameKey, loadMyGames, SOURCE_NAME, useMyGames, type GameSource } from './games';
+import type { GameRec } from '../core/opponentStats';
 import { useEco, useReviewedGames, type Row } from './gameRows';
-import { useAssessments } from './gameEvals';
+import { fmtCp, useAssessments } from './gameEvals';
 import { GameCard, VerdictBadge } from './GameCard';
 import { GameDetail } from './GameDetail';
 import { Icon } from './Icon';
@@ -95,6 +97,7 @@ export function Games() {
   const cards = useApp((s) => s.cards);
   const settings = useApp((s) => s.settings);
   const gameOpen = useApp((s) => s.gameOpen);
+  const gamesTab = useApp((s) => s.gamesTab);
   const notation = settings.ui.notation;
   const rep = reps.find((r) => r.id === repId);
   const eco = useEco(loaded);
@@ -114,6 +117,8 @@ export function Games() {
   const [loading, setLoading] = useState(false);
   const [allSpots, setAllSpots] = useState(false);
   const [allFlags, setAllFlags] = useState(false);
+  const [statColor, setStatColor] = useState<'w' | 'b'>(color === 'white' ? 'w' : 'b');
+  useEffect(() => setStatColor(color === 'white' ? 'w' : 'b'), [color]);
 
   // Brett-Ansicht beginnt oben; zurück in der Liste steht man wieder an derselben Stelle (Handy: eigener Scroller je Seite)
   const inert = useInert();
@@ -172,25 +177,55 @@ export function Games() {
     openGame(gameOpen);
   }, [gameOpen, inert]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (inert || !gamesTab) return;
+    useApp.setState({ gamesTab: undefined });
+    setOpenKey(undefined);
+    setTab(gamesTab);
+    // direkt zu den Reitern scrollen (sonst liegt „Zu prüfen“ davor)
+    requestAnimationFrame(() => document.querySelector('.pages > main.active .games-tabs, main .games-tabs')?.scrollIntoView({ block: 'start' }));
+  }, [gamesTab, inert]);
+
   // Filter ohne Status: daraus Auswertung, Brennpunkte und „Zu prüfen“
-  const base = useMemo(() => {
+  /** Filter ohne Eröffnung/Status – gilt auch für die Eröffnungs-Statistik beider Farben */
+  const passes = (g: GameRec) => {
     const needle = q.trim().toLowerCase();
     const since = period ? Date.now() - period * 86400_000 : 0;
-    return rows.filter(
-      (r) =>
-        (!needle || (r.game.opp ?? '').toLowerCase().includes(needle)) &&
-        (!since || (r.game.t ?? 0) >= since) &&
-        (!speed || r.game.sp === speed) &&
-        (!fam || famOf(r) === fam) &&
-        (!result || String(r.game.r) === result) &&
-        (!src || (r.game.src ?? 'lichess') === src),
+    return (
+      (!needle || (g.opp ?? '').toLowerCase().includes(needle)) &&
+      (!since || (g.t ?? 0) >= since) &&
+      (!speed || g.sp === speed) &&
+      (!result || String(g.r) === result) &&
+      (!src || (g.src ?? 'lichess') === src)
     );
-  }, [rows, q, period, speed, fam, result, src, opening]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  const base = useMemo(
+    () => rows.filter((r) => passes(r.game) && (!fam || famOf(r) === fam)),
+    [rows, q, period, speed, fam, result, src, opening], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // Eröffnungs-Statistik über alle Partien (beide Farben), unabhängig vom aktiven Repertoire
+  const allGames = useMemo(() => (stored?.games ?? []).map((g) => ({ game: g, key: gameKey(g) })), [stored]);
+  const openingAll = useMemo(() => (eco ? new Map(allGames.map((x) => [x.key, openingOf(x.game.m.split(' '), eco)])) : undefined), [allGames, eco]);
+  const oStats = useMemo(
+    () =>
+      openingStats(
+        allGames.filter((x) => passes(x.game)),
+        statColor,
+        (k) => {
+          const n = openingAll?.get(k);
+          return n ? familyDe(n) : undefined;
+        },
+        (k) => assessOf(k)?.verdict === 'flag',
+      ),
+    [allGames, openingAll, statColor, q, period, speed, result, src, assessOf], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const bw = bestWorst(oStats);
   const flagged = base.filter((r) => assessOf(r.key)?.verdict === 'flag');
   const selected = useMemo(() => base.filter((r) => sel.has(r.key)), [base, sel]);
   const scope = selected.length ? selected : base;
   const sum = useMemo(() => summarize(scope), [scope]);
   const spots = useMemo(() => hotspots(scope, 6), [scope]);
+  const errors = errorSpots(scope.map((r) => ({ ...r, a: assessOf(r.key) })));
   const listBase = onlySel && selected.length ? selected : base;
   const list = listBase.filter((r) =>
     status === 'all'
@@ -498,6 +533,119 @@ export function Games() {
 
       {tab === 'stats' && (
         <>
+          <section className="card opening-stats" data-testid="opening-stats">
+            <header className="os-head">
+              <h2>Eröffnungen</h2>
+              <div className="seg small" role="group" aria-label="Farbe">
+                <button aria-pressed={statColor === 'w'} onClick={() => setStatColor('w')}>
+                  Mit Weiß
+                </button>
+                <button aria-pressed={statColor === 'b'} onClick={() => setStatColor('b')}>
+                  Mit Schwarz
+                </button>
+              </div>
+            </header>
+            {oStats.length ? (
+              <>
+                {(bw.best || bw.worst) && (
+                  <div className="os-bw">
+                    {bw.best && <BwTile kind="best" s={bw.best} />}
+                    {bw.worst && <BwTile kind="worst" s={bw.worst} />}
+                  </div>
+                )}
+                <table className="os-table">
+                  <thead>
+                    <tr>
+                      <th>Eröffnung</th>
+                      <th>Partien</th>
+                      <th>Bilanz</th>
+                      <th>Punkte</th>
+                      {statColor === (color === 'white' ? 'w' : 'b') && <th title="Partien, in denen du nach der Abweichung schlechter standest">Zu prüfen</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {oStats.slice(0, 12).map((s) => {
+                      const current = statColor === (color === 'white' ? 'w' : 'b');
+                      return (
+                        <tr
+                          key={s.family}
+                          className={`${current ? 'clickable' : ''} ${s === bw.best ? 'best' : s === bw.worst ? 'worst' : ''}`}
+                          onClick={() => {
+                            if (!current) return;
+                            setFam(s.family);
+                            setStatus('all');
+                            setTab('list');
+                          }}
+                        >
+                          <td>{s.family}</td>
+                          <td className="num">{s.n}</td>
+                          <td>
+                            <span className="wl" aria-label={`${s.w} Siege, ${s.d} Remis, ${s.l} Niederlagen`}>
+                              <i className="w" style={{ flexGrow: s.w }} />
+                              <i className="d" style={{ flexGrow: s.d }} />
+                              <i className="l" style={{ flexGrow: s.l }} />
+                            </span>
+                            <small className="hint">
+                              {' '}
+                              {s.w}·{s.d}·{s.l}
+                            </small>
+                          </td>
+                          <td className={`num score ${s.score >= 60 ? 'good' : s.score <= 40 ? 'bad' : ''}`}>{s.score} %</td>
+                          {current && <td className="num">{s.flagged || ''}</td>}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="hint">
+                  Bilanz: Siege·Remis·Niederlagen. {statColor === (color === 'white' ? 'w' : 'b') ? 'Zeile antippen zeigt die Partien.' : 'Für die Partienliste oben das Repertoire dieser Farbe wählen.'}
+                </p>
+              </>
+            ) : (
+              <p className="hint">Keine Partien mit {statColor === 'w' ? 'Weiß' : 'Schwarz'} in dieser Auswahl.</p>
+            )}
+          </section>
+
+          <section className="card error-spots" data-testid="error-spots">
+            <h2>Häufigste Fehler</h2>
+            {errors.length ? (
+              <>
+                <p className="hint">Wo du danach schlechter standest (Stockfish) oder einen groben Fehler gemacht hast (Lichess-Analyse) – häufigste zuerst.</p>
+                <ul>
+                  {errors.map((e) => (
+                    <li key={`${e.kind}|${e.sans.join(' ')}`} className="hs-row">
+                      <span className={`hs-kind ${e.kind === 'mistake' ? 'dev' : e.kind}`}>{e.kind === 'dev' ? 'Abweichung' : e.kind === 'opp' ? 'Gegner neu' : e.kind === 'hole' ? 'Lücke' : 'Fehler'}</span>
+                      <span className="hs-text">
+                        <span className="hs-line">{formatLine(e.sans.slice(0, -1), notation) || 'Grundstellung'}</span>
+                        <span>
+                          <b>{sanLabel(e.ply, e.sans[e.sans.length - 1])}</b>
+                        </span>
+                        <small className="hint">
+                          {e.n}× {e.avgCp !== undefined && <> · Ø {fmtCp(e.avgCp)}</>}
+                        </small>
+                      </span>
+                      <span className="hs-acts">
+                        <button className="btn small" onClick={() => openGame(e.keys[0])}>
+                          Ansehen
+                        </button>
+                        {e.kind !== 'mistake' && (
+                          <button
+                            className="btn small ghost"
+                            onClick={() => openInRepertoire(e.rev.prefix, e.kind === 'hole' ? undefined : e.rev.played?.uci)}
+                          >
+                            {e.kind === 'opp' ? 'Antwort festlegen' : e.kind === 'hole' ? 'Zug festlegen' : 'Im Repertoire'}
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="hint">{pending > 0 ? 'Stockfish bewertet noch – Fehlerstellen erscheinen hier.' : 'Keine wiederkehrenden Fehler in dieser Auswahl.'}</p>
+            )}
+          </section>
+
           <section className="card games-eval" data-testid="games-sum" aria-label="Auswertung">
             <header className="ge-head">
               <h2>
@@ -698,6 +846,19 @@ export function Games() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Kachel „stärkste/schwächste Eröffnung“ */
+function BwTile({ kind, s }: { kind: 'best' | 'worst'; s: OpeningStat }) {
+  return (
+    <div className={`bw-tile ${kind}`}>
+      <small>{kind === 'best' ? 'Am stärksten' : 'Am schwächsten'}</small>
+      <b>{s.family}</b>
+      <span>
+        {s.score} % Punkte · {s.n} Partien
+      </span>
     </div>
   );
 }
