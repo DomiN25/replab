@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Chess } from 'chessops/chess';
 import { parseSan } from 'chessops/san';
 import type { DrawShape } from 'chessground/draw';
+import type { Key } from 'chessground/types';
 import { displaySan, fenOf, moveNumberPrefix, positionFromFen, START_FEN, stdUci } from '../core/chess';
 import { moveNo, plyMarks } from '../core/gameReview';
 import { SPEED_NAME } from '../core/opponentStats';
@@ -12,6 +13,8 @@ import { nameDe } from '../core/openings';
 import { formatEval } from '../core/relevance';
 import type { Color } from '../core/types';
 import { Board, uciSquares } from './Board';
+import { EvalBar } from './EvalBar';
+import { useEngine } from './hooks';
 import { useBackClose } from './backClose';
 import { SOURCE_NAME } from './games';
 import type { Row } from './gameRows';
@@ -53,6 +56,7 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
   const x = rows[index];
   const { game, rev } = x;
   const notation = useApp((s) => s.settings.ui.notation);
+  const evalOn = useApp((s) => s.settings.ui.evalBar !== false);
   const cards = useApp((s) => s.cards);
   const inert = useInert();
   useBackClose(true, onClose);
@@ -94,6 +98,18 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
     }
     if (sq) shapes.push({ orig: sq[0], dest: sq[1], brush: rev.status === 'my-deviation' ? 'wrong' : rev.status === 'opp-new' ? 'opp' : 'eng' });
   }
+  // Wo steht der Cursor relativ zum Ereignis? vorher = im Repertoire, genau dort = Entscheidung, danach = frei gespielt
+  const phase: 'rep' | 'at' | 'after' = rev.ply === undefined ? 'rep' : cursor < rev.ply ? 'rep' : cursor === rev.ply ? 'at' : 'after';
+  const evKind = rev.status === 'my-deviation' ? 'dev' : rev.status === 'opp-new' ? 'opp' : rev.status === 'in-rep' ? 'rep' : 'hole';
+  // Direkt nach dem abweichenden Zug: Felder des Zugs farbig markieren
+  const highlights = useMemo(() => {
+    if (rev.ply === undefined || cursor !== rev.ply + 1 || !rev.played) return undefined;
+    const sq = uciSquares(rev.played.uci);
+    const cls = evKind === 'dev' ? 'dev-sq' : 'opp-sq';
+    return sq ? new Map<Key, string>([[sq[0], cls], [sq[1], cls]]) : undefined;
+  }, [cursor, rev, evKind]);
+  // Stockfish-Bewertungsleiste links neben dem Brett (wie im Repertoire), nur auf der sichtbaren Seite
+  const eng = useEngine(step.fen, evalOn && !inert);
   const card = rev.keyAt ? cards.get(rev.keyAt) : undefined;
   const ev = cursor > 0 ? game.ev?.[cursor - 1] : undefined;
   const op = opening(x.key);
@@ -153,7 +169,59 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
 
       <div className="gd-grid">
         <section className="gd-board">
-          <Board fen={step.fen} orientation={color} lastMove={uciSquares(step.uci)} movable="none" shapes={shapes} />
+          {rev.ply !== undefined && rev.played && (
+            <div className={`gd-state ${phase === 'rep' ? 'rep' : phase === 'after' ? 'after' : evKind}`} data-testid="gd-state" role="status">
+              {phase === 'rep' && (
+                <span>
+                  <b>Im Repertoire</b> · Zug {moveNo(Math.max(0, cursor - 1))} – die Abweichung kommt bei Zug {moveNo(rev.ply)}
+                </span>
+              )}
+              {phase === 'at' && (
+                <span>
+                  {evKind === 'dev' && (
+                    <>
+                      <b>Hier bist du abgewichen:</b> gespielt {label(rev.ply, rev.played.san)}, Repertoire {label(rev.ply, rev.rep!.san)}
+                    </>
+                  )}
+                  {evKind === 'opp' && (
+                    <>
+                      <b>Hier verlässt dein Gegner die Vorbereitung:</b> {label(rev.ply, rev.played.san)}
+                    </>
+                  )}
+                  {evKind === 'hole' && (
+                    <>
+                      <b>{rev.status === 'end' ? 'Ende-Marker:' : 'Hier fehlt dir ein Zug:'}</b> gespielt {label(rev.ply, rev.played.san)}
+                    </>
+                  )}
+                </span>
+              )}
+              {phase === 'after' && (
+                <span>
+                  <b>Außerhalb des Repertoires</b> seit Zug {moveNo(rev.ply)} ({label(rev.ply, rev.played.san)})
+                </span>
+              )}
+              {phase !== 'at' && (
+                <button className="link-btn" onClick={() => go(rev.ply!)}>
+                  Zur Abweichung
+                </button>
+              )}
+            </div>
+          )}
+          <div className="board-row">
+            {evalOn && <EvalBar fen={eng.fen} lines={eng.lines} depth={eng.depth} orientation={color} />}
+            <Board fen={step.fen} orientation={color} lastMove={uciSquares(step.uci)} movable="none" shapes={shapes} highlights={highlights} />
+          </div>
+          {/* Zeitleiste: jeder Halbzug ein Segment (Farbe = im Repertoire / Abweichung / frei), antippen springt hin */}
+          <div className="gd-timeline" role="group" aria-label="Zeitleiste der Partie">
+            {marks.map((m, i) => (
+              <button
+                key={i}
+                className={`${m} ${cursor === i + 1 ? 'cur' : ''}`}
+                aria-label={`Zug ${moveNo(i)}${i % 2 ? ' Schwarz' : ' Weiß'}`}
+                onClick={() => go(i + 1)}
+              />
+            ))}
+          </div>
           <div className="board-controls">
             <button className="btn icon" onClick={() => go(0)} aria-label="Zum Anfang">
               <Icon name="first" />
@@ -169,7 +237,7 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
                 Zum Ereignis
               </button>
             )}
-            {ev !== undefined && <span className="hint gd-eval">{formatEval(ev, undefined)}</span>}
+            {ev !== undefined && <span className="hint gd-eval" title="Bewertung aus der Lichess-Analyse">Lichess {formatEval(ev, undefined)}</span>}
           </div>
         </section>
 
@@ -253,7 +321,7 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
 
           <div className="card gd-moves" aria-label="Züge">
             <ol>
-              {pairs.map((p) => (
+              {pairs.map((p) => [
                 <li key={p[0]}>
                   <span className="mvno">{moveNo(p[0])}.</span>
                   {p.map((i) => (
@@ -266,8 +334,14 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
                       {displaySan(steps[i + 1].san!, notation)}
                     </button>
                   ))}
-                </li>
-              ))}
+                </li>,
+                // Trennlinie direkt nach dem Zugpaar mit dem Ereignis: ab hier außerhalb der Vorbereitung
+                rev.ply !== undefined && p.includes(rev.ply) && (rev.status === 'my-deviation' || rev.status === 'opp-new' || rev.status === 'hole') ? (
+                  <li key={`b${p[0]}`} className={`gd-break ${evKind}`}>
+                    {rev.status === 'my-deviation' ? 'Ab hier weichst du von deinem Repertoire ab' : rev.status === 'opp-new' ? 'Ab hier ist der Gegner außerhalb deiner Vorbereitung' : 'Ab hier hattest du keinen Zug festgelegt'}
+                  </li>
+                ) : null,
+              ])}
             </ol>
             <p className="gd-legend">
               <span>

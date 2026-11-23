@@ -69,6 +69,7 @@ test('Zug festlegen → Lücke verschwindet', async ({ page }) => {
   await page.waitForTimeout(400);
   await expect(page.getByTestId('gap-count')).toHaveText('3'); // unverändert – nichts festgelegt
   await page.getByTestId('explore').click(); // wieder aus
+  await expect(page.locator('.crumbs .cur')).toHaveText('Sc6'); // zurück in der Ausgangsstellung des Erkundens
   // Zug tippen (deutsch) + Enter
   await page.getByRole('button', { name: 'Zum Anfang' }).click();
   await page.getByLabel('Zug eingeben').fill('Sf3');

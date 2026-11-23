@@ -58,9 +58,9 @@ test('Meine Partien: Gegner-Statistik im Repertoire und bei den Lücken', async 
   await expect(rows.nth(0)).toContainText('Lücke');
 
   await page.locator('.nav-top').getByRole('button', { name: /^Lücken/ }).click();
-  await expect(page.locator('.gaprow').first()).toContainText('in deinen Partien');
+  await expect(page.locator('.gap-groups .gaprow').first()).toContainText('in deinen Partien');
   await page.getByLabel('nur aus meinen Partien').check();
-  await expect(page.locator('.gaprow')).toHaveCount(2);
+  await expect(page.locator('.gap-groups .gaprow')).toHaveCount(2);
 
   // Anderes Gerät: Name ist da (per Sync), Partien nicht → Startseite bietet „Partien laden“ an
   await page.goto('/#/settings');

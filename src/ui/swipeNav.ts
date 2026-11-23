@@ -84,7 +84,7 @@ export function useSwipeNav(rootRef: RefObject<HTMLElement>, opts: SwipeOpts) {
     if (!root || !enabled || !matchMedia('(max-width: 899px)').matches) return;
     let s: Gesture | undefined;
 
-    const activePage = () => pages.current?.querySelector<HTMLElement>(':scope > .page.active') ?? null;
+    const activePage = () => pages.current?.querySelector<HTMLElement>(':scope > .slot.active') ?? null;
 
     const clear = (els: HTMLElement[], animate: boolean) => {
       for (const el of els) {

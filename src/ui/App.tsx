@@ -96,7 +96,7 @@ export function App() {
     // Am Handy scrollt nur die aktive Seite (eigener Scroller je Seite), am Laptop das Fenster
     const pages = pagesRef.current;
     const on = () => {
-      const m = pages?.querySelector<HTMLElement>(':scope > .page.active');
+      const m = pages?.querySelector<HTMLElement>(':scope > .slot.active');
       setScrolled(window.scrollY > 24 || (m?.scrollTop ?? 0) > 24);
     };
     on();
@@ -113,7 +113,7 @@ export function App() {
   const lastView = useRef(view);
   useLayoutEffect(() => {
     const pages = pagesRef.current;
-    const main = pages?.querySelector<HTMLElement>(':scope > .page.active');
+    const main = pages?.querySelector<HTMLElement>(':scope > .slot.active');
     const left = lastView.current;
     const from = ORDER.indexOf(left);
     const to = ORDER.indexOf(view);
@@ -344,7 +344,7 @@ export function App() {
 /** Eine Seite in der Spur. Nachbarseiten sind „inert“: gemountet und gezeichnet, aber ohne Engine, Netz, Tastatur und Fokus. */
 const Page = memo(function Page({ v, active, repId }: { v: View; active: boolean; repId?: string }) {
   return (
-    <main className={`page${active ? ' active' : ''}`} data-view={v} aria-hidden={active ? undefined : true} {...(active ? {} : ({ inert: '' } as object))}>
+    <main className={`slot${active ? ' active' : ''}`} data-view={v} aria-hidden={active ? undefined : true} {...(active ? {} : ({ inert: '' } as object))}>
       <InertContext.Provider value={!active}>{pageFor(v, repId)}</InertContext.Provider>
     </main>
   );

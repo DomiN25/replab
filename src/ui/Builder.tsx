@@ -23,6 +23,7 @@ import {
   gotoCursor,
   gotoNode,
   playMove,
+  setLine,
   setMyMove,
   toast,
   useApp,
@@ -90,6 +91,8 @@ export function Builder() {
       return false;
     }
   });
+  /** Stellung, in der das Erkunden begann (Zugfolge + Position darin) */
+  const exploreFrom = useRef<{ line: typeof line; cursor: number } | undefined>(undefined);
   const toggleExplore = () => {
     const on = !explore;
     setExplore(on);
@@ -98,7 +101,17 @@ export function Builder() {
     } catch {
       /* privat/blockiert */
     }
-    toast(on ? 'Erkunden an: Züge am Brett werden nicht festgelegt.' : 'Erkunden aus: Ein Zug am Brett legt deinen Repertoirezug fest.', 'info');
+    if (on) {
+      exploreFrom.current = { line, cursor };
+      toast('Erkunden an: Züge am Brett werden nicht festgelegt. Beim Ausschalten geht es zurück zu dieser Stellung.', 'info');
+      return;
+    }
+    const from = exploreFrom.current;
+    exploreFrom.current = undefined;
+    if (from && posKeyOf(from.line[from.cursor].fen) !== posKeyOf(line[cursor].fen)) {
+      setLine(from.line, from.cursor);
+      toast('Erkunden aus: zurück in der Ausgangsstellung – ein Zug am Brett legt jetzt deinen Repertoirezug fest.', 'info');
+    } else toast('Erkunden aus: Ein Zug am Brett legt deinen Repertoirezug fest.', 'info');
   };
 
   const step = line[cursor];
@@ -540,7 +553,10 @@ export function Builder() {
             </div>
             {explore && (
               <p className="explore-note" role="status">
-                <Icon name="eye" /> Erkunden: Züge am Brett werden nicht festgelegt – festlegen über die Zugtabelle.
+                <Icon name="eye" /> Erkunden: Züge am Brett werden nicht festgelegt – festlegen über die Zugtabelle.{' '}
+                <button className="link-btn" onClick={toggleExplore} data-testid="explore-back">
+                  {exploreFrom.current ? 'Beenden und zurück zur Ausgangsstellung' : 'Erkunden beenden'}
+                </button>
               </p>
             )}
             <p className="kbd-hint">

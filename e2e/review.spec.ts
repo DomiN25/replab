@@ -100,10 +100,12 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   await expect(page.getByTestId('gd-event')).toContainText('Du hast 2.Lc4 gespielt');
   await expect(page.getByTestId('gd-event')).toContainText('2.Sf3');
   await expect(detail.locator('.mv.dev')).toHaveText('Lc4');
+  await expect(page.getByTestId('gd-state')).toContainText('Hier bist du abgewichen');
   await expect(detail.locator('.mv.rep')).toHaveCount(2);
   await expect(detail.getByRole('button', { name: 'Zum Ereignis' })).toBeDisabled();
   await detail.getByRole('button', { name: 'Zug vor' }).click();
   await expect(detail.locator('.mv.cur')).toHaveText('Lc4');
+  await expect(page.getByTestId('gd-state')).toContainText('Außerhalb des Repertoires');
   await detail.getByRole('button', { name: 'Liste' }).click();
   await expect(detail).toHaveCount(0);
 
