@@ -47,7 +47,8 @@ function stepsOf(sans: string[]): Step[] {
 interface Props {
   rows: Row[];
   index: number;
-  color: Color;
+  /** (veraltet) – die Ausrichtung folgt der eigenen Farbe in der Partie */
+  color?: Color;
   opening: (key: string) => string | undefined;
   /** Bewertung nach dem Zug der Abweichung (aus meiner Sicht) */
   assessment?: (key: string) => Assessment | undefined;
@@ -55,9 +56,10 @@ interface Props {
   onClose: () => void;
 }
 
-export function GameDetail({ rows, index, color, opening, assessment, onIndex, onClose }: Props) {
+export function GameDetail({ rows, index, opening, assessment, onIndex, onClose }: Props) {
   const x = rows[index];
   const { game, rev } = x;
+  const mine: Color = game.c === 'w' ? 'white' : 'black';
   const notation = useApp((s) => s.settings.ui.notation);
   const evalOn = useApp((s) => s.settings.ui.evalBar !== false);
   const cards = useApp((s) => s.cards);
@@ -148,11 +150,11 @@ export function GameDetail({ rows, index, color, opening, assessment, onIndex, o
         </button>
         <div className="gd-title">
           <b>
-            <span className={`res r${game.r}`}>{game.r === 1 ? 'Sieg' : game.r === -1 ? 'Niederlage' : 'Remis'}</span> {game.opp ? `gegen ${game.opp}` : 'Partie'}
+            <span className={`res r${game.r}`}>{game.r === 1 ? 'Sieg' : game.r === -1 ? 'Niederlage' : 'Remis'}</span> <span className={`kdot ${mine}`} aria-hidden /> {game.opp ? `gegen ${game.opp}` : 'Partie'}
             {game.or ? <small> ({game.or})</small> : null}
           </b>
           <small className="hint">
-            {SOURCE_NAME[game.src ?? 'lichess']}
+            mit {mine === 'white' ? 'Weiß' : 'Schwarz'} · {SOURCE_NAME[game.src ?? 'lichess']}
             {game.sp ? ` · ${SPEED_NAME[game.sp]}` : ''}
             {game.t ? ` · ${new Date(game.t).toLocaleDateString('de-DE')}` : ''}
             {op ? ` · ${nameDe(op)}` : ''}
@@ -217,8 +219,8 @@ export function GameDetail({ rows, index, color, opening, assessment, onIndex, o
             </div>
           )}
           <div className="board-row">
-            {evalOn && <EvalBar fen={eng.fen} lines={eng.lines} depth={eng.depth} orientation={color} />}
-            <Board fen={step.fen} orientation={color} lastMove={uciSquares(step.uci)} movable="none" shapes={shapes} highlights={highlights} />
+            {evalOn && <EvalBar fen={eng.fen} lines={eng.lines} depth={eng.depth} orientation={mine} />}
+            <Board fen={step.fen} orientation={mine} lastMove={uciSquares(step.uci)} movable="none" shapes={shapes} highlights={highlights} />
           </div>
           {/* Zeitleiste: jeder Halbzug ein Segment (Farbe = im Repertoire / Abweichung / frei), antippen springt hin */}
           <div className="gd-timeline" role="group" aria-label="Zeitleiste der Partie">

@@ -562,8 +562,7 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .gc-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .gc-opp { font: 700 15px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gc-status { font-size: 13.5px; }
-.gc-status.my-deviation { color: var(--gap); }
-.gc-status.opp-new, .gc-status.hole { color: var(--opp); }
+.gc-status { color: var(--ink); }
 .mini-board { flex: none; width: 104px; }
 .mini-board .board-wrap, .mini-board .cg-wrap { border-radius: 8px; }
 .mini-board .cg-wrap { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); pointer-events: none; }
@@ -620,6 +619,10 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .error-spots ul { list-style: none; margin: 6px 0 0; padding: 0; }
 .rg-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--panel2); color: var(--ink); font: 500 13.5px var(--body); text-align: left; cursor: pointer; }
 .rg-foot:hover { border-color: var(--line); }
+.rg-lines { display: flex; flex-direction: column; gap: 4px; }
+.rg-lines .kdot { width: 14px; height: 14px; vertical-align: -2px; }
+.gc-head .kdot, .game-head .kdot { width: 16px; height: 16px; }
+.gd-title .kdot { width: 16px; height: 16px; vertical-align: -2px; }
 /* Partien: Auswahl, Auswertung, Brennpunkte */
 .games-reps { margin: 4px 0 6px; flex-wrap: wrap; }
 .games-reps .kdot { margin-right: 4px; }

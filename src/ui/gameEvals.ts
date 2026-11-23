@@ -147,11 +147,12 @@ export function useAssessments(rows: Row[], color: Color, enabled: boolean): { o
 
   const byKey = useMemo(() => {
     const m = new Map<string, Assessment>();
-    const mine = (w: number) => (color === 'white' ? w : -w);
+    // aus meiner Sicht in genau dieser Partie (die Startseite mischt beide Farben)
+    const mine = (w: number, c: 'w' | 'b') => (c === 'w' ? w : -w);
     for (const t of targets) {
       const w = t.lichess ?? store[t.posKey];
       const r = rows.find((x) => x.key === t.key);
-      if (w !== undefined && r) m.set(t.key, assess(r.rev, mine(w)));
+      if (w !== undefined && r) m.set(t.key, assess(r.rev, mine(w, r.game.c)));
     }
     return m;
   }, [targets, store, rows, color]);

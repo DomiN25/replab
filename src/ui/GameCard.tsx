@@ -57,7 +57,6 @@ export function GameCard({
   row,
   a,
   pending,
-  color,
   notation,
   onOpen,
   actions,
@@ -65,7 +64,8 @@ export function GameCard({
   row: Row;
   a?: Assessment;
   pending?: boolean;
-  color: Color;
+  /** (veraltet) – die Ausrichtung folgt der eigenen Farbe in der Partie */
+  color?: Color;
   notation: 'de' | 'en';
   onOpen: () => void;
   actions?: ReactNode;
@@ -73,12 +73,15 @@ export function GameCard({
   const { game, rev } = row;
   const sans = useMemo(() => game.m.split(' ').filter(Boolean), [game.m]);
   const label = (ply: number, san: string) => moveNumberPrefix(ply) + displaySan(san, notation);
+  // Brett immer aus meiner Sicht in dieser Partie (meine Farbe unten)
+  const mine: Color = game.c === 'w' ? 'white' : 'black';
   return (
     <li className={`game-card ${a?.verdict ?? ''} st-${rev.status}`}>
       <button className="gc-main" onClick={onOpen} aria-label={`Partie gegen ${game.opp ?? 'Gegner'} ansehen`}>
         <span className="gc-text">
           <span className="gc-head">
             <span className={`res r${game.r}`}>{game.r === 1 ? 'Sieg' : game.r === -1 ? 'Niederlage' : 'Remis'}</span>
+            <span className={`kdot ${mine}`} title={`Du hattest ${mine === 'white' ? 'Weiß' : 'Schwarz'}`} aria-label={`mit ${mine === 'white' ? 'Weiß' : 'Schwarz'}`} />
             <b className="gc-opp">{game.opp ?? 'Partie'}</b>
           </span>
           <small className="hint">
@@ -88,7 +91,7 @@ export function GameCard({
           <span className={`gc-status ${rev.status}`}>{shortStatus(rev, label)}</span>
           <VerdictBadge a={a} pending={pending} />
         </span>
-        <MiniBoard rev={rev} sans={sans} color={color} />
+        <MiniBoard rev={rev} sans={sans} color={mine} />
       </button>
       {actions && <div className="gc-actions">{actions}</div>}
     </li>

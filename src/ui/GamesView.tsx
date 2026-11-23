@@ -83,8 +83,15 @@ export function startDrill(items: SessionItem[]) {
   setView('train');
 }
 
-/** Partie von außen öffnen (Startseite „Letzte Partien“) */
-export function openGameFromHome(key: string) {
+/** Partie von außen öffnen (Startseite „Letzte Partien“): andere Farbe → erst das Repertoire dieser Farbe wählen */
+export function openGameFromHome(key: string, c?: 'w' | 'b') {
+  const { repertoires, repId } = useApp.getState();
+  const color = c === 'b' ? 'black' : 'white';
+  const cur = repertoires.find((r) => r.id === repId);
+  if (c && cur && cur.color !== color) {
+    const target = repertoires.find((r) => r.color === color && r.isMain) ?? repertoires.find((r) => r.color === color);
+    if (target) void selectRepertoire(target.id);
+  }
   useApp.setState({ gameOpen: key });
   setView('games');
 }
@@ -794,6 +801,7 @@ export function Games() {
                   <div className="game-head">
                     <input type="checkbox" className="game-pick" checked={sel.has(x.key)} onChange={() => toggleSel(x.key)} aria-label="Partie auswählen" />
                     <span className={`res r${x.game.r}`}>{x.game.r === 1 ? 'Sieg' : x.game.r === -1 ? 'Niederlage' : 'Remis'}</span>
+                    <span className={`kdot ${x.game.c === 'w' ? 'white' : 'black'}`} title={x.game.c === 'w' ? 'mit Weiß' : 'mit Schwarz'} aria-label={x.game.c === 'w' ? 'mit Weiß' : 'mit Schwarz'} />
                     <span className="game-opp">
                       {x.game.opp ? `gegen ${x.game.opp}` : 'Partie'}
                       {x.game.or ? <small> ({x.game.or})</small> : null}
