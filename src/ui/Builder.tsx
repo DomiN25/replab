@@ -13,7 +13,8 @@ import { GuideBar, startGuide, stopGuide } from './GuideBar';
 import { useEngine, useExplorer, useMediaQuery } from './hooks';
 import { EvalBar } from './EvalBar';
 import { useStudySuggestions } from './studySuggest';
-import { useOppStats } from './games';
+import { useOppStats, usePositionResults } from './games';
+import { ResultStrip } from './ResultStrip';
 import { BottomSheet, type SheetSnap } from './BottomSheet';
 import {
   back,
@@ -129,6 +130,7 @@ export function Builder() {
 
   const suggestions = useStudySuggestions(posKey, myColor);
   const games = useOppStats(myColor);
+  const posRes = usePositionResults(myColor);
   const explorerSt = useExplorer(fen, 'lichess');
   const mastersSt = useExplorer(fen, source === 'masters' ? 'masters' : 'lichess');
   const evalOn = settings.ui.evalBar !== false;
@@ -374,6 +376,7 @@ export function Builder() {
       <Board fen={fen} orientation={orientation} lastMove={uciSquares(step.uci)} shapes={shapes} onMove={onBoardMove} />
     </div>
   );
+  const resultStrip = <ResultStrip r={posRes?.get(posKey)} />;
   const navButtons = (
     <>
       {/* am Handy ist die Reihe voll – „Start“ in der Zugleiste springt ebenfalls zum Anfang */}
@@ -504,6 +507,7 @@ export function Builder() {
           <section className="col-board" ref={boardRef}>
             <Crumbs devIndex={deviation?.index} />
             {board}
+            {resultStrip}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
               {navButtons}
               {modeSwitch}
@@ -537,6 +541,7 @@ export function Builder() {
             {modeSwitch}
             <Crumbs devIndex={deviation?.index} />
             {board}
+            {resultStrip}
             <div className="board-controls" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
               {navButtons}
               <input

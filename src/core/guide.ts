@@ -2,7 +2,7 @@
 import { gapList, pathUcis, type GapInfo, type Graph } from './graph';
 import { commonPrefix } from './session';
 
-export type GuideStrategy = 'branch' | 'shallow' | 'line';
+export type GuideStrategy = 'branch' | 'shallow' | 'line' | 'games';
 
 export interface GuideOptions {
   strategy: GuideStrategy;
@@ -18,6 +18,8 @@ export interface GuideOptions {
   rng?: () => number;
   /** Nur Lücken unterhalb dieses Knotens (inkl. ihm selbst) – „ab hier weiterbauen“. */
   under?: number;
+  /** „Aus meinen Partien“: in wie vielen meiner Partien kam die Stellung vor? */
+  seen?: (posKey: string) => number;
 }
 
 /** Liegt der Knoten `id` im Teilbaum von `ancestor` (oder ist er es selbst)? Läuft über die Elternkette. */
@@ -51,6 +53,8 @@ function candidates(g: Graph, o: Pick<GuideOptions, 'minReach' | 'skipped' | 'fa
  *   längsten gemeinsamen Weg zur letzten Lücke (ähnliche Linien direkt hintereinander), dann häufiger.
  * - shallow: am nächsten an der Grundstellung über alle Äste, bei Gleichstand häufigere zuerst.
  * - line („Linie zu Ende“): möglichst tief in der zuletzt bearbeiteten Linie (längster gemeinsamer Weg), dann wie shallow.
+ * - games („Aus meinen Partien“): Lücken, die in meinen Partien am häufigsten vorkamen, zuerst; bei Gleichstand in der zuletzt
+ *   bearbeiteten Linie weiter (so werden häufig gespielte Linien auch in die Tiefe gelernt). Ohne Treffer wie shallow.
  */
 export function nextGap(g: Graph, o: GuideOptions): GapInfo | undefined {
   let list = candidates(g, o);
@@ -81,6 +85,15 @@ export function nextGap(g: Graph, o: GuideOptions): GapInfo | undefined {
     const cp = new Map(list.map((x) => [x.id, cpOf(x)]));
     const sorted = [...list].sort((a, b) => a.ply - b.ply || cp.get(b.id)! - cp.get(a.id)! || b.reach - a.reach);
     return o.lastPath?.length ? sorted[0] : pickTop(sorted, o.rng, 4);
+  }
+
+  if (o.strategy === 'games' && o.seen) {
+    const seen = o.seen;
+    const hits = list.filter((x) => seen(x.posKey) > 0);
+    if (hits.length) {
+      const cp = new Map(hits.map((x) => [x.id, cpOf(x)]));
+      return [...hits].sort((a, b) => seen(b.posKey) - seen(a.posKey) || cp.get(b.id)! - cp.get(a.id)! || a.ply - b.ply || b.reach - a.reach)[0];
+    }
   }
 
   if (o.strategy === 'line' && o.lastPath?.length) {

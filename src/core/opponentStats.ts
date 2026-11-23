@@ -92,3 +92,37 @@ export function buildOppStats(games: GameRec[], color: Color): OppStats {
 export function gamesWith(stats: OppStats | undefined, posKey: string, uci: string): number {
   return stats?.replies.get(posKey)?.find((r) => r.uci === uci)?.n ?? 0;
 }
+
+export interface PosResult {
+  n: number;
+  w: number;
+  d: number;
+  l: number;
+}
+
+/** Je Stellung (posKey): in wie vielen meiner Partien (Farbe `color`) kam sie vor, mit welchem Ergebnis. Jede Partie zählt je Stellung einmal. */
+export function positionResults(games: GameRec[], color: Color): Map<string, PosResult> {
+  const out = new Map<string, PosResult>();
+  const c = color === 'white' ? 'w' : 'b';
+  for (const g of games) {
+    if (g.c !== c) continue;
+    const pos: Chess = positionFromFen(START_FEN);
+    const seen = new Set<string>();
+    for (const san of g.m.split(' ').slice(0, MAX_PLIES)) {
+      if (!san) break;
+      const mv = parseSan(pos, san);
+      if (!mv) break;
+      pos.play(mv);
+      const key = posKeyOf(pos);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let r = out.get(key);
+      if (!r) out.set(key, (r = { n: 0, w: 0, d: 0, l: 0 }));
+      r.n++;
+      if (g.r === 1) r.w++;
+      else if (g.r === 0) r.d++;
+      else r.l++;
+    }
+  }
+  return out;
+}

@@ -14,7 +14,7 @@ export const BRUSHES = {
   mine: { key: 'mi', color: '#12b886', opacity: 0.85, lineWidth: 11 },
   opp: { key: 'op', color: '#f08c00', opacity: 0.75, lineWidth: 8 },
   eng: { key: 'en', color: '#1971c2', opacity: 0.85, lineWidth: 5 },
-  wrong: { key: 'wr', color: '#e03131', opacity: 0.85, lineWidth: 9 },
+  wrong: { key: 'wr', color: '#cf5a4f', opacity: 0.78, lineWidth: 9 },
 };
 
 export interface BoardProps {

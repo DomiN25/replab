@@ -1,6 +1,6 @@
 // Meine Partien (Lichess und Chess.com): laden, lokal speichern (nur dieses Gerät, nicht im Sync) und als Statistik bereitstellen.
 import { useMemo, useSyncExternalStore } from 'react';
-import { buildOppStats, type GameRec, type OppStats } from '../core/opponentStats';
+import { buildOppStats, positionResults, type GameRec, type OppStats, type PosResult } from '../core/opponentStats';
 import type { Color } from '../core/types';
 import { fetchLichessGames } from '../services/lichessGames';
 import { fetchChesscomGames } from '../services/chesscomGames';
@@ -94,6 +94,17 @@ export function useMyGames(): StoredGames | undefined {
     },
     () => state,
   );
+}
+
+let posCache: { s: StoredGames | undefined; color: Color; m: Map<string, PosResult> } | undefined;
+/** Bilanz je Stellung aus meinen Partien (gecacht, solange sich die Partien nicht ändern) */
+export function positionResultsFor(color: Color): Map<string, PosResult> {
+  if (!posCache || posCache.s !== state || posCache.color !== color) posCache = { s: state, color, m: positionResults(state?.games ?? [], color) };
+  return posCache.m;
+}
+export function usePositionResults(color: Color): Map<string, PosResult> | undefined {
+  const stored = useMyGames();
+  return useMemo(() => (stored?.games.length ? positionResultsFor(color) : undefined), [stored, color]);
 }
 
 /** Statistik für die Farbe des aktuellen Repertoires (undefined, solange keine Partien geladen sind). */

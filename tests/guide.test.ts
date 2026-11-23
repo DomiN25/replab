@@ -220,3 +220,14 @@ describe('Lücken nach Wichtigkeit', () => {
     expect(gapCounts(g, 0)).toEqual({ important: 4, rare: 0, total: 4 });
   });
 });
+
+describe('Lückentour „Aus meinen Partien“', () => {
+  it('häufigste Lücke aus meinen Partien zuerst, ohne Treffer wie flachste', () => {
+    const counts: Record<string, number> = { [keyAfter(['e4', 'e6'])]: 3, [keyAfter(['e4', 'c5'])]: 1 };
+    const seen = (k: string) => counts[k] ?? 0;
+    const gp = nextGap(g, { strategy: 'games', minReach: 0, skipped: new Set(), seen });
+    expect(pathSans(g, gp!.id)).toEqual(['e4', 'e6']);
+    const none = nextGap(g, { strategy: 'games', minReach: 0, skipped: new Set(), seen: () => 0 });
+    expect(none!.ply).toBe(2); // Rückfall: flachste
+  });
+});

@@ -135,4 +135,6 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   await expect(page).toHaveURL(/#\/build/);
   await expect(page.locator('.crumbs')).toContainText('Lc4');
   await expect(page.getByTestId('outside')).toContainText('Außerhalb des Repertoires');
+  // Bilanz-Streifen unter dem Brett: diese Stellung kam in einer meiner Partien vor (Remis nach 2.Lc4 Sf6? hier: 1 Partie)
+  await expect(page.getByTestId('res-strip')).toContainText('1× in deinen Partien');
 });

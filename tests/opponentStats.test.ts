@@ -82,3 +82,21 @@ describe('Lichess-Partien laden', () => {
     await expect(fetchLichessGames('  ', { max: 5 })).rejects.toThrow(/Namen/);
   });
 });
+
+describe('Bilanz je Stellung', () => {
+  it('positionResults: jede Partie je Stellung einmal, nur meine Farbe', async () => {
+    const { positionResults } = await import('../src/core/opponentStats');
+    const { keyAfter } = await import('./helpers');
+    const m = positionResults(
+      [
+        { c: 'w', r: 1, m: 'e4 e5 Nf3' },
+        { c: 'w', r: -1, m: 'e4 e5 Bc4' },
+        { c: 'w', r: 0, m: 'e4 c5' },
+        { c: 'b', r: 1, m: 'e4 e5' },
+      ],
+      'white',
+    );
+    expect(m.get(keyAfter(['e4', 'e5']))).toEqual({ n: 2, w: 1, d: 0, l: 1 });
+    expect(m.get(keyAfter(['e4']))).toEqual({ n: 3, w: 1, d: 1, l: 1 });
+  });
+});

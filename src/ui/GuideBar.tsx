@@ -6,6 +6,7 @@ import { gapFamilies, nextGap, oppSiblings, openGapCount, type GuideStrategy } f
 import { pathUcis } from '../core/graph';
 import { displaySan, formatLine, playUci, posKeyOf, moveNumberPrefix } from '../core/chess';
 import { Icon } from './Icon';
+import { positionResultsFor, usePositionResults } from './games';
 import { useInert } from './inert';
 import { explorer, explorerParams, gotoNode, lichessToken, requestGraph, setEndOfLine, toggleOpp, toast, useApp } from './store';
 
@@ -24,8 +25,8 @@ export interface GuideState {
 }
 
 export const DEFAULT_GUIDE: GuideState = { active: false, strategy: 'branch', minReach: 0, skipped: [] };
-const STRATEGIES: GuideStrategy[] = ['branch', 'shallow', 'line'];
-const STRATEGY_LABEL: Record<GuideStrategy, string> = { branch: 'Ast für Ast', shallow: 'flachste zuerst', line: 'Linie zu Ende' };
+const STRATEGIES: GuideStrategy[] = ['branch', 'shallow', 'line', 'games'];
+const STRATEGY_LABEL: Record<GuideStrategy, string> = { branch: 'Ast für Ast', shallow: 'flachste zuerst', line: 'Linie zu Ende', games: 'Aus meinen Partien' };
 
 function loadPrefs(): Pick<GuideState, 'strategy' | 'minReach'> {
   try {
@@ -77,9 +78,12 @@ function guideRng(): () => number {
 
 /** Zur nächsten passenden Lücke springen. `fresh`: Start einer Tour → erste Lücke variieren. */
 export function guideNext(fresh = false): boolean {
-  const { graph, guide } = useApp.getState();
+  const { graph, guide, repertoires, repId } = useApp.getState();
   if (!graph) return false;
+  // „Aus meinen Partien“: Häufigkeit je Stellung in meinen Partien dieser Farbe
+  const pr = guide.strategy === 'games' ? positionResultsFor(repertoires.find((r) => r.id === repId)?.color ?? 'white') : undefined;
   const gp = nextGap(graph, {
+    seen: pr ? (k) => pr.get(k)?.n ?? 0 : undefined,
     strategy: guide.strategy,
     minReach: guide.minReach,
     skipped: new Set(guide.skipped),
@@ -120,6 +124,8 @@ export function GuideBar() {
   const moves = useApp((s) => s.moves);
   const notation = useApp((s) => s.settings.ui.notation);
   const showReach = useApp((s) => s.settings.ui.showReach);
+  const repColor = useApp((s) => s.repertoires.find((r) => r.id === s.repId)?.color ?? 'white');
+  const posRes = usePositionResults(repColor);
   const [showOpts, setShowOpts] = useState(() => {
     try {
       return localStorage.getItem('replab.guideOpts') === '1';
@@ -163,7 +169,7 @@ export function GuideBar() {
     if (!(atGap || justLeft)) return; // Nutzer erkundet frei → nicht wegspringen
     const entry = moves.get(guide.currentKey);
     // „In der Linie bleiben“: erst die Gegnerzüge nach meinem neuen Zug laden
-    if (guide.strategy === 'line' && entry && gapNode) {
+    if ((guide.strategy === 'line' || guide.strategy === 'games') && entry && gapNode) {
       let child;
       try {
         child = playUci(gapNode.fen, entry.uci);
@@ -300,6 +306,7 @@ export function GuideBar() {
           <p className="guide-line">
             <span>{formatLine(sans, notation) || 'Grundstellung'}</span>
             {gapNode?.share !== undefined && <small> · Gegner spielt das in {(gapNode.share * 100).toFixed(0)} %</small>}
+            {gapNode && (posRes?.get(gapNode.posKey)?.n ?? 0) > 0 && <small className="in-games"> · {posRes!.get(gapNode.posKey)!.n}× in deinen Partien</small>}
             {showReach && gapNode && gapNode.reach > 0 && <small> · erreicht ≈ {(gapNode.reach * 100).toFixed(1).replace(".", ",")} %</small>}
           </p>
           {waiting ? (
