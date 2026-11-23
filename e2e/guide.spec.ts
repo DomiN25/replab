@@ -67,4 +67,7 @@ test('Lückentour: Lücken der Reihe nach schließen', async ({ page }) => {
   // Ast-Auswahl bietet nur Äste mit offenen Lücken an
   await page.getByTestId('guide-opts').click(); // Einstellungen sind eingeklappt
   await expect(guide.getByRole('combobox', { name: 'Ast' })).toContainText('alle Äste');
+  // Reihenfolge „Aus meinen Partien“ ist wählbar
+  await guide.getByRole('combobox', { name: 'Strategie' }).selectOption({ label: 'Aus meinen Partien' });
+  await expect(guide).toContainText('Aus meinen Partien');
 });

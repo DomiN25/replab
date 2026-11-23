@@ -237,9 +237,11 @@ export function GuideBar() {
           <label className="field inline">
             <span>Reihenfolge</span>
             <select aria-label="Strategie" value={guide.strategy} onChange={(e) => setGuide({ strategy: e.target.value as GuideStrategy })}>
-              <option value="branch">Ast für Ast</option>
-              <option value="shallow">flachste zuerst</option>
-              <option value="line">Linie zu Ende</option>
+              {STRATEGIES.map((s) => (
+                <option key={s} value={s}>
+                  {STRATEGY_LABEL[s]}
+                </option>
+              ))}
             </select>
           </label>
           <label className="field inline">
