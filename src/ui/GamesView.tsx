@@ -1,23 +1,26 @@
-// Partien: meine geladenen Partien (Lichess/Chess.com) gegen das Repertoire prüfen. Gezielt auswählen (Gegner, Zeitraum, Tempo,
-// Eröffnung, Ergebnis, einzelne Partien), auswerten (wer verlässt die Vorbereitung wie oft und ab welchem Zug, mit welchem Ergebnis),
-// Brennpunkte finden und daraus lernen: Partie am Brett ansehen, Abweichungen trainieren, Unvorbereitetes im Repertoire schließen.
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+// Partien: meine geladenen Partien (Lichess/Chess.com) gegen das Repertoire prüfen.
+// Aufbau nach „Was soll ich tun?“: oben „Zu prüfen“ – Partien, in denen du nach der Abweichung (deiner oder der des Gegners)
+// schlechter standest, mit Mini-Brett und einer klaren Aktion. Darunter die Partienliste (Filter, Auswahl) und als zweiter
+// Reiter die Auswertung (Anteile, Brennpunkte, Training aus den Abweichungen).
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { displaySan, formatLine, moveNumberPrefix } from '../core/chess';
 import { hotspots, openingOf, plyMarks, summarize, type GameReview, type Hotspot, type ReviewStatus } from '../core/gameReview';
 import { SPEED_NAME, type Speed } from '../core/opponentStats';
 import { familyDe, nameDe } from '../core/openings';
 import type { SessionItem } from '../core/session';
-import { formatEval } from '../core/relevance';
-import { engine, lichessToken, lineFromUcis, selectRepertoire, setLine, setView, toast, useApp } from './store';
+import { lichessToken, lineFromUcis, selectRepertoire, setLine, setView, toast, useApp } from './store';
 import { loadMyGames, SOURCE_NAME, useMyGames, type GameSource } from './games';
 import { useEco, useReviewedGames, type Row } from './gameRows';
+import { useAssessments } from './gameEvals';
+import { GameCard, VerdictBadge } from './GameCard';
 import { GameDetail } from './GameDetail';
 import { Icon } from './Icon';
 import { useInert } from './inert';
 
-type Filter = 'all' | 'dev' | 'opp' | 'hole' | 'mistake';
+type Filter = 'all' | 'flag' | 'dev' | 'opp' | 'hole' | 'mistake';
 const FILTERS: { k: Filter; label: string }[] = [
   { k: 'all', label: 'Alle' },
+  { k: 'flag', label: 'Zu prüfen' },
   { k: 'dev', label: 'Meine Abweichungen' },
   { k: 'opp', label: 'Unvorbereitet' },
   { k: 'hole', label: 'Lücken' },
@@ -30,14 +33,6 @@ const PERIODS: { d: number; label: string }[] = [
   { d: 90, label: 'Letzte 3 Monate' },
   { d: 365, label: 'Letztes Jahr' },
 ];
-
-interface Check {
-  repCp?: number;
-  repMate?: number;
-  playedCp?: number;
-  playedMate?: number;
-  busy?: boolean;
-}
 
 export const STATUS_TEXT: Record<ReviewStatus, string> = {
   'in-rep': 'Ganz im Repertoire',
@@ -86,6 +81,12 @@ export function startDrill(items: SessionItem[]) {
   setView('train');
 }
 
+/** Partie von außen öffnen (Startseite „Letzte Partien“) */
+export function openGameFromHome(key: string) {
+  useApp.setState({ gameOpen: key });
+  setView('games');
+}
+
 export function Games() {
   const stored = useMyGames();
   const { rows, color, loaded } = useReviewedGames();
@@ -93,10 +94,12 @@ export function Games() {
   const repId = useApp((s) => s.repId);
   const cards = useApp((s) => s.cards);
   const settings = useApp((s) => s.settings);
+  const gameOpen = useApp((s) => s.gameOpen);
   const notation = settings.ui.notation;
   const rep = reps.find((r) => r.id === repId);
   const eco = useEco(loaded);
 
+  const [tab, setTab] = useState<'list' | 'stats'>('list');
   const [status, setStatus] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [period, setPeriod] = useState(0);
@@ -108,9 +111,9 @@ export function Games() {
   const [onlySel, setOnlySel] = useState(false);
   const [openKey, setOpenKey] = useState<string>();
   const [limit, setLimit] = useState(40);
-  const [checks, setChecks] = useState<Record<string, Check>>({});
   const [loading, setLoading] = useState(false);
   const [allSpots, setAllSpots] = useState(false);
+  const [allFlags, setAllFlags] = useState(false);
 
   // Brett-Ansicht beginnt oben; zurück in der Liste steht man wieder an derselben Stelle (Handy: eigener Scroller je Seite)
   const inert = useInert();
@@ -130,6 +133,9 @@ export function Games() {
     window.scrollTo(0, to);
   }, [openKey, inert]);
 
+  // Bewertung nach der Abweichung (Lichess-Analyse oder Stockfish im Hintergrund – nicht während der Brett-Ansicht)
+  const { of: assessOf, pending } = useAssessments(rows, color, !inert && !openKey);
+
   const opening = useMemo(() => (eco ? new Map(rows.map((r) => [r.key, openingOf(r.game.m.split(' '), eco)])) : undefined), [rows, eco]);
   const famOf = (r: Row) => {
     const n = opening?.get(r.key);
@@ -146,7 +152,27 @@ export function Games() {
   const speeds = useMemo(() => [...new Set(rows.map((r) => r.game.sp).filter(Boolean))] as Speed[], [rows]);
   const sources = useMemo(() => [...new Set(rows.map((r) => r.game.src ?? 'lichess'))], [rows]);
 
-  // Filter ohne Status: daraus Auswertung und Brennpunkte
+  const resetFilters = () => {
+    setQ('');
+    setPeriod(0);
+    setSpeed('');
+    setFam('');
+    setResult('');
+    setSrc('');
+    setLimit(40);
+  };
+
+  // Von der Startseite: genau diese Partie öffnen (Filter zurücksetzen, damit sie in der Liste ist)
+  useEffect(() => {
+    if (inert || !gameOpen) return;
+    useApp.setState({ gameOpen: undefined });
+    resetFilters();
+    setStatus('all');
+    setOnlySel(false);
+    openGame(gameOpen);
+  }, [gameOpen, inert]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Filter ohne Status: daraus Auswertung, Brennpunkte und „Zu prüfen“
   const base = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const since = period ? Date.now() - period * 86400_000 : 0;
@@ -160,6 +186,7 @@ export function Games() {
         (!src || (r.game.src ?? 'lichess') === src),
     );
   }, [rows, q, period, speed, fam, result, src, opening]); // eslint-disable-line react-hooks/exhaustive-deps
+  const flagged = base.filter((r) => assessOf(r.key)?.verdict === 'flag');
   const selected = useMemo(() => base.filter((r) => sel.has(r.key)), [base, sel]);
   const scope = selected.length ? selected : base;
   const sum = useMemo(() => summarize(scope), [scope]);
@@ -168,20 +195,24 @@ export function Games() {
   const list = listBase.filter((r) =>
     status === 'all'
       ? true
-      : status === 'dev'
-        ? r.rev.status === 'my-deviation'
-        : status === 'opp'
-          ? r.rev.status === 'opp-new'
-          : status === 'hole'
-            ? r.rev.status === 'hole'
-            : !!r.rev.mistake,
+      : status === 'flag'
+        ? assessOf(r.key)?.verdict === 'flag'
+        : status === 'dev'
+          ? r.rev.status === 'my-deviation'
+          : status === 'opp'
+            ? r.rev.status === 'opp-new'
+            : status === 'hole'
+              ? r.rev.status === 'hole'
+              : !!r.rev.mistake,
   );
+  // Brett-Ansicht blättert durch die Liste; kam die Partie von „Zu prüfen“ und ist sie nicht in der Liste, durch „Zu prüfen“
+  const browse = openKey && !list.some((r) => r.key === openKey) && flagged.some((r) => r.key === openKey) ? flagged : list;
   const anyFilter = !!(q || period || speed || fam || result || src);
 
   // Training: Stellungen, in denen ich abgewichen bin und eine Lernkarte habe (je Stellung einmal, häufigste zuerst)
-  const drill = useMemo(() => {
+  const drillOf = (rs: Row[]) => {
     const m = new Map<string, SessionItem>();
-    for (const r of scope) {
+    for (const r of rs) {
       if (r.rev.status !== 'my-deviation' || !r.rev.keyAt) continue;
       const card = cards.get(r.rev.keyAt);
       if (!card || card.suspended) continue;
@@ -190,29 +221,11 @@ export function Games() {
       else m.set(r.rev.keyAt, { cardId: card.id, posKey: card.posKey, path: r.rev.prefix, priority: 1 });
     }
     return [...m.values()].sort((a, b) => b.priority - a.priority);
-  }, [scope, cards]);
+  };
+  const drill = useMemo(() => drillOf(scope), [scope, cards]); // eslint-disable-line react-hooks/exhaustive-deps
   const unprepared = useMemo(() => new Set(scope.filter((r) => r.rev.status === 'opp-new' || r.rev.status === 'hole').map((r) => `${r.rev.keyAt}|${r.rev.played?.uci}`)).size, [scope]);
 
   const sanLabel = (ply: number, san: string) => moveNumberPrefix(ply) + displaySan(san, notation);
-
-  /** Stockfish: Repertoirezug gegen gespielten Zug an der Abweichung (lokal, flach genug für das Handy) */
-  const check = async (x: Row) => {
-    const r = x.rev;
-    if (!r.fenAt || !r.rep || !r.played) return;
-    setChecks((c) => ({ ...c, [x.key]: { busy: true } }));
-    try {
-      const run = (searchmoves: string[]) => engine().analyse(r.fenAt!, { depth: 14, multipv: 1, searchmoves }, () => {}).done;
-      const a = await run([r.rep.uci]);
-      const b = await run([r.played.uci]);
-      setChecks((c) => ({
-        ...c,
-        [x.key]: { repCp: a?.lines[0]?.cp, repMate: a?.lines[0]?.mate, playedCp: b?.lines[0]?.cp, playedMate: b?.lines[0]?.mate },
-      }));
-    } catch {
-      setChecks((c) => ({ ...c, [x.key]: {} }));
-      toast('Stockfish konnte die Stelle nicht prüfen.', 'err');
-    }
-  };
 
   /** Partien mit den hinterlegten Namen neu laden (Lichess und/oder Chess.com) */
   const reload = async () => {
@@ -240,20 +253,40 @@ export function Games() {
       else n.add(key);
       return n;
     });
-  const resetFilters = () => {
-    setQ('');
-    setPeriod(0);
-    setSpeed('');
-    setFam('');
-    setResult('');
-    setSrc('');
-    setLimit(40);
-  };
   /** Brennpunkt → Liste auf genau diese Partien einschränken */
   const focusSpot = (h: Hotspot) => {
     setSel(new Set(h.idx.map((i) => scope[i].key)));
     setOnlySel(true);
     setStatus('all');
+    setTab('list');
+  };
+  /** die eine passende Aktion zur Partie: trainieren (eigene Abweichung) bzw. Antwort/Zug festlegen */
+  const fixAction = (r: Row) => {
+    const rev = r.rev;
+    const card = rev.status === 'my-deviation' && rev.keyAt ? cards.get(rev.keyAt) : undefined;
+    if (card && !card.suspended)
+      return (
+        <button className="btn small primary" onClick={() => startDrill([{ cardId: card.id, posKey: card.posKey, path: rev.prefix, priority: 1 }])}>
+          <Icon name="train" /> Stellung trainieren
+        </button>
+      );
+    if (rev.status === 'opp-new')
+      return (
+        <button className="btn small primary" onClick={() => openInRepertoire(rev.prefix, rev.played!.uci)}>
+          Antwort festlegen
+        </button>
+      );
+    if (rev.status === 'hole')
+      return (
+        <button className="btn small primary" onClick={() => openInRepertoire(rev.prefix)}>
+          Zug festlegen
+        </button>
+      );
+    return (
+      <button className="btn small" onClick={() => openInRepertoire(rev.prefix, rev.played?.uci)}>
+        Im Repertoire öffnen
+      </button>
+    );
   };
 
   if (!loaded)
@@ -266,7 +299,7 @@ export function Games() {
           <Icon name="clock" />
           <p>
             Noch keine Partien geladen. Trag in den Einstellungen deinen Lichess- oder Chess.com-Namen ein – dann siehst du hier, wo du oder deine Gegner von
-            deiner Vorbereitung abweichen.
+            deiner Vorbereitung abweichen und wie du danach standest.
           </p>
           <div className="row-actions center">
             {settings.ui.lichessUser || settings.ui.chesscomUser ? (
@@ -283,20 +316,22 @@ export function Games() {
       </div>
     );
 
-  const openIdx = openKey ? list.findIndex((r) => r.key === openKey) : -1;
+  const openIdx = openKey ? browse.findIndex((r) => r.key === openKey) : -1;
   if (openKey && openIdx >= 0)
     return (
       <GameDetail
-        rows={list}
+        rows={browse}
         index={openIdx}
         color={color}
         opening={(k) => opening?.get(k)}
-        onIndex={(i) => setOpenKey(list[i].key)}
+        assessment={(k) => assessOf(k)}
+        onIndex={(i) => setOpenKey(browse[i].key)}
         onClose={() => setOpenKey(undefined)}
       />
     );
 
   const pct = (n: number) => (sum.games ? Math.round((100 * n) / sum.games) : 0);
+  const shownFlags = allFlags ? flagged : flagged.slice(0, 4);
 
   return (
     <div className="page games-page" data-testid="games-page">
@@ -324,8 +359,59 @@ export function Games() {
         </div>
       )}
       <p className="hint">
-        Gegen „{rep?.name}“: {rows.length} {rows.length === 1 ? 'Partie' : 'Partien'} mit {color === 'white' ? 'Weiß' : 'Schwarz'} (Eröffnung bis Zug 15).
+        Deine {rows.length} Partien mit {color === 'white' ? 'Weiß' : 'Schwarz'} gegen „{rep?.name}“: Wo verlässt du oder dein Gegner die Vorbereitung – und
+        wie stehst du danach?
       </p>
+
+      {/* 1. Was jetzt? Partien, in denen du nach der Abweichung schlechter standest */}
+      <section className="card to-review" data-testid="to-review">
+        <header className="tr-head">
+          <h2>
+            Zu prüfen <small>{flagged.length}</small>
+          </h2>
+          {pending > 0 && (
+            <span className="hint tr-progress">
+              <Icon name="loader" className="spin" /> Stockfish bewertet noch {pending} {pending === 1 ? 'Partie' : 'Partien'}
+            </span>
+          )}
+        </header>
+        {flagged.length ? (
+          <>
+            <p className="hint">Hier standest du nach der Abweichung schlechter – deine eigene Abweichung oder ein Gegnerzug, auf den du nicht vorbereitet warst.</p>
+            <ul className="game-cards">
+              {shownFlags.map((r) => (
+                <GameCard
+                  key={r.key}
+                  row={r}
+                  a={assessOf(r.key)}
+                  color={color}
+                  notation={notation}
+                  onOpen={() => openGame(r.key)}
+                  actions={
+                    <>
+                      <button className="btn small ghost" onClick={() => openGame(r.key)}>
+                        Ansehen
+                      </button>
+                      {fixAction(r)}
+                    </>
+                  }
+                />
+              ))}
+            </ul>
+            {flagged.length > 4 && (
+              <button className="link-btn" onClick={() => setAllFlags((v) => !v)}>
+                {allFlags ? 'weniger anzeigen' : `alle ${flagged.length} zeigen`}
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="hint">
+            {pending > 0
+              ? 'Die Bewertungen laufen noch – Partien, nach deren Abweichung du schlechter standest, erscheinen hier.'
+              : 'Nichts Auffälliges: In keiner bewerteten Partie standest du nach der Abweichung schlechter.'}
+          </p>
+        )}
+      </section>
 
       <section className="games-filters" aria-label="Partien auswählen">
         <label className="gf-search">
@@ -401,218 +487,216 @@ export function Games() {
         </div>
       )}
 
-      <section className="card games-eval" data-testid="games-sum" aria-label="Auswertung">
-        <header className="ge-head">
-          <h2>
-            {selected.length ? 'Auswahl' : anyFilter ? 'Gefilterte Partien' : 'Alle Partien'} <small>{sum.games}</small>
-          </h2>
-          {sum.total !== undefined && (
-            <span className="ge-score" title="Punkte: Sieg 1, Remis ½">
-              {sum.total} % Punkte
-            </span>
-          )}
-        </header>
-        {sum.games > 0 ? (
-          <>
-            <div className="ge-bar" aria-hidden>
-              {EVAL_ROWS.map((e) => (sum.count[e.s] ? <i key={e.s} className={e.cls} style={{ flexGrow: sum.count[e.s] }} /> : null))}
-            </div>
-            <ul className="ge-rows">
-              {EVAL_ROWS.map((e) => {
-                const n = sum.count[e.s];
-                if (!n && (e.s === 'end' || e.s === 'hole')) return null;
-                const avg = e.s === 'my-deviation' ? sum.avgMove.dev : e.s === 'opp-new' ? sum.avgMove.opp : e.s === 'hole' ? sum.avgMove.hole : undefined;
-                const body = (
-                  <>
-                    <i className={`dot ${e.cls}`} aria-hidden />
-                    <span className="ge-label">
-                      <b>{n}</b> {e.label}
-                    </span>
-                    <span className="ge-meta">
-                      {pct(n)} %{avg !== undefined && <> · Ø Zug {fmt1(avg)}</>}
-                      {sum.score[e.s] !== undefined && <> · {sum.score[e.s]} % Punkte</>}
-                    </span>
-                  </>
-                );
-                return (
-                  <li key={e.s}>
-                    {e.filter && n ? (
-                      <button className="ge-row" aria-pressed={status === e.filter} onClick={() => setStatus(status === e.filter ? 'all' : e.filter!)}>
-                        {body}
-                      </button>
-                    ) : (
-                      <div className="ge-row">{body}</div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="ge-foot">
-              {sum.heldMove !== undefined && sum.heldMove > 0 && <>Im Mittel bleibt die Partie bis Zug {sum.heldMove} in deiner Vorbereitung.</>}
-              {sum.mistakes > 0 && (
-                <>
-                  {' '}
-                  <button className="link-btn" onClick={() => setStatus('mistake')}>
-                    {sum.mistakes} {sum.mistakes === 1 ? 'Fehler' : 'Fehler'} in der Eröffnung
-                  </button>{' '}
-                  (Lichess-Analyse).
-                </>
-              )}
-            </p>
-          </>
-        ) : (
-          <p className="hint">Keine Partien in dieser Auswahl.</p>
-        )}
-      </section>
+      <div className="seg games-tabs" role="tablist" aria-label="Ansicht">
+        <button role="tab" aria-selected={tab === 'list'} aria-pressed={tab === 'list'} onClick={() => setTab('list')}>
+          Partien <small>{base.length}</small>
+        </button>
+        <button role="tab" aria-selected={tab === 'stats'} aria-pressed={tab === 'stats'} onClick={() => setTab('stats')}>
+          Auswertung
+        </button>
+      </div>
 
-      {spots.length > 0 && (
-        <section className="card games-spots" data-testid="hotspots">
-          <h2>Brennpunkte</h2>
-          <p className="hint">Wo deine Partien am häufigsten die Vorbereitung verlassen.</p>
-          <ul>
-            {(allSpots ? spots : spots.slice(0, 3)).map((h) => {
-              const line = formatLine(prefixSans(h.prefix), notation) || 'Grundstellung';
+      {tab === 'stats' && (
+        <>
+          <section className="card games-eval" data-testid="games-sum" aria-label="Auswertung">
+            <header className="ge-head">
+              <h2>
+                {selected.length ? 'Auswahl' : anyFilter ? 'Gefilterte Partien' : 'Alle Partien'} <small>{sum.games}</small>
+              </h2>
+              {sum.total !== undefined && (
+                <span className="ge-score" title="Punkte: Sieg 1, Remis ½">
+                  {sum.total} % Punkte
+                </span>
+              )}
+            </header>
+            {sum.games > 0 ? (
+              <>
+                <div className="ge-bar" aria-hidden>
+                  {EVAL_ROWS.map((e) => (sum.count[e.s] ? <i key={e.s} className={e.cls} style={{ flexGrow: sum.count[e.s] }} /> : null))}
+                </div>
+                <ul className="ge-rows">
+                  {EVAL_ROWS.map((e) => {
+                    const n = sum.count[e.s];
+                    if (!n && (e.s === 'end' || e.s === 'hole')) return null;
+                    const avg = e.s === 'my-deviation' ? sum.avgMove.dev : e.s === 'opp-new' ? sum.avgMove.opp : e.s === 'hole' ? sum.avgMove.hole : undefined;
+                    const body = (
+                      <>
+                        <i className={`dot ${e.cls}`} aria-hidden />
+                        <span className="ge-label">
+                          <b>{n}</b> {e.label}
+                        </span>
+                        <span className="ge-meta">
+                          {pct(n)} %{avg !== undefined && <> · Ø Zug {fmt1(avg)}</>}
+                          {sum.score[e.s] !== undefined && <> · {sum.score[e.s]} % Punkte</>}
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={e.s}>
+                        {e.filter && n ? (
+                          <button
+                            className="ge-row"
+                            onClick={() => {
+                              setStatus(e.filter!);
+                              setTab('list');
+                            }}
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <div className="ge-row">{body}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="ge-foot">
+                  {sum.heldMove !== undefined && sum.heldMove > 0 && <>Im Mittel bleibt die Partie bis Zug {sum.heldMove} in deiner Vorbereitung.</>}
+                  {sum.mistakes > 0 && <> {sum.mistakes} Fehler in der Eröffnung (Lichess-Analyse).</>}
+                </p>
+              </>
+            ) : (
+              <p className="hint">Keine Partien in dieser Auswahl.</p>
+            )}
+          </section>
+
+          {spots.length > 0 && (
+            <section className="card games-spots" data-testid="hotspots">
+              <h2>Brennpunkte</h2>
+              <p className="hint">Wo deine Partien am häufigsten die Vorbereitung verlassen.</p>
+              <ul>
+                {(allSpots ? spots : spots.slice(0, 3)).map((h) => {
+                  const line = formatLine(prefixSans(h.prefix), notation) || 'Grundstellung';
+                  return (
+                    <li key={`${h.kind}|${h.keyAt}|${h.played.uci}`} className={`hs-row ${h.kind}`}>
+                      <span className={`hs-kind ${h.kind}`}>{h.kind === 'dev' ? 'Du' : h.kind === 'opp' ? 'Gegner' : 'Lücke'}</span>
+                      <span className="hs-text">
+                        <span className="hs-line">nach {line}</span>
+                        <span>
+                          <b>{sanLabel(h.ply, h.played.san)}</b>
+                          {h.kind === 'dev' && h.rep && <> statt <b className="me">{sanLabel(h.ply, h.rep.san)}</b></>}
+                          {h.kind === 'opp' && <> – nicht vorbereitet</>}
+                          {h.kind === 'hole' && <> – kein Zug festgelegt</>}
+                        </span>
+                        <small className="hint">
+                          {h.n}× · {h.score} % Punkte
+                        </small>
+                      </span>
+                      <span className="hs-acts">
+                        <button className="btn small" onClick={() => focusSpot(h)}>
+                          {h.n > 1 ? `${h.n} Partien` : 'Partie'}
+                        </button>
+                        {/* Lücke: der gespielte Zug war meiner – die Stellung davor öffnen, um einen Zug festzulegen */}
+                        <button className="btn small ghost" onClick={() => openInRepertoire(h.prefix, h.kind === 'hole' ? undefined : h.played.uci)}>
+                          {h.kind === 'dev' ? 'Im Repertoire' : h.kind === 'opp' ? 'Antwort festlegen' : 'Zug festlegen'}
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {spots.length > 3 && (
+                <button className="link-btn more-spots" onClick={() => setAllSpots((v) => !v)}>
+                  {allSpots ? 'weniger anzeigen' : `alle ${spots.length} Brennpunkte`}
+                </button>
+              )}
+              <div className="row-actions">
+                {drill.length > 0 && (
+                  <button className="btn primary" data-testid="drill" onClick={() => startDrill(drill)}>
+                    <Icon name="train" /> Abweichungen trainieren ({drill.length})
+                  </button>
+                )}
+                {unprepared > 0 && (
+                  <button className="btn" onClick={() => setView('gaps')}>
+                    <Icon name="gap" /> {unprepared} unvorbereitete Stellungen bei den Lücken
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === 'list' && (
+        <>
+          <div className="seg small games-filter" role="group" aria-label="Filter">
+            {FILTERS.map((f) => (
+              <button
+                key={f.k}
+                aria-pressed={status === f.k}
+                onClick={() => {
+                  setStatus(f.k);
+                  setLimit(40);
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <ul className="games-list">
+            {list.slice(0, limit).map((x) => {
+              const r = x.rev;
+              const sans = x.game.m.split(' ');
+              const shown = r.ply !== undefined ? sans.slice(0, r.ply + 1) : sans.slice(0, 12);
+              const marks = plyMarks(r, sans.length);
+              const op = opening?.get(x.key);
+              const a = assessOf(x.key);
               return (
-                <li key={`${h.kind}|${h.keyAt}|${h.played.uci}`} className={`hs-row ${h.kind}`}>
-                  <span className={`hs-kind ${h.kind}`}>{h.kind === 'dev' ? 'Du' : h.kind === 'opp' ? 'Gegner' : 'Lücke'}</span>
-                  <span className="hs-text">
-                    <span className="hs-line">nach {line}</span>
-                    <span>
-                      <b>{sanLabel(h.ply, h.played.san)}</b>
-                      {h.kind === 'dev' && h.rep && <> statt <b className="me">{sanLabel(h.ply, h.rep.san)}</b></>}
-                      {h.kind === 'opp' && <> – nicht vorbereitet</>}
-                      {h.kind === 'hole' && <> – kein Zug festgelegt</>}
+                <li key={x.key} className={`game-row st-${r.status} ${a?.verdict === 'flag' ? 'flagged' : ''} ${sel.has(x.key) ? 'picked' : ''}`}>
+                  <div className="game-head">
+                    <input type="checkbox" className="game-pick" checked={sel.has(x.key)} onChange={() => toggleSel(x.key)} aria-label="Partie auswählen" />
+                    <span className={`res r${x.game.r}`}>{x.game.r === 1 ? 'Sieg' : x.game.r === -1 ? 'Niederlage' : 'Remis'}</span>
+                    <span className="game-opp">
+                      {x.game.opp ? `gegen ${x.game.opp}` : 'Partie'}
+                      {x.game.or ? <small> ({x.game.or})</small> : null}
                     </span>
                     <small className="hint">
-                      {h.n}× · {h.score} % Punkte
+                      {SOURCE_NAME[x.game.src ?? 'lichess']}
+                      {x.game.sp ? ` · ${SPEED_NAME[x.game.sp]}` : ''}
+                      {x.game.t ? ` · ${new Date(x.game.t).toLocaleDateString('de-DE')}` : ''}
                     </small>
-                  </span>
-                  <span className="hs-acts">
-                    <button className="btn small" onClick={() => focusSpot(h)}>
-                      {h.n > 1 ? `${h.n} Partien` : 'Partie'}
+                    {x.game.url && (
+                      <a className="game-link" href={x.game.url} target="_blank" rel="noreferrer noopener" aria-label="Partie im Browser öffnen" title="Partie öffnen">
+                        <Icon name="next" />
+                      </a>
+                    )}
+                  </div>
+                  <button className="game-open" onClick={() => openGame(x.key)} aria-label="Partie am Brett ansehen">
+                    {op && <span className="game-opening">{nameDe(op)}</span>}
+                    <span className="game-line">{formatLine(shown, notation)}</span>
+                    <span className="ply-strip" aria-hidden>
+                      {marks.map((m, i) => (
+                        <i key={i} className={m} />
+                      ))}
+                    </span>
+                  </button>
+                  <p className={`game-status ${r.status}`}>
+                    <b>{STATUS_TEXT[r.status]}</b>
+                    <StatusDetail r={r} label={sanLabel} />
+                  </p>
+                  <VerdictBadge a={a} />
+                  {r.mistake && (
+                    <p className="game-status bad">
+                      <b>Fehler</b> – {sanLabel(r.mistake.ply, r.mistake.san)} verliert ca. {fmt1(r.mistake.drop / 100)} Bauern (Lichess-Analyse)
+                    </p>
+                  )}
+                  <div className="row-actions">
+                    <button className="btn small primary" onClick={() => openGame(x.key)}>
+                      Ansehen
                     </button>
-                    {/* Lücke: der gespielte Zug war meiner – die Stellung davor öffnen, um einen Zug festzulegen */}
-                    <button className="btn small ghost" onClick={() => openInRepertoire(h.prefix, h.kind === 'hole' ? undefined : h.played.uci)}>
-                      {h.kind === 'dev' ? 'Im Repertoire' : h.kind === 'opp' ? 'Antwort festlegen' : 'Zug festlegen'}
-                    </button>
-                  </span>
+                    {r.status !== 'in-rep' && fixAction(x)}
+                  </div>
                 </li>
               );
             })}
           </ul>
-          {spots.length > 3 && (
-            <button className="link-btn more-spots" onClick={() => setAllSpots((v) => !v)}>
-              {allSpots ? 'weniger anzeigen' : `alle ${spots.length} Brennpunkte`}
+          {!list.length && <p className="hint">Keine Partien in dieser Auswahl.</p>}
+          {list.length > limit && (
+            <button className="btn small ghost" onClick={() => setLimit((l) => l + 40)}>
+              Weitere {Math.min(40, list.length - limit)} anzeigen
             </button>
           )}
-          <div className="row-actions">
-            {drill.length > 0 && (
-              <button className="btn primary" data-testid="drill" onClick={() => startDrill(drill)}>
-                <Icon name="train" /> Abweichungen trainieren ({drill.length})
-              </button>
-            )}
-            {unprepared > 0 && (
-              <button className="btn" onClick={() => setView('gaps')}>
-                <Icon name="gap" /> {unprepared} unvorbereitete Stellungen bei den Lücken
-              </button>
-            )}
-          </div>
-        </section>
-      )}
-
-      <div className="seg small games-filter" role="group" aria-label="Filter">
-        {FILTERS.map((f) => (
-          <button
-            key={f.k}
-            aria-pressed={status === f.k}
-            onClick={() => {
-              setStatus(f.k);
-              setLimit(40);
-            }}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-      <ul className="games-list">
-        {list.slice(0, limit).map((x) => {
-          const r = x.rev;
-          const sans = x.game.m.split(' ');
-          const shown = r.ply !== undefined ? sans.slice(0, r.ply + 1) : sans.slice(0, 12);
-          const ck = checks[x.key];
-          const marks = plyMarks(r, sans.length);
-          const op = opening?.get(x.key);
-          return (
-            <li key={x.key} className={`game-row st-${r.status} ${sel.has(x.key) ? 'picked' : ''}`}>
-              <div className="game-head">
-                <input type="checkbox" className="game-pick" checked={sel.has(x.key)} onChange={() => toggleSel(x.key)} aria-label="Partie auswählen" />
-                <span className={`res r${x.game.r}`}>{x.game.r === 1 ? 'Sieg' : x.game.r === -1 ? 'Niederlage' : 'Remis'}</span>
-                <span className="game-opp">
-                  {x.game.opp ? `gegen ${x.game.opp}` : 'Partie'}
-                  {x.game.or ? <small> ({x.game.or})</small> : null}
-                </span>
-                <small className="hint">
-                  {SOURCE_NAME[x.game.src ?? 'lichess']}
-                  {x.game.sp ? ` · ${SPEED_NAME[x.game.sp]}` : ''}
-                  {x.game.t ? ` · ${new Date(x.game.t).toLocaleDateString('de-DE')}` : ''}
-                </small>
-                {x.game.url && (
-                  <a className="game-link" href={x.game.url} target="_blank" rel="noreferrer noopener" aria-label="Partie im Browser öffnen" title="Partie öffnen">
-                    <Icon name="next" />
-                  </a>
-                )}
-              </div>
-              <button className="game-open" onClick={() => openGame(x.key)} aria-label="Partie am Brett ansehen">
-                {op && <span className="game-opening">{nameDe(op)}</span>}
-                <span className="game-line">{formatLine(shown, notation)}</span>
-                <span className="ply-strip" aria-hidden>
-                  {marks.map((m, i) => (
-                    <i key={i} className={m} />
-                  ))}
-                </span>
-              </button>
-              <p className={`game-status ${r.status}`}>
-                <b>{STATUS_TEXT[r.status]}</b>
-                <StatusDetail r={r} label={sanLabel} />
-              </p>
-              {r.mistake && (
-                <p className="game-status bad">
-                  <b>Fehler</b> – {sanLabel(r.mistake.ply, r.mistake.san)} verliert ca. {fmt1(r.mistake.drop / 100)} Bauern (Lichess-Analyse)
-                </p>
-              )}
-              {ck && !ck.busy && (ck.repCp !== undefined || ck.repMate !== undefined) && (
-                <p className="game-status">
-                  Stockfish: Repertoirezug <b>{formatEval(ck.repCp, ck.repMate)}</b>, gespielter Zug <b>{formatEval(ck.playedCp, ck.playedMate)}</b>
-                  {ck.repCp !== undefined && ck.playedCp !== undefined && ck.repCp - ck.playedCp >= 100 && <b className="bad"> – das war ein Fehler</b>}
-                  {ck.repCp !== undefined && ck.playedCp !== undefined && ck.repCp - ck.playedCp < 30 && <> – gleichwertig</>}
-                </p>
-              )}
-              <div className="row-actions">
-                <button className="btn small primary" onClick={() => openGame(x.key)}>
-                  Ansehen
-                </button>
-                <button
-                  className="btn small"
-                  onClick={() => openInRepertoire(r.prefix, r.status === 'my-deviation' || r.status === 'opp-new' ? r.played?.uci : undefined)}
-                  disabled={r.status === 'in-rep'}
-                >
-                  Im Repertoire öffnen
-                </button>
-                {r.status === 'my-deviation' && !x.game.ev && (
-                  <button className="btn small ghost" disabled={ck?.busy} onClick={() => void check(x)}>
-                    {ck?.busy ? 'Prüfe …' : 'Mit Stockfish prüfen'}
-                  </button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {!list.length && <p className="hint">Keine Partien in dieser Auswahl.</p>}
-      {list.length > limit && (
-        <button className="btn small ghost" onClick={() => setLimit((l) => l + 40)}>
-          Weitere {Math.min(40, list.length - limit)} anzeigen
-        </button>
+        </>
       )}
     </div>
   );

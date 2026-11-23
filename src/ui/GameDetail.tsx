@@ -7,7 +7,8 @@ import { parseSan } from 'chessops/san';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { displaySan, fenOf, moveNumberPrefix, positionFromFen, START_FEN, stdUci } from '../core/chess';
-import { moveNo, plyMarks } from '../core/gameReview';
+import { moveNo, plyMarks, type Assessment } from '../core/gameReview';
+import { fmtCp } from './gameEvals';
 import { SPEED_NAME } from '../core/opponentStats';
 import { nameDe } from '../core/openings';
 import { formatEval } from '../core/relevance';
@@ -48,11 +49,13 @@ interface Props {
   index: number;
   color: Color;
   opening: (key: string) => string | undefined;
+  /** Bewertung nach dem Zug der Abweichung (aus meiner Sicht) */
+  assessment?: (key: string) => Assessment | undefined;
   onIndex: (i: number) => void;
   onClose: () => void;
 }
 
-export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Props) {
+export function GameDetail({ rows, index, color, opening, assessment, onIndex, onClose }: Props) {
   const x = rows[index];
   const { game, rev } = x;
   const notation = useApp((s) => s.settings.ui.notation);
@@ -113,6 +116,7 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
   const card = rev.keyAt ? cards.get(rev.keyAt) : undefined;
   const ev = cursor > 0 ? game.ev?.[cursor - 1] : undefined;
   const op = opening(x.key);
+  const a = assessment?.(x.key);
 
   const runCheck = async () => {
     if (!rev.fenAt || !rev.rep || !rev.played) return;
@@ -200,6 +204,11 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
                   <b>Außerhalb des Repertoires</b> seit Zug {moveNo(rev.ply)} ({label(rev.ply, rev.played.san)})
                 </span>
               )}
+              {a && (
+                <span className={`gd-verdict ${a.verdict}`} title="Stockfish nach dem Zug der Abweichung, aus deiner Sicht">
+                  {fmtCp(a.cp)}
+                </span>
+              )}
               {phase !== 'at' && (
                 <button className="link-btn" onClick={() => go(rev.ply!)}>
                   Zur Abweichung
@@ -266,6 +275,12 @@ export function GameDetail({ rows, index, color, opening, onIndex, onClose }: Pr
               </p>
             ) : (
               <p>Die ganze Eröffnung (bis Zug {moveNo(Math.max(0, last - 1))}) lief in deinem Repertoire.</p>
+            )}
+            {a && (
+              <p className={`gd-assess ${a.verdict}`} data-testid="gd-assess">
+                <b>{fmtCp(a.cp)}</b> {a.label}
+                <small className="hint"> – Stockfish nach {rev.ply !== undefined && rev.played ? label(rev.ply, rev.played.san) : 'der Eröffnung'}, aus deiner Sicht</small>
+              </p>
             )}
             {rev.mistake && (
               <p>

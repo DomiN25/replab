@@ -112,12 +112,13 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
   const posKey = posKeyOf(p.fen);
   const standout = useMemo(() => standoutMove(p.engineLines), [p.engineLines]);
   const isGap = p.node?.status === 'gap';
+  const touring = useApp((s) => s.guide.active);
   const showAll = rows.slice(0, 12);
   const entryInRows = p.entry && rows.some((r) => r.uci === p.entry!.uci);
 
   return (
     <>
-      <div className={`answer ${p.entry ? '' : 'missing'}`}>
+      <div className={`answer ${p.entry ? '' : 'missing'} ${!p.entry && !p.mark?.endOfLine && touring ? 'none' : ''}`}>
         {p.entry ? (
           <>
             <div className="you">
@@ -133,9 +134,9 @@ function MyTurn(p: Props & { ply: number; engineLines: EngineLine[]; transposed?
           </>
         ) : p.mark?.endOfLine ? (
           <div className="you"><span className="lbl">■ Ende der Linie – hier improvisierst du</span></div>
-        ) : (
+        ) : touring ? null : (
           <div className="you">
-            <span className="lbl">{isGap ? '● Lücke: noch kein Zug festgelegt' : 'Noch kein Zug festgelegt'}</span>
+            <span className="lbl">{isGap ? 'Lücke: noch kein Zug festgelegt – wähle unten einen' : 'Noch kein Zug festgelegt'}</span>
           </div>
         )}
       </div>

@@ -59,14 +59,13 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   await expect(page.locator('.toast')).toContainText('3 Partien von Chess.com geladen');
   await card.getByTestId('open-games').click();
 
-  const sum = page.getByTestId('games-sum');
-  await expect(sum).toContainText('1 eigene Abweichung');
-  await expect(sum).toContainText('1 Gegner unvorbereitet');
+  // Oben „Zu prüfen“ (Bewertung nach der Abweichung läuft im Hintergrund), darunter Liste und Auswertung als Reiter
+  await expect(page.getByTestId('to-review')).toBeVisible();
   const dev = page.locator('.game-row.st-my-deviation');
   await expect(dev).toHaveCount(1);
   await expect(dev).toContainText('2.Lc4 statt 2.Sf3');
   await expect(dev).toContainText('Chess.com');
-  await expect(dev.getByRole('button', { name: 'Mit Stockfish prüfen' })).toBeVisible();
+  await expect(dev.locator('.verdict')).toBeVisible({ timeout: 30000 }); // Stockfish hat die Stellung nach 2.Lc4 bewertet
   await expect(page.locator('.game-row.st-opp-new')).toContainText('1…d5');
 
   // Filter (Status-Leiste)
@@ -74,11 +73,6 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   await statusBar.getByRole('button', { name: 'Unvorbereitet' }).click();
   await expect(page.locator('.game-row')).toHaveCount(1);
   await statusBar.getByRole('button', { name: 'Alle' }).click();
-
-  // Auswertung + Brennpunkte
-  await expect(sum).toContainText('Alle Partien');
-  await expect(page.getByTestId('hotspots')).toContainText('2.Lc4');
-  await expect(page.getByTestId('hotspots')).toContainText('statt 2.Sf3');
 
   // Suche nach Gegner
   await page.getByLabel('Gegner suchen').fill('niemand');
@@ -89,30 +83,19 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   // Auswahl: Auswertung nur über die ausgewählte Partie
   await dev.getByLabel('Partie auswählen').check();
   await expect(page.getByTestId('sel-bar')).toContainText('1 ausgewählt');
+  const tabs = page.locator('.games-tabs');
+  await tabs.getByRole('tab', { name: 'Auswertung' }).click();
+  const sum = page.getByTestId('games-sum');
   await expect(sum).toContainText('Auswahl');
   await expect(sum).toContainText('1 eigene Abweichung');
   await page.getByRole('button', { name: 'Auswahl aufheben' }).click();
 
-  // Partie am Brett: öffnet an der Abweichung, Zugleiste eingefärbt
-  await dev.getByRole('button', { name: 'Ansehen', exact: true }).click();
-  const detail = page.getByTestId('game-detail');
-  await expect(detail).toBeVisible();
-  await expect(page.getByTestId('gd-event')).toContainText('Du hast 2.Lc4 gespielt');
-  await expect(page.getByTestId('gd-event')).toContainText('2.Sf3');
-  await expect(detail.locator('.mv.dev')).toHaveText('Lc4');
-  await expect(page.getByTestId('gd-state')).toContainText('Hier bist du abgewichen');
-  await expect(detail.locator('.mv.rep')).toHaveCount(2);
-  await expect(detail.getByRole('button', { name: 'Zum Ereignis' })).toBeDisabled();
-  await detail.getByRole('button', { name: 'Zug vor' }).click();
-  await expect(detail.locator('.mv.cur')).toHaveText('Lc4');
-  await expect(page.getByTestId('gd-state')).toContainText('Außerhalb des Repertoires');
-  await detail.getByRole('button', { name: 'Liste' }).click();
-  await expect(detail).toHaveCount(0);
-
-  // Lücken: unvorbereiteter Gegnerzug aus den Partien
-  await page.locator('.nav-top').getByRole('button', { name: 'Lücken' }).click();
-  await expect(page.getByTestId('from-games')).toContainText('1.e4 d5');
-  await page.locator('.nav-top').getByRole('button', { name: 'Partien' }).click();
+  // Auswertung + Brennpunkte über alle Partien
+  await expect(sum).toContainText('Alle Partien');
+  await expect(sum).toContainText('1 eigene Abweichung');
+  await expect(sum).toContainText('1 Gegner unvorbereitet');
+  await expect(page.getByTestId('hotspots')).toContainText('2.Lc4');
+  await expect(page.getByTestId('hotspots')).toContainText('statt 2.Sf3');
 
   // Abweichungen trainieren: Sitzung mit genau dieser Stellung
   await page.getByTestId('drill').click();
@@ -120,11 +103,35 @@ test('Partien prüfen: Abweichung, Unvorbereitetes, Lücke', async ({ page }) =>
   await expect(page.locator('.trainer')).toBeVisible();
   await expect(page.locator('.trainer')).toContainText('1/1');
   await page.getByRole('button', { name: 'Pause' }).click();
-  await page.locator('.nav-top').getByRole('button', { name: 'Partien' }).click();
+
+  // Lücken: unvorbereiteter Gegnerzug aus den Partien
+  await page.locator('.nav-top').getByRole('button', { name: 'Lücken' }).click();
+  await expect(page.getByTestId('from-games')).toContainText('1.e4 d5');
+
+  // Startseite: letzte Partien mit Mini-Brett, Antippen öffnet die Partie am Brett
+  await page.locator('.nav-top').getByRole('button', { name: 'Start' }).click();
+  const recent = page.getByTestId('home-games');
+  await expect(recent.locator('.game-card')).toHaveCount(3);
+  await expect(recent.locator('.mini-board cg-board').first()).toBeVisible();
+  await recent.locator('.game-card.st-my-deviation .gc-main').click();
+  await expect(page).toHaveURL(/#\/games/);
+
+  // Partie am Brett: öffnet an der Abweichung, Zugleiste eingefärbt, Bewertung danach
+  const detail = page.getByTestId('game-detail');
+  await expect(detail).toBeVisible();
+  await expect(page.getByTestId('gd-event')).toContainText('Du hast 2.Lc4 gespielt');
+  await expect(page.getByTestId('gd-event')).toContainText('2.Sf3');
+  await expect(page.getByTestId('gd-assess')).toContainText('Stockfish nach 2.Lc4');
+  await expect(detail.locator('.mv.dev')).toHaveText('Lc4');
+  await expect(page.getByTestId('gd-state')).toContainText('Hier bist du abgewichen');
+  await expect(detail.locator('.mv.rep')).toHaveCount(2);
+  await expect(detail.getByRole('button', { name: 'Zum Ereignis' })).toBeDisabled();
+  await detail.getByRole('button', { name: 'Zug vor' }).click();
+  await expect(detail.locator('.mv.cur')).toHaveText('Lc4');
+  await expect(page.getByTestId('gd-state')).toContainText('Außerhalb des Repertoires');
 
   // Öffnen springt ins Repertoire an die Abweichung (Zugfolge der Partie, Hinweis „Außerhalb des Repertoires“)
-  await statusBar.getByRole('button', { name: 'Meine Abweichungen' }).click();
-  await dev.getByRole('button', { name: 'Im Repertoire öffnen' }).click();
+  await page.getByTestId('gd-event').getByRole('button', { name: 'Im Repertoire öffnen' }).click();
   await expect(page).toHaveURL(/#\/build/);
   await expect(page.locator('.crumbs')).toContainText('Lc4');
   await expect(page.getByTestId('outside')).toContainText('Außerhalb des Repertoires');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findMistake, hotspots, openingOf, plyMarks, reviewGame, summarize, type RepView } from '../src/core/gameReview';
+import { assess, evalPlyOf, findMistake, hotspots, openingOf, plyMarks, reviewGame, summarize, whiteCp, type RepView } from '../src/core/gameReview';
 import type { GameRec } from '../src/core/opponentStats';
 import { keyAfter } from './helpers';
 
@@ -105,5 +105,25 @@ describe('Auswertung über mehrere Partien', () => {
     const eco = { [keyAfter(['e4'])]: "King's Pawn Game", [keyAfter(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])]: 'Ruy Lopez' };
     expect(openingOf(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6'], eco)).toBe('Ruy Lopez');
     expect(openingOf(['d4'], eco)).toBeUndefined();
+  });
+});
+
+describe('Bewertung nach der Abweichung', () => {
+  it('evalPlyOf: nach dem Ereignis-Zug bzw. nach dem letzten Repertoire-Zug', () => {
+    expect(evalPlyOf(reviewGame(g('e4 e5 Bc4 Nc6'), 'white', rep), 4)).toBe(3);
+    expect(evalPlyOf(reviewGame(g('e4 e5'), 'white', rep), 2)).toBe(2);
+  });
+  it('assess: schlechter = hervorheben, Vorteil = Vorteil aus der Eröffnung', () => {
+    const opp = reviewGame(g('e4 d5 exd5'), 'white', rep);
+    expect(assess(opp, -90)).toMatchObject({ verdict: 'flag', label: 'Gegner wich ab – du standest schlechter' });
+    expect(assess(opp, 120)).toMatchObject({ verdict: 'adv', label: 'Vorteil aus der Eröffnung' });
+    expect(assess(opp, 20).verdict).toBe('eq');
+    const dev = reviewGame(g('e4 e5 Bc4 Nc6'), 'white', rep);
+    expect(assess(dev, -200).label).toBe('Abgewichen – danach schlechter');
+  });
+  it('whiteCp: Engine-Sicht (am Zug) → Weiß-Sicht, Matt ±1000', () => {
+    expect(whiteCp('8/8/8/8/8/8/8/8 b - - 0 1', 50, undefined)).toBe(-50);
+    expect(whiteCp('8/8/8/8/8/8/8/8 w - - 0 1', 50, undefined)).toBe(50);
+    expect(whiteCp('8/8/8/8/8/8/8/8 b - - 0 1', undefined, 3)).toBe(-1000);
   });
 });

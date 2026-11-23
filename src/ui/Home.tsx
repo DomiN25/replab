@@ -16,6 +16,7 @@ import { gapCounts } from '../core/graph';
 import { pct } from './format';
 import { TodayRows } from './TodayRows';
 import { loadMyGames, useMyGames } from './games';
+import { RecentGames } from './RecentGames';
 import { moveNumberPrefix, plyOfFen } from '../core/chess';
 
 export function Home() {
@@ -232,13 +233,7 @@ export function Home() {
             </button>
           </section>
         )}
-        {myGames && myGames.games.length > 0 && (
-          <section className="card" data-testid="home-games">
-            <h2>Meine Partien</h2>
-            <p className="hint">{myGames.games.length} geladen – prüfen, wo du vom Repertoire abgewichen bist und wo Fehler passiert sind.</p>
-            <button className="btn big" onClick={() => setView('games')}>Partien ansehen</button>
-          </section>
-        )}
+        {myGames && myGames.games.length > 0 && <RecentGames />}
 
         <section className="card stats">
           <h2>Statistik <small className="h-note">alle Repertoires und Studien</small></h2>

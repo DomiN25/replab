@@ -475,10 +475,11 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .turn { font: 700 17px var(--display); letter-spacing: -0.01em; }
 .opening { color: var(--opp); font-size: 13px; font-weight: 500; }
 .answer { border-radius: 16px; padding: 12px 14px; margin: 10px 0; background: var(--me-soft); border: 1px solid color-mix(in srgb, var(--me) 22%, transparent); }
-.answer.missing { background: var(--gap-soft); border-color: color-mix(in srgb, var(--gap) 25%, transparent); }
+.answer.missing { background: var(--panel2); border-color: var(--line); }
+.answer.none { display: none; }
 .answer .you { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .answer .lbl { color: var(--muted); font-size: 13px; }
-.answer.missing .lbl { color: var(--gap); font-weight: 600; }
+.answer.missing .lbl { color: var(--ink); font-weight: 600; }
 .answer .mv { font: 800 28px/1 var(--display); letter-spacing: -0.02em; color: var(--me); animation: popIn 0.32s var(--ease-pop); }
 .table-wrap { overflow-x: auto; }
 /* Zu schmale Kandidaten-Spalte (z. B. 900â€“1100 px): Nebenspalten weglassen statt quer scrollen */
@@ -538,9 +539,6 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .games-filter { margin: 4px 0 10px; flex-wrap: wrap; }
 .games-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .game-row { background: var(--panel); border: 1px solid var(--card-b); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
-.game-row.st-my-deviation { box-shadow: inset 4px 0 0 var(--gap), var(--shadow); }
-.game-row.st-opp-new, .game-row.st-hole { box-shadow: inset 4px 0 0 var(--opp), var(--shadow); }
-.game-row.st-in-rep, .game-row.st-end { box-shadow: inset 4px 0 0 var(--me), var(--shadow); }
 .game-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
 .game-head .res { font: 700 12px var(--display); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .game-head .res.r1 { color: var(--me); border-color: var(--me); }
@@ -552,6 +550,47 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .game-status.my-deviation b:first-child { color: var(--gap); }
 .game-status.opp-new b:first-child, .game-status.hole b:first-child { color: var(--opp); }
 .game-status.bad, .game-status .bad { color: var(--gap); }
+/* Partien: Karten mit Mini-Brett (Startseite, Zu prüfen), Bewertung nach der Abweichung */
+.game-cards { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 10px; }
+@media (min-width: 900px) { .to-review .game-cards { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); } }
+.game-card { border: 1px solid var(--card-b); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.game-card.flag { border-color: color-mix(in srgb, var(--gap) 55%, transparent); box-shadow: inset 4px 0 0 var(--gap); }
+.game-card.adv { box-shadow: inset 4px 0 0 var(--me); }
+.gc-main { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 10px 10px 14px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.gc-main:hover { background: var(--panel2); }
+.gc-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.gc-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gc-opp { font: 700 15px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-status { font-size: 13.5px; }
+.gc-status.my-deviation { color: var(--gap); }
+.gc-status.opp-new, .gc-status.hole { color: var(--opp); }
+.mini-board { flex: none; width: 104px; }
+.mini-board .board-wrap, .mini-board .cg-wrap { border-radius: 8px; }
+.mini-board .cg-wrap { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); pointer-events: none; }
+@media (min-width: 900px) { .mini-board { width: 120px; } }
+.gc-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px 14px; }
+.verdict { display: inline-flex; align-items: baseline; gap: 6px; align-self: flex-start; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: var(--panel2); color: var(--muted); }
+.verdict b { font: 800 13px var(--display); font-variant-numeric: tabular-nums; }
+.verdict.flag { background: color-mix(in srgb, var(--gap) 14%, transparent); color: var(--gap); }
+.verdict.adv { background: color-mix(in srgb, var(--me) 14%, transparent); color: var(--me); }
+.verdict.wait { font-weight: 500; }
+.game-row .verdict { margin: 4px 0 2px; }
+.game-row.flagged { border-color: color-mix(in srgb, var(--gap) 55%, transparent); box-shadow: inset 6px 0 0 var(--gap), var(--shadow); }
+.to-review { padding: 14px 16px; margin: 10px 0 12px; }
+.tr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tr-head h2 { margin: 0; }
+.tr-progress { display: inline-flex; align-items: center; gap: 6px; }
+.games-tabs { margin: 4px 0 12px; }
+.games-tabs small { color: var(--muted); margin-left: 4px; }
+.recent-games .rg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.recent-games .rg-head h2 { margin: 0; }
+.gd-verdict { font: 800 15px var(--display); font-variant-numeric: tabular-nums; padding: 2px 10px; border-radius: 999px; background: var(--panel); }
+.gd-verdict.flag { color: var(--gap); }
+.gd-verdict.adv { color: var(--me); }
+.gd-assess { padding: 8px 10px; border-radius: 10px; background: var(--panel2); }
+.gd-assess b { font: 800 15px var(--display); margin-right: 4px; }
+.gd-assess.flag { background: color-mix(in srgb, var(--gap) 12%, transparent); color: var(--gap); }
+.gd-assess.adv { background: color-mix(in srgb, var(--me) 12%, transparent); color: var(--me); }
 /* Partien: Auswahl, Auswertung, Brennpunkte */
 .games-reps { margin: 4px 0 6px; flex-wrap: wrap; }
 .games-reps .kdot { margin-right: 4px; }
@@ -619,6 +658,9 @@ button.ge-row[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--line); }
   .games-filters > * { flex: none; }
   .gf-search { flex: 0 0 180px; }
   .games-filters select, .gf-search { min-height: 38px; font-size: 13.5px; }
+  .games-filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .games-filter::-webkit-scrollbar { display: none; }
+  .games-filter button { flex: none; }
 }
 @media (max-width: 600px) {
   .ge-row { grid-template-columns: 12px 1fr; row-gap: 0; }
@@ -645,6 +687,7 @@ button.ge-row[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--line); }
 .gd-eval { margin-left: auto; font-variant-numeric: tabular-nums; }
 .gd-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 8px; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; border: 1px solid var(--line); background: var(--panel2); }
 .gd-state > span { flex: 1 1 200px; }
+.gd-state > .gd-verdict { flex: none; }
 .gd-state.rep { background: color-mix(in srgb, var(--me) 12%, var(--panel)); border-color: color-mix(in srgb, var(--me) 40%, transparent); }
 .gd-state.rep b { color: var(--me); }
 .gd-state.dev { background: color-mix(in srgb, var(--gap) 14%, var(--panel)); border-color: var(--gap); }
@@ -963,10 +1006,11 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 
 /* GefÃ¼hrter Aufbau */
 .mode-switch { margin-bottom: 10px; }
-.guide { border: 1px solid var(--card-b); background: var(--panel); box-shadow: inset 4px 0 0 var(--gap), var(--shadow); border-radius: var(--radius); padding: 12px 14px 12px 18px; margin-bottom: 10px; animation: rise 0.35s var(--ease-out); }
+.guide { border: 1px solid var(--card-b); background: var(--panel); box-shadow: inset 4px 0 0 var(--acc), var(--shadow); border-radius: var(--radius); padding: 12px 14px 12px 18px; margin-bottom: 10px; animation: rise 0.35s var(--ease-out); }
 .guide-head { display: flex; align-items: center; gap: 8px; }
 .guide-title { display: inline-flex; align-items: center; gap: 6px; font: 700 15px var(--display); }
-.guide-title svg { width: 16px; height: 16px; color: var(--gap); }
+.guide-title svg { width: 16px; height: 16px; color: var(--acc); }
+.guide .count.gap { color: var(--acc); border-color: color-mix(in srgb, var(--acc) 40%, transparent); }
 .guide-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .guide-gear { min-width: 40px; min-height: 40px; }
 .guide-gear.on { background: var(--acc-soft); color: var(--acc); }
@@ -978,9 +1022,9 @@ main:has(.study-m) { padding-top: 6px; padding-bottom: 8px; }
 .guide-line { margin: 10px 0 2px; font: 700 20px var(--display); letter-spacing: -0.01em; }
 .guide-line small { color: var(--muted); font: 400 13px var(--body); letter-spacing: 0; }
 .guide-sibs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
-.chip.sib.gap { border-color: color-mix(in srgb, var(--gap) 55%, transparent); color: var(--gap); }
+.chip.sib.gap { border-color: var(--line); color: var(--ink); }
 .chip.sib.answered { color: var(--me); }
-.chip.sib.on { box-shadow: inset 0 0 0 1px var(--ink); }
+.chip.sib.on { box-shadow: inset 0 0 0 1px var(--acc); background: var(--acc-soft); color: var(--acc); }
 
 /* ZeilenmenÃ¼ (â‹¯) in der Kandidatentabelle */
 .rowmenu { position: relative; display: inline-block; }

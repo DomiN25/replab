@@ -224,3 +224,43 @@ export function openingOf(sans: string[], eco: Record<string, string>): string |
   }
   return name;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Wie stand ich nach der Abweichung? (Bewertung aus Lichess-Analyse oder lokal mit Stockfish)
+
+/** Ab diesem Vorsprung (cp, aus meiner Sicht) gilt eine Stellung als Vorteil bzw. Nachteil. */
+export const ADV_CP = 60;
+
+/** Nach wie vielen Halbzügen bewertet wird: direkt nach dem Ereignis-Zug, sonst nach dem letzten Zug im Repertoire. */
+export function evalPlyOf(rev: GameReview, len: number): number {
+  return rev.ply !== undefined ? Math.min(rev.ply + 1, len) : Math.min(rev.inRepPlies, len);
+}
+
+export type Verdict = 'flag' | 'adv' | 'eq';
+export interface Assessment {
+  /** Bewertung aus meiner Sicht (cp, Matt ≈ ±1000) */
+  cp: number;
+  verdict: Verdict;
+  /** kurze Einordnung für Liste und Startseite */
+  label: string;
+}
+
+/** Einordnung: „flag“ = danach schlechter (zum Lernen hervorheben), „adv“ = Vorteil aus der Eröffnung, sonst ausgeglichen. */
+export function assess(rev: GameReview, myCp: number): Assessment {
+  const verdict: Verdict = myCp <= -ADV_CP ? 'flag' : myCp >= ADV_CP ? 'adv' : 'eq';
+  const labels: Record<ReviewStatus, Record<Verdict, string>> = {
+    'my-deviation': { flag: 'Abgewichen – danach schlechter', adv: 'Abgewichen – trotzdem Vorteil', eq: 'Abgewichen – ausgeglichen' },
+    'opp-new': { flag: 'Gegner wich ab – du standest schlechter', adv: 'Vorteil aus der Eröffnung', eq: 'Gegner wich ab – ausgeglichen' },
+    hole: { flag: 'Lücke – danach schlechter', adv: 'Lücke – trotzdem Vorteil', eq: 'Lücke – ausgeglichen' },
+    'in-rep': { flag: 'Repertoire-Linie führte zu Nachteil', adv: 'Vorteil aus der Eröffnung', eq: 'Eröffnung ausgeglichen' },
+    end: { flag: 'Bis zum Ende-Marker – danach schlechter', adv: 'Vorteil aus der Eröffnung', eq: 'Eröffnung ausgeglichen' },
+  };
+  return { cp: myCp, verdict, label: labels[rev.status][verdict] };
+}
+
+/** Engine-Wert (aus Sicht der Seite am Zug) → Weiß-Sicht; Matt = ±1000. */
+export function whiteCp(fen: string, cp: number | undefined, mate: number | undefined): number | undefined {
+  const v = mate !== undefined && mate !== null ? (mate > 0 ? 1000 : -1000) : cp;
+  if (v === undefined || v === null) return undefined;
+  return fen.split(' ')[1] === 'b' ? -v : v;
+}

@@ -28,6 +28,8 @@ export interface BoardProps {
   /** Feld-Hervorhebungen (CSS-Klassen) */
   highlights?: Map<Key, string>;
   animationMs?: number;
+  /** Koordinaten am Rand (aus bei Mini-Brettern) */
+  coords?: boolean;
 }
 
 export function uciSquares(uci?: string): [Key, Key] | undefined {
@@ -35,7 +37,7 @@ export function uciSquares(uci?: string): [Key, Key] | undefined {
   return [uci.slice(0, 2) as Key, uci.slice(2, 4) as Key];
 }
 
-export function Board({ fen, orientation, lastMove, movable = 'turn', shapes, onMove, highlights, animationMs = 200 }: BoardProps) {
+export function Board({ fen, orientation, lastMove, movable = 'turn', shapes, onMove, highlights, animationMs = 200, coords = true }: BoardProps) {
   const el = useRef<HTMLDivElement>(null);
   const api = useRef<Api | undefined>(undefined);
   const onMoveRef = useRef(onMove);
@@ -60,7 +62,7 @@ export function Board({ fen, orientation, lastMove, movable = 'turn', shapes, on
       turnColor: turn,
       lastMove: lastMove as Key[] | undefined,
       check: pos?.isCheck() ?? false,
-      coordinates: true,
+      coordinates: coords,
       animation: { enabled: animationMs > 0, duration: animationMs },
       highlight: { lastMove: true, check: true, custom: highlights },
       movable: {

@@ -63,6 +63,8 @@ export interface AppState {
   trainAuto?: boolean;
   /** Trainingsseite soll genau diese Stellungen abfragen (z. B. meine Abweichungen aus den Partien) */
   trainDrill?: import('../core/session').SessionItem[];
+  /** Partien-Seite soll diese Partie (Row-Key) in der Brett-Ansicht öffnen (Startseite „Letzte Partien“) */
+  gameOpen?: string;
   /** Fälliges über alle Repertoires und Studien (ui/today.ts) – für Startseite, Reiter-Zähler, Studienliste */
   today?: TodayState;
 }
