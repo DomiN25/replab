@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph, type GraphInput } from '../src/core/graph';
-import { importantRetention, markedLines } from '../src/core/marks';
+import { importantRetention, markedLines, trainImportant } from '../src/core/marks';
 import { playSan, START_FEN } from '../src/core/chess';
 import { SETTINGS, explorer, keyAfter } from './helpers';
 
@@ -33,6 +33,11 @@ describe('Markierte Linien', () => {
     expect(m.important.has(keyAfter(['e4', 'c5', 'c3']))).toBe(true);
     expect(m.important.has(keyAfter(['e4', 'e5']))).toBe(false);
     expect(m.sharp.size).toBe(0);
+    // Weg dorthin zählt im Training mit (1.e4 in der Grundstellung), Geschwister nicht
+    expect(m.path.has(keyAfter([]))).toBe(true);
+    expect(m.path.has(keyAfter(['e4']))).toBe(true);
+    expect(trainImportant(m).has(keyAfter([]))).toBe(true);
+    expect(trainImportant(m).has(keyAfter(['e4', 'e5']))).toBe(false);
   });
   it('spannend getrennt von wichtig; ohne Graph nur die Stellung selbst', () => {
     const m = markedLines(undefined, [{ repertoireId: 'r', posKey: 'x', sharp: true, updatedAt: 0 }]);

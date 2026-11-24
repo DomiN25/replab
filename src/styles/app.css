@@ -632,6 +632,15 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .lb.sharp { background: var(--acc-soft); color: var(--acc); }
 .mark-btn.on.imp { background: color-mix(in srgb, var(--star) 15%, transparent); border-color: color-mix(in srgb, var(--star) 50%, transparent); color: var(--star); }
 .mark-btn.on.sharp { background: var(--acc-soft); border-color: color-mix(in srgb, var(--acc) 45%, transparent); color: var(--acc); }
+.mark-icons { display: inline-flex; gap: 4px; flex: none; }
+.mark-ico { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; transition: background-color 0.15s, color 0.15s, scale 0.18s var(--ease-out); }
+.mark-ico svg { width: 18px; height: 18px; }
+.mark-ico:hover { color: var(--ink); background: var(--panel2); }
+.mark-ico:active { scale: 0.94; }
+.mark-ico.on.imp { color: var(--star); background: color-mix(in srgb, var(--star) 15%, transparent); border-color: color-mix(in srgb, var(--star) 50%, transparent); }
+.mark-ico.on.imp svg { fill: currentColor; }
+.mark-ico.on.sharp { color: var(--acc); background: var(--acc-soft); border-color: color-mix(in srgb, var(--acc) 45%, transparent); }
+.mark-ico.on.sharp svg { fill: currentColor; }
 .train-marks { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
 .study-origin { margin: 8px 0 0; font-size: 13.5px; }
 .study-origin p { margin: 4px 0; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }

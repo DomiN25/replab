@@ -8,9 +8,11 @@ export interface LineMarks {
   important: Set<string>;
   /** posKeys in spannenden Linien */
   sharp: Set<string>;
+  /** posKeys auf dem Weg von der Grundstellung zu einer wichtigen Linie – zählen im Training mit (man muss dort hinkommen) */
+  path: Set<string>;
 }
 
-export const EMPTY_LINE_MARKS: LineMarks = { important: new Set(), sharp: new Set() };
+export const EMPTY_LINE_MARKS: LineMarks = { important: new Set(), sharp: new Set(), path: new Set() };
 
 /** Um so viel steigt die Ziel-Erinnerung für Karten in wichtigen Linien (kürzere Abstände = öfter abgefragt). */
 export const IMPORTANT_RETENTION_BONUS = 0.05;
@@ -22,6 +24,7 @@ export function importantRetention(base: number): number {
 export function markedLines(g: Graph | undefined, marks: Iterable<PositionMark>): LineMarks {
   const important = new Set<string>();
   const sharp = new Set<string>();
+  const path = new Set<string>();
   for (const m of marks) {
     if (!m.critical && !m.sharp) continue;
     const id = g?.byPosKey.get(m.posKey);
@@ -30,6 +33,13 @@ export function markedLines(g: Graph | undefined, marks: Iterable<PositionMark>)
       if (m.critical) important.add(k);
       if (m.sharp) sharp.add(k);
     }
+    // Weg dorthin: Elternkette bis zur Grundstellung
+    if (m.critical && id !== undefined) for (let p = g!.nodes[id].parent, guard = 0; p >= 0 && guard < 400; p = g!.nodes[p].parent, guard++) path.add(g!.nodes[p].posKey);
   }
-  return { important, sharp };
+  return { important, sharp, path };
+}
+
+/** Für das Training: wichtige Linien samt Weg dorthin. */
+export function trainImportant(lm: LineMarks): Set<string> {
+  return new Set([...lm.important, ...lm.path]);
 }

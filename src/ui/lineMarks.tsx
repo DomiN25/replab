@@ -13,9 +13,10 @@ export function useLineMarks(): LineMarks {
 }
 
 /** Kleine Plaketten: diese Stellung liegt in einer wichtigen/spannenden Linie (auch geerbt von weiter oben). */
-export function LineBadges({ posKey, lm }: { posKey: string; lm: LineMarks }) {
-  const imp = lm.important.has(posKey);
-  const sharp = lm.sharp.has(posKey);
+export function LineBadges({ posKey, lm, inheritedOnly }: { posKey: string; lm: LineMarks; inheritedOnly?: boolean }) {
+  const own = useApp((s) => s.marks.get(posKey));
+  const imp = lm.important.has(posKey) && !(inheritedOnly && own?.critical);
+  const sharp = lm.sharp.has(posKey) && !(inheritedOnly && own?.sharp);
   if (!imp && !sharp) return null;
   return (
     <span className="line-badges" data-testid="line-badges">
@@ -29,6 +30,35 @@ export function LineBadges({ posKey, lm }: { posKey: string; lm: LineMarks }) {
           <Icon name="bolt" /> Spannend
         </span>
       )}
+    </span>
+  );
+}
+
+/** Kompakt oben im Repertoire: Stern = wichtig, Blitz = spannend (gilt ab hier für die Linie darunter). */
+export function MarkIcons({ posKey }: { posKey: string }) {
+  const mark = useApp((s) => s.marks.get(posKey));
+  return (
+    <span className="mark-icons">
+      <button
+        className={`mark-ico ${mark?.critical ? 'on imp' : ''}`}
+        aria-pressed={!!mark?.critical}
+        aria-label="Wichtig"
+        title={mark?.critical ? 'Wichtige Linie ab hier (antippen zum Entfernen)' : 'Als wichtig markieren – Linie ab hier und der Weg dorthin werden öfter abgefragt'}
+        onClick={() => void updateMark(posKey, { critical: !mark?.critical })}
+        data-testid="crit-toggle"
+      >
+        <Icon name="star" />
+      </button>
+      <button
+        className={`mark-ico ${mark?.sharp ? 'on sharp' : ''}`}
+        aria-pressed={!!mark?.sharp}
+        aria-label="Spannend"
+        title={mark?.sharp ? 'Spannende Linie ab hier (antippen zum Entfernen)' : 'Als spannend markieren – zum Wiederfinden'}
+        onClick={() => void updateMark(posKey, { sharp: !mark?.sharp })}
+        data-testid="sharp-toggle"
+      >
+        <Icon name="bolt" />
+      </button>
     </span>
   );
 }

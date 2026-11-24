@@ -9,7 +9,7 @@ import { nameDe } from '../core/openings';
 import type { ExplorerState, EngineState } from './hooks';
 import { saveMoveMeta, setEndOfLine, toggleOpp, updateMark, useApp } from './store';
 import { Icon } from './Icon';
-import { LineBadges, MarkToggles, useLineMarks } from './lineMarks';
+import { LineBadges, MarkIcons, useLineMarks } from './lineMarks';
 import type { StudySuggestion } from './studySuggest';
 import type { OppStats, ReplyStat } from '../core/opponentStats';
 
@@ -74,10 +74,11 @@ export function Candidates(p: Props) {
       <div className="cands-head">
         <div>
           <div className="turn">
-            {p.myTurn ? 'Du bist am Zug' : 'Gegner am Zug'} <LineBadges posKey={posKeyOf(p.fen)} lm={lineMarks} />
+            {p.myTurn ? 'Du bist am Zug' : 'Gegner am Zug'} <LineBadges posKey={posKeyOf(p.fen)} lm={lineMarks} inheritedOnly />
           </div>
           {opening && <div className="opening">{opening}</div>}
         </div>
+        <MarkIcons posKey={posKeyOf(p.fen)} />
       </div>
 
       {p.myTurn ? (
@@ -439,8 +440,7 @@ function EntryEditor({ entry, onDelete }: { entry: RepertoireMove; onDelete: () 
 /** Stellung/Linie als wichtig oder spannend markieren und von hier aus gezielt weiterbauen (statt zufälliger Äste). */
 function FocusActions({ posKey, onFocus }: { posKey: string; mark?: PositionMark; onFocus: () => void }) {
   return (
-    <div className="row-actions focus-actions">
-      <MarkToggles posKey={posKey} />
+    <div className="row-actions focus-actions" data-pos={posKey}>
       <button className="btn small" onClick={onFocus} title="Lückentour nur für Stellungen unterhalb dieser Stellung" data-testid="focus-here">
         <Icon name="tree" /> Ab hier weiterbauen
       </button>

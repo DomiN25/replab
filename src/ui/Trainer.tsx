@@ -16,7 +16,7 @@ import type { Card, ReviewLog, TrainingMode } from '../core/types';
 import { Icon } from './Icon';
 import { useInert } from './inert';
 import { LineBadges, MarkToggles, useLineMarks } from './lineMarks';
-import { importantRetention } from '../core/marks';
+import { importantRetention, trainImportant } from '../core/marks';
 import { useStudySuggestions } from './studySuggest';
 import { TodayRows } from './TodayRows';
 import { buzz } from './theme';
@@ -50,12 +50,14 @@ export function Trainer() {
   const cardList = useMemo(() => [...cards.values()], [cards]);
   const pool = useMemo(() => buildPool(cardList, logs, settings, now, graph, focus), [cardList, logs, settings, graph, focus, now]);
   const lm = useLineMarks();
-  const due = useMemo(() => dueItems(pool, settings, now, graph, lm.important), [pool, settings, now, graph, lm]);
-  const fresh = useMemo(() => newItems(pool, settings, graph, 0, lm.important), [pool, settings, graph, lm]);
+  // wichtige Linien samt Weg dorthin
+  const imp = useMemo(() => trainImportant(lm), [lm]);
+  const due = useMemo(() => dueItems(pool, settings, now, graph, imp), [pool, settings, now, graph, imp]);
+  const fresh = useMemo(() => newItems(pool, settings, graph, 0, imp), [pool, settings, graph, imp]);
   const eligibleCount = useMemo(() => eligibleNew(pool, settings, graph).length, [pool, settings, graph]);
   const deferredCount = pool.fresh.length - eligibleCount; // unter der Mindest-Erreichbarkeit zurückgestellt
   // Über das Tageslimit hinaus: 10 weitere neue Karten (falls noch welche da sind)
-  const extraNew = useMemo(() => (fresh.length === 0 && eligibleCount > 0 ? newItems(pool, settings, graph, 10, lm.important) : []), [fresh.length, eligibleCount, pool, settings, graph, lm]);
+  const extraNew = useMemo(() => (fresh.length === 0 && eligibleCount > 0 ? newItems(pool, settings, graph, 10, imp) : []), [fresh.length, eligibleCount, pool, settings, graph, imp]);
 
   // Fokus-Äste mit Anzahl fälliger Karten
   const families = useMemo(() => {
@@ -308,6 +310,7 @@ function Runner({
   // Wichtige Linien: höhere Ziel-Erinnerung → kürzere Abstände, also öfter abgefragt
   const schedulerImp = useMemo(() => new Scheduler(importantRetention(settings.srs.desiredRetention)), [settings.srs.desiredRetention]);
   const lm = useLineMarks();
+  const impRun = useMemo(() => trainImportant(lm), [lm]);
   // Fokus-Modus am Handy: Brett ganz oben. Block-Körper nötig – scrollTo gibt in neuem Chromium ein Promise zurück,
   // das React sonst als Aufräumfunktion aufrufen würde (Absturz).
   const inertRun = useInert();
@@ -410,7 +413,7 @@ function Runner({
     if (mode === 'line' && correct) return;
     const fresh = await repo.db.cards.get(card.id);
     if (!fresh) return;
-    const srs = (lm.important.has(fresh.posKey) ? schedulerImp : scheduler).review(fresh.srs, mode === 'line' ? 1 : rating, Date.now());
+    const srs = (impRun.has(fresh.posKey) ? schedulerImp : scheduler).review(fresh.srs, mode === 'line' ? 1 : rating, Date.now());
     if (correct) setNextDue(srs.due);
     const uid = await repo.saveReview(fresh, srs, {
       cardId: card.id,
