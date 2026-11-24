@@ -51,18 +51,18 @@ export function Gaps() {
     return groupGaps(list);
   }, [graph, sort, onlyTraps, minReach, onlyMine, stats]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = groups.reduce((s, g) => s + g.gaps.length, 0);
-  // Kritische Stellungen (Markierung beim Analysieren) mit Anzahl offener Lücken darunter
+  // Markierte Linien (wichtig/spannend) mit Anzahl offener Lücken darunter
   const marks = useApp((s) => s.marks);
   const critical = useMemo(() => {
     if (!graph) return [];
-    const out: { posKey: string; id: number; sans: string[]; open: number }[] = [];
+    const out: { posKey: string; id: number; sans: string[]; open: number; imp: boolean; sharp: boolean }[] = [];
     for (const m of marks.values()) {
-      if (!m.critical) continue;
+      if (!m.critical && !m.sharp) continue;
       const id = graph.byPosKey.get(m.posKey);
       if (id === undefined) continue;
-      out.push({ posKey: m.posKey, id, sans: pathSans(graph, id), open: openGapCount(graph, { minReach: 0, skipped: new Set(), under: id }) });
+      out.push({ posKey: m.posKey, id, sans: pathSans(graph, id), open: openGapCount(graph, { minReach: 0, skipped: new Set(), under: id }), imp: !!m.critical, sharp: !!m.sharp });
     }
-    return out.sort((a, b) => b.open - a.open || a.sans.length - b.sans.length);
+    return out.sort((a, b) => Number(b.imp) - Number(a.imp) || b.open - a.open || a.sans.length - b.sans.length);
   }, [graph, marks]);
 
   if (!graph) return <p className="hint pad">Repertoire wird berechnet …</p>;
@@ -176,7 +176,7 @@ export function Gaps() {
         <section className="gapfam critical-list" data-testid="critical-list">
           <h2>
             <span>
-              <Icon name="star" className="crit-ico" /> Kritische Stellungen <small>{critical.length}</small>
+              <Icon name="star" className="crit-ico" /> Markierte Linien <small>{critical.length}</small>
             </span>
           </h2>
           <ul>
@@ -185,6 +185,8 @@ export function Gaps() {
                 <button className="gap-go" onClick={() => jump(c.id)}>
                   <span className="line">{formatLine(c.sans, notation) || 'Grundstellung'}</span>
                   <span className="meta">
+                    {c.imp && <span className="lb imp"><Icon name="star" /> Wichtig</span>}
+                    {c.sharp && <span className="lb sharp"><Icon name="bolt" /> Spannend</span>}
                     <span className="reach">{c.open ? `${c.open} offene Lücken darunter` : 'darunter alles beantwortet'}</span>
                   </span>
                 </button>
@@ -199,7 +201,7 @@ export function Gaps() {
                 >
                   Ab hier bauen
                 </button>
-                <button className="btn small ghost" aria-label="Markierung entfernen" title="Nicht mehr kritisch" onClick={() => void updateMark(c.posKey, { critical: false })}>
+                <button className="btn small ghost" aria-label="Markierung entfernen" title="Markierung entfernen" onClick={() => void updateMark(c.posKey, { critical: false, sharp: false })}>
                   <Icon name="x" />
                 </button>
               </li>

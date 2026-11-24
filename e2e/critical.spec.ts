@@ -31,6 +31,10 @@ test('Kritische Stellung markieren und ab hier weiterbauen', async ({ page }) =>
 
   await page.getByTestId('crit-toggle').click();
   await expect(page.getByTestId('crit-toggle')).toHaveAttribute('aria-pressed', 'true');
+  // Wichtig gilt für die Linie: Plakette hier; Spannend dazu
+  await expect(page.getByTestId('line-badges')).toContainText('Wichtig');
+  await page.getByTestId('sharp-toggle').click();
+  await expect(page.getByTestId('line-badges')).toContainText('Spannend');
 
   // ab hier weiterbauen: Lückentour nur unterhalb von 1.e4 e5 (1…c5 gehört nicht dazu)
   await page.getByTestId('focus-here').click();
@@ -47,4 +51,6 @@ test('Kritische Stellung markieren und ab hier weiterbauen', async ({ page }) =>
   const list = page.getByTestId('critical-list');
   await expect(list).toContainText('1.e4 e5');
   await expect(list).toContainText('1 offene Lücken darunter');
+  await expect(list).toContainText('Wichtig');
+  await expect(list).toContainText('Spannend');
 });

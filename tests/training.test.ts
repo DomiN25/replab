@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildGraph, type GraphInput } from '../src/core/graph';
 import { playSan, START_FEN } from '../src/core/chess';
 import { newSrs } from '../src/core/srs';
-import { buildPool, eligibleNew, newItems } from '../src/ui/training';
+import { buildPool, dueItems, eligibleNew, newItems } from '../src/ui/training';
 import { DEFAULT_SETTINGS, type Card, type Settings } from '../src/core/types';
 import { SETTINGS, explorer, keyAfter } from './helpers';
 
@@ -42,6 +42,15 @@ describe('Neue Karten', () => {
   it('wichtigste zuerst: nach Erreichbarkeit, Eltern vor Kindern', () => {
     const items = newItems(pool, settings({ newOrder: 'reach', newPerDay: 10 }), g);
     expect(items.map((i) => sansOf(i.posKey))).toEqual(['Start', 'e5', 'c5', 'a6']);
+  });
+
+  it('wichtige Linien zuerst (neue und fällige Karten)', () => {
+    const c5 = [...ent.keys()].find((k) => sansOf(k) === 'c5')!;
+    const a6 = [...ent.keys()].find((k) => sansOf(k) === 'a6')!;
+    const items = newItems(pool, settings({ newOrder: 'reach', newPerDay: 10 }), g, 0, new Set([c5, a6]));
+    expect(items.slice(0, 2).map((i) => sansOf(i.posKey))).toEqual(['c5', 'a6']);
+    const due = dueItems({ ...pool, due: cards, fresh: [] }, DEFAULT_SETTINGS, Date.now(), g, new Set([a6]));
+    expect(sansOf(due[0].posKey)).toBe('a6');
   });
 
   it('Tageslimit und Extra-Runde', () => {

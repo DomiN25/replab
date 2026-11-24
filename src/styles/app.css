@@ -26,6 +26,7 @@
   --opp: #a86400;
   --opp-soft: rgba(214, 140, 20, 0.12);
   --gap: #c2483f;
+  --star: #b07f00; /* Markierung „Wichtig“ (Stern) */
   --gap-soft: rgba(194, 72, 63, 0.07);
   --on-gap: #ffffff;
   --eng: #1b75b7;
@@ -51,7 +52,7 @@
     --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.25), 0 12px 28px rgba(0, 0, 0, 0.35), 0 28px 56px rgba(0, 0, 0, 0.4);
     --acc: #5fb3f0; --acc-fg: #0d1620; --acc-soft: #1b2f42;
     --me: #46e3ad; --me-soft: rgba(70, 227, 173, 0.1); --on-me: #06281d;
-    --opp: #f5b54a; --opp-soft: rgba(245, 181, 74, 0.1); --gap: #f08c80; --gap-soft: rgba(240, 140, 128, 0.07); --on-gap: #2a0d0d; --eng: #7cc3f5;
+    --opp: #f5b54a; --opp-soft: rgba(245, 181, 74, 0.1); --gap: #f08c80; --gap-soft: rgba(240, 140, 128, 0.07); --on-gap: #2a0d0d; --eng: #7cc3f5; --star: #f2c14e;
     color-scheme: dark;
   }
 }
@@ -65,7 +66,7 @@
   --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.25), 0 12px 28px rgba(0, 0, 0, 0.35), 0 28px 56px rgba(0, 0, 0, 0.4);
   --acc: #5fb3f0; --acc-fg: #0d1620; --acc-soft: #1b2f42;
   --me: #46e3ad; --me-soft: rgba(70, 227, 173, 0.1); --on-me: #06281d;
-  --opp: #f5b54a; --opp-soft: rgba(245, 181, 74, 0.1); --gap: #f08c80; --gap-soft: rgba(240, 140, 128, 0.07); --on-gap: #2a0d0d; --eng: #7cc3f5;
+  --opp: #f5b54a; --opp-soft: rgba(245, 181, 74, 0.1); --gap: #f08c80; --gap-soft: rgba(240, 140, 128, 0.07); --on-gap: #2a0d0d; --eng: #7cc3f5; --star: #f2c14e;
   color-scheme: dark;
 }
 
@@ -623,7 +624,18 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .rg-lines .kdot { width: 14px; height: 14px; vertical-align: -2px; }
 .gc-head .kdot, .game-head .kdot { width: 16px; height: 16px; }
 .gd-title .kdot { width: 16px; height: 16px; vertical-align: -2px; }
-/* Partien: Auswahl, Auswertung, Brennpunkte */
+/* Markierte Linien: Wichtig (Stern, Bernstein-Gold) und Spannend (Blitz, Blau) */
+.line-badges { display: inline-flex; gap: 6px; vertical-align: middle; margin-left: 4px; }
+.lb { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px var(--display); letter-spacing: 0.01em; }
+.lb .ico, .lb svg { width: 13px; height: 13px; }
+.lb.imp { background: color-mix(in srgb, var(--star) 15%, transparent); color: var(--star); }
+.lb.sharp { background: var(--acc-soft); color: var(--acc); }
+.mark-btn.on.imp { background: color-mix(in srgb, var(--star) 15%, transparent); border-color: color-mix(in srgb, var(--star) 50%, transparent); color: var(--star); }
+.mark-btn.on.sharp { background: var(--acc-soft); border-color: color-mix(in srgb, var(--acc) 45%, transparent); color: var(--acc); }
+.train-marks { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
+.study-origin { margin: 8px 0 0; font-size: 13.5px; }
+.study-origin p { margin: 4px 0; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.study-origin svg { width: 14px; height: 14px; color: var(--acc); align-self: center; }
 .games-reps { margin: 4px 0 6px; flex-wrap: wrap; }
 .games-reps .kdot { margin-right: 4px; }
 .games-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 12px; }

@@ -9,6 +9,7 @@ import { nameDe } from '../core/openings';
 import type { ExplorerState, EngineState } from './hooks';
 import { saveMoveMeta, setEndOfLine, toggleOpp, updateMark, useApp } from './store';
 import { Icon } from './Icon';
+import { LineBadges, MarkToggles, useLineMarks } from './lineMarks';
 import type { StudySuggestion } from './studySuggest';
 import type { OppStats, ReplyStat } from '../core/opponentStats';
 
@@ -50,6 +51,7 @@ function WdlBar({ w, d, l }: { w: number; d: number; l: number }) {
 }
 
 export function Candidates(p: Props) {
+  const lineMarks = useLineMarks();
   const settings = useApp((s) => s.settings);
   const notation = settings.ui.notation;
   const ply = plyOfFenSafe(p.fen, p.lineSans.length);
@@ -71,7 +73,9 @@ export function Candidates(p: Props) {
     <div className="cands">
       <div className="cands-head">
         <div>
-          <div className="turn">{p.myTurn ? 'Du bist am Zug' : 'Gegner am Zug'}</div>
+          <div className="turn">
+            {p.myTurn ? 'Du bist am Zug' : 'Gegner am Zug'} <LineBadges posKey={posKeyOf(p.fen)} lm={lineMarks} />
+          </div>
           {opening && <div className="opening">{opening}</div>}
         </div>
       </div>
@@ -432,19 +436,11 @@ function EntryEditor({ entry, onDelete }: { entry: RepertoireMove; onDelete: () 
   );
 }
 
-/** Kritische Stellung markieren und von hier aus gezielt weiterbauen (statt zufälliger Äste). */
-function FocusActions({ posKey, mark, onFocus }: { posKey: string; mark?: PositionMark; onFocus: () => void }) {
+/** Stellung/Linie als wichtig oder spannend markieren und von hier aus gezielt weiterbauen (statt zufälliger Äste). */
+function FocusActions({ posKey, onFocus }: { posKey: string; mark?: PositionMark; onFocus: () => void }) {
   return (
     <div className="row-actions focus-actions">
-      <button
-        className={`btn small ${mark?.critical ? 'crit-on' : 'ghost'}`}
-        aria-pressed={!!mark?.critical}
-        onClick={() => void updateMark(posKey, { critical: !mark?.critical })}
-        title="Wichtige Stellung merken – sie erscheint unter Lücken → Kritische Stellungen"
-        data-testid="crit-toggle"
-      >
-        <Icon name="star" /> {mark?.critical ? 'Kritisch' : 'Als kritisch markieren'}
-      </button>
+      <MarkToggles posKey={posKey} />
       <button className="btn small" onClick={onFocus} title="Lückentour nur für Stellungen unterhalb dieser Stellung" data-testid="focus-here">
         <Icon name="tree" /> Ab hier weiterbauen
       </button>

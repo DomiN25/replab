@@ -23,6 +23,8 @@ test('falscher Zug → Relearning genau einmal', async ({ page }) => {
   await page.getByRole('button', { name: /neu lernen/ }).click();
 
   const trainer = page.locator('.trainer');
+  // Markieren geht auch im Training (Wichtig/Spannend)
+  await expect(trainer.getByTestId('train-marks').getByRole('button', { name: 'Wichtig' })).toBeVisible();
   const asks: string[] = [];
   let wrongCard: string | undefined;
   let afterWrong: string | undefined;

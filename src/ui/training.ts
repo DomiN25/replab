@@ -45,13 +45,16 @@ export function pathOf(g: Graph | undefined, posKey: string): string[] | undefin
   return id !== undefined ? pathUcis(g!, id) : undefined;
 }
 
-/** Fällige Karten: Priorität = Überfälligkeit (Tage) + Erreichwahrscheinlichkeit. */
-export function dueItems(pool: Pool, settings: Settings, now: number, g?: Graph): SessionItem[] {
+/** Vorsprung (in „Tagen Überfälligkeit“) für fällige Karten aus wichtigen Linien – sie kommen in der Sitzung zuerst. */
+export const IMPORTANT_PRIORITY = 30;
+
+/** Fällige Karten: Priorität = Überfälligkeit (Tage) + Erreichwahrscheinlichkeit (+ Vorsprung für wichtige Linien). */
+export function dueItems(pool: Pool, settings: Settings, now: number, g?: Graph, important?: Set<string>): SessionItem[] {
   const limit = Math.max(0, settings.srs.maxReviewsPerDay - pool.reviewsToday);
   const items = pool.due.map((c) => {
     const id = g?.byPosKey.get(c.posKey);
     const reach = id !== undefined ? g!.nodes[id].reach : 0;
-    return { cardId: c.id, posKey: c.posKey, path: pathOf(g, c.posKey), priority: (now - c.srs.due) / 86400_000 + reach };
+    return { cardId: c.id, posKey: c.posKey, path: pathOf(g, c.posKey), priority: (now - c.srs.due) / 86400_000 + reach + (important?.has(c.posKey) ? IMPORTANT_PRIORITY : 0) };
   });
   items.sort((a, b) => b.priority - a.priority);
   return items.slice(0, limit);
@@ -72,15 +75,17 @@ export function eligibleNew(pool: Pool, settings: Settings, g?: Graph): Card[] {
  * Reihenfolge „reach“: wahrscheinlichste Stellungen zuerst (Eltern vor Kindern, da Erreichbarkeit entlang der Linie
  * nur sinkt) – sinnvoll nach großen Importen. „line“: Linie für Linie (Tiefensuche, häufige Gegnerzüge zuerst).
  */
-export function newItems(pool: Pool, settings: Settings, g?: Graph, extra = 0): SessionItem[] {
+export function newItems(pool: Pool, settings: Settings, g?: Graph, extra = 0, important?: Set<string>): SessionItem[] {
   const limit = Math.max(0, settings.srs.newPerDay - pool.newToday) + extra;
+  // wichtige Linien zuerst (stabil: innerhalb der Gruppen bleibt die gewählte Reihenfolge)
+  const imp = (c: Card) => (important?.has(c.posKey) ? 1 : 0);
   const eligible = eligibleNew(pool, settings, g);
   if ((settings.srs.newOrder ?? 'reach') === 'reach' && g) {
     const info = (c: Card) => {
       const id = g.byPosKey.get(c.posKey);
       return id !== undefined ? { reach: g.nodes[id].reach, ply: g.nodes[id].ply } : { reach: -1, ply: 999 };
     };
-    const sorted = eligible.map((c) => ({ c, ...info(c) })).sort((a, b) => b.reach - a.reach || a.ply - b.ply);
+    const sorted = eligible.map((c) => ({ c, ...info(c) })).sort((a, b) => imp(b.c) - imp(a.c) || b.reach - a.reach || a.ply - b.ply);
     return sorted.slice(0, limit).map(({ c }, i) => ({ cardId: c.id, posKey: c.posKey, path: pathOf(g, c.posKey), priority: -i }));
   }
   const byKey = new Map(eligible.map((c) => [c.posKey, c]));
@@ -95,6 +100,7 @@ export function newItems(pool: Pool, settings: Settings, g?: Graph, extra = 0): 
     }
   }
   ordered.push(...byKey.values()); // nicht erreichbare zuletzt
+  ordered.sort((a, b) => imp(b) - imp(a));
   return ordered.slice(0, limit).map((c, i) => ({ cardId: c.id, posKey: c.posKey, path: pathOf(g, c.posKey), priority: -i }));
 }
 
