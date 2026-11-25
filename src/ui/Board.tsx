@@ -98,7 +98,16 @@ export function Board({ fen, orientation, lastMove, movable = 'turn', shapes, on
       ...config(),
       drawable: { enabled: true, visible: true, brushes: { ...defaultBrushes(), ...BRUSHES } as unknown as DrawBrushes },
     });
+    // chessground merkt sich die Brett-Position und vergisst sie nur bei Scroll/Resize. Verschiebt sich das Brett anders
+    // (Inhalt darüber wächst, Seitenwechsel per translate), hängt die gezogene Figur neben dem Zeiger. Deshalb bei jedem
+    // Drücken neu messen (Capture-Phase: vor chessgrounds eigenem Handler auf dem Brett).
+    const host = el.current;
+    const remeasure = () => api.current?.state.dom.bounds.clear();
+    host.addEventListener('mousedown', remeasure, true);
+    host.addEventListener('touchstart', remeasure, { capture: true, passive: true });
     return () => {
+      host.removeEventListener('mousedown', remeasure, true);
+      host.removeEventListener('touchstart', remeasure, { capture: true });
       api.current?.destroy();
       api.current = undefined;
     };
