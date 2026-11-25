@@ -31,6 +31,7 @@ import {
 } from './store';
 import { displaySan, playSan, playUci, plyOfFen, posKeyOf, turnOf, moveNumberPrefix } from '../core/chess';
 import { oppCandidates } from '../core/relevance';
+import { takebackKeys } from '../core/takeback';
 import { Scheduler } from '../core/srs';
 import { repo } from '../data/repo';
 import { Icon } from './Icon';
@@ -63,7 +64,8 @@ export function Builder() {
   const [pending, setPending] = useState<PendingCommit | undefined>();
   const [orphanCheck, setOrphanCheck] = useState(false);
   const [orphans, setOrphans] = useState<string[] | undefined>();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  /** Zug zurücknehmen: Stufe 1 = was fällt weg, Stufe 2 = endgültig bestätigen */
+  const [takeback, setTakeback] = useState<{ entry: RepertoireMove; keys: string[]; afterMove: boolean; stage: 1 | 2; armedAt?: number } | undefined>();
   const mobile = useMediaQuery('(max-width: 899px)');
   const boardRef = useRef<HTMLElement>(null);
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('peek');
@@ -124,6 +126,20 @@ export function Builder() {
   const mark = marks.get(posKey);
   const nodeId = graph?.byPosKey.get(posKey);
   const node = nodeId !== undefined ? graph!.nodes[nodeId] : undefined;
+
+  // Zurücknehmen: der eigene Zug in dieser Stellung, sonst der eigene Repertoirezug, der hierher geführt hat
+  const takebackTarget = useMemo(() => {
+    if (entry) return { entry, afterMove: false };
+    if (cursor < 1 || !step.uci) return undefined;
+    const prevFen = line[cursor - 1].fen;
+    if (turnOf(prevFen) !== myColor) return undefined;
+    const e = moves.get(posKeyOf(prevFen));
+    return e && e.uci === step.uci ? { entry: e, afterMove: true } : undefined;
+  }, [entry, cursor, line, step, myColor, moves]);
+  const openTakeback = () => {
+    if (!takebackTarget || !graph) return;
+    setTakeback({ ...takebackTarget, keys: takebackKeys(graph, takebackTarget.entry.posKey, moves.keys()), stage: 1 });
+  };
 
   // Abweichung vom Repertoire auf dem Weg bis hierher: erste eigene Stellung, in der ein anderer Zug gespielt wurde
   const deviation = useMemo(() => findDeviation(line, cursor, myColor, moves), [line, cursor, myColor, moves]);
@@ -385,6 +401,17 @@ export function Builder() {
       <button className="btn icon" onClick={forward} aria-label="Zug vor"><Icon name="next" /></button>
       <button className="btn icon" onClick={() => useApp.setState({ flipped: !flipped })} aria-label="Brett drehen (f)"><Icon name="flip" /></button>
       <button className="btn icon" onClick={() => setSearching(true)} aria-label="Im Repertoire suchen (/)" title="Suchen (/)"><Icon name="search" /></button>
+      {/* am Handy ist die Reihe voll – dort steht „Zug zurücknehmen …“ im Zug-Panel */}
+      {!mobile && <button
+        className="btn icon"
+        onClick={openTakeback}
+        disabled={!takebackTarget || !graph}
+        aria-label="Zurücknehmen: eigenen Repertoire-Eintrag löschen"
+        title={takebackTarget ? `${displaySan(takebackTarget.entry.san, settings.ui.notation)} zurücknehmen` : 'Zurücknehmen – hier steht kein eigener Repertoirezug'}
+        data-testid="takeback"
+      >
+        <Icon name="undo" />
+      </button>}
       <button
         className="btn icon explore-toggle"
         aria-pressed={explore}
@@ -453,7 +480,7 @@ export function Builder() {
             onSource={setSource}
             onPlay={playMove}
             onCommit={onCommit}
-            onDeleteEntry={() => setConfirmDelete(true)}
+            onDeleteEntry={openTakeback}
             suggestions={suggestions}
             games={games}
             onFocus={() => {
@@ -529,6 +556,14 @@ export function Builder() {
                 {outsideBanner}
                 <GuideBar />
                 {candidates}
+                {/* direkt nach dem eigenen Zug (in der eigenen Stellung steht der Knopf schon beim Eintrag) */}
+                {takebackTarget?.afterMove && graph && (
+                  <div className="row-actions">
+                    <button className="btn small danger ghost" onClick={openTakeback} data-testid="takeback-m">
+                      {moveNumberPrefix(plyOfFen(takebackTarget.entry.fen)) + displaySan(takebackTarget.entry.san, settings.ui.notation)} zurücknehmen …
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               side
@@ -630,28 +665,71 @@ export function Builder() {
         </Modal>
       )}
 
-      {confirmDelete && entry && (
-        <Modal
-          title="Zug entfernen?"
-          onClose={() => setConfirmDelete(false)}
-          actions={[
-            {
-              label: 'Entfernen',
-              kind: 'danger',
-              onClick: () => {
-                void deleteMyMoves([entry.posKey]).then(() => setOrphanCheck(true));
-                setConfirmDelete(false);
+      {takeback && (() => {
+        const t = takeback;
+        const san = moveNumberPrefix(plyOfFen(t.entry.fen)) + displaySan(t.entry.san, settings.ui.notation);
+        const more = t.keys.length - 1;
+        const close = () => setTakeback(undefined);
+        return t.stage === 1 ? (
+          <Modal
+            title="Zug zurücknehmen?"
+            onClose={close}
+            actions={[
+              { label: 'Weiter', kind: 'danger', onClick: () => setTakeback({ ...t, stage: 2, armedAt: Date.now() + 600 }) },
+              { label: 'Abbrechen', kind: 'ghost', onClick: close },
+            ]}
+          >
+            <p>
+              <b className="me">{san}</b> wird aus dem Repertoire entfernt.
+            </p>
+            {more > 0 ? (
+              <p data-testid="takeback-more">
+                Darüber hinaus werden <b>{more} {more === 1 ? 'weiterer eigener Zug' : 'weitere eigene Züge'}</b> gelöscht, die danach nicht mehr erreichbar wären – jeweils samt
+                Lernstand.
+              </p>
+            ) : (
+              <p data-testid="takeback-more">Weitere Züge sind nicht betroffen – nur dieser Zug und sein Lernstand.</p>
+            )}
+            {more > 0 && <p className="hint">Züge, die über eine Zugumstellung weiter erreichbar sind, bleiben erhalten.</p>}
+          </Modal>
+        ) : (
+          <Modal
+            title="Wirklich löschen?"
+            onClose={close}
+            actions={[
+              {
+                label: t.keys.length === 1 ? 'Ja, Zug löschen' : `Ja, ${t.keys.length} Züge löschen`,
+                kind: 'danger',
+                onClick: () => {
+                  // Doppelklick auf „Weiter“ darf nicht gleich hier landen – sonst wäre die zweite Bestätigung wirkungslos
+                  if (Date.now() < (t.armedAt ?? 0)) return;
+                  close();
+                  void deleteMyMoves(t.keys).then(() => {
+                    // Brett steht hinter dem zurückgenommenen Zug? → zurück an die Stelle der Entscheidung
+                    const st = useApp.getState();
+                    if (t.afterMove && st.cursor > 0 && posKeyOf(st.line[st.cursor - 1].fen) === t.entry.posKey) back();
+                    toast(t.keys.length === 1 ? `${san} zurückgenommen` : `${san} und ${more} ${more === 1 ? 'weiterer Zug' : 'weitere Züge'} gelöscht`, 'ok');
+                  });
+                },
               },
-            },
-            { label: 'Abbrechen', kind: 'ghost', onClick: () => setConfirmDelete(false) },
-          ]}
-        >
-          <p>
-            {displaySan(entry.san, settings.ui.notation)} und der Lernstand dieser Stellung werden gelöscht. Folgende Einträge bleiben erhalten und können danach aufgeräumt
-            werden.
-          </p>
-        </Modal>
-      )}
+              { label: 'Abbrechen', kind: 'ghost', onClick: close },
+            ]}
+          >
+            <p>
+              {t.keys.length === 1 ? (
+                <>
+                  <b className="me">{san}</b> und sein Lernstand werden endgültig gelöscht.
+                </>
+              ) : (
+                <>
+                  <b>{t.keys.length} Züge</b> (<b className="me">{san}</b> und {more} darunter) und ihr Lernstand werden endgültig gelöscht.
+                </>
+              )}{' '}
+              Das lässt sich nicht rückgängig machen.
+            </p>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

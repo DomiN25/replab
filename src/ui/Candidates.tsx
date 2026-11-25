@@ -431,7 +431,7 @@ function EntryEditor({ entry, onDelete }: { entry: RepertoireMove; onDelete: () 
         />
       </div>
       <div className="row-actions">
-        <button className="btn small danger ghost" onClick={onDelete}>Zug entfernen</button>
+        <button className="btn small danger ghost" onClick={onDelete}>Zug zurücknehmen …</button>
       </div>
     </div>
   );
