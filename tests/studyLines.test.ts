@@ -33,6 +33,18 @@ describe('Studie in Linien zerlegen', () => {
     expect(plan.lines[3].start).toHaveLength(3);
   });
 
+  it('wichtige Äste zuerst – samt der Linie, die dorthin führt', () => {
+    // 2…d6 (Nebenlinie der Hauptvariante) wichtig → vor 1…c5
+    const k1 = cutKey(keyAfter(['e4', 'e5', 'Nf3']), 'd7d6');
+    const p1 = buildLinePlan(tree, { ...st, important: [k1] }, active, noRep, 'skeleton');
+    expect(p1.lines.map((l) => sans(tree, l))).toEqual(['e4 e5 Nf3 Nc6 Bb5', 'd6 d4', 'c5 Nf3 d6 d4', 'Nc6 Bb5']);
+    expect(p1.lines.map((l) => !!l.important)).toEqual([true, true, false, false]);
+    // Untervariante 2…Sc6 in der 1…c5-Linie wichtig → 1…c5 (führt dorthin) und sie selbst zuerst
+    const k2 = cutKey(keyAfter(['e4', 'c5', 'Nf3']), 'b8c6');
+    const p2 = buildLinePlan(tree, { ...st, important: [k2] }, active, noRep, 'skeleton');
+    expect(p2.lines.map((l) => sans(tree, l))).toEqual(['e4 e5 Nf3 Nc6 Bb5', 'c5 Nf3 d6 d4', 'Nc6 Bb5', 'd6 d4']);
+  });
+
   it('„Wie in der Studie“: Tiefensuche – Untervariante direkt nach ihrer Nebenlinie', () => {
     const plan = buildLinePlan(tree, st, active, noRep, 'study');
     expect(plan.lines.map((l) => sans(tree, l))).toEqual(['e4 e5 Nf3 Nc6 Bb5', 'c5 Nf3 d6 d4', 'Nc6 Bb5', 'd6 d4']);

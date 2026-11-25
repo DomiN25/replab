@@ -34,6 +34,8 @@ export interface StudyLine {
   comments: number;
   /** Kapitel, zu dem die Linie gehört (niedrigstes aktives Kapitel ihres ersten Zugs) – für die Fortschrittskarte */
   chapter: number;
+  /** liegt in einem als wichtig markierten Ast oder führt zu einem (wird zuerst gelernt) */
+  important?: boolean;
 }
 
 export interface LinePlan {
@@ -52,6 +54,7 @@ interface Pending {
   level: number;
   ord: number[];
   parent?: number;
+  imp: boolean;
 }
 
 const cmpOrd = (a: number[], b: number[]) => {
@@ -100,7 +103,7 @@ class Heap<T> {
 
 export function buildLinePlan(
   tree: StudyTree,
-  st: Pick<Study, 'color' | 'cuts' | 'choices'>,
+  st: Pick<Study, 'color' | 'cuts' | 'choices' | 'important'>,
   active: Set<number>,
   existing: Map<string, ExistingEntry>,
   order: LineOrder = 'skeleton',
@@ -134,14 +137,33 @@ export function buildLinePlan(
     return [...list].sort((a, b) => Number(isMain(key, b.uci)) - Number(isMain(key, a.uci)));
   };
 
-  const less =
+  // Wichtige Äste: Linien darin oder auf dem Weg dorthin kommen zuerst (Eltern stets vor Kindern – sie werden erst beim
+  // Durchlaufen der Elternlinie eingereiht)
+  const important = new Set(st.important ?? []);
+  const impBelow = new Map<string, boolean>();
+  const below = (key: string, depth = 0): boolean => {
+    const have = impBelow.get(key);
+    if (have !== undefined) return have;
+    impBelow.set(key, false); // Schutz gegen Zugumstellungs-Kreise
+    let r = false;
+    if (depth < 400) for (const m of continuations(key)) if (important.has(cutKey(key, m.uci)) || below(m.child, depth + 1)) r = true;
+    impBelow.set(key, r);
+    return r;
+  };
+  const branchImp = (key: string, uci: string) => {
+    if (!important.size) return false;
+    const m = tree.nodes.get(key)?.moves.find((x) => x.uci === uci);
+    return important.has(cutKey(key, uci)) || (!!m && below(m.child));
+  };
+  const base =
     order === 'skeleton'
       ? (x: Pending, y: Pending) => x.level - y.level < 0 || (x.level === y.level && cmpOrd(x.ord, y.ord) < 0)
       : (x: Pending, y: Pending) => cmpOrd(x.ord, y.ord) < 0;
+  const less = (x: Pending, y: Pending) => (x.imp !== y.imp ? x.imp : base(x, y));
   const heap = new Heap<Pending>(less);
   const lines: StudyLine[] = [];
   const owner = new Map<string, { line: number; step: number }>();
-  heap.push({ from: tree.root, path: [], level: 0, ord: [] });
+  heap.push({ from: tree.root, path: [], level: 0, ord: [], imp: false });
 
   while (heap.size) {
     const p = heap.pop()!;
@@ -153,6 +175,8 @@ export function buildLinePlan(
     let branchNo = 0;
     let transposeTo: StudyLine['transposeTo'];
     let comments = 0;
+    // Linie ist wichtig, wenn ihr Abzweig wichtig ist/dorthin führt oder unterwegs ein wichtiger Zug liegt
+    let lineImp = p.imp || (p.uci === undefined && important.size > 0 && below(p.from));
     for (;;) {
       if (uci === undefined) {
         const conts = continuations(key);
@@ -166,6 +190,7 @@ export function buildLinePlan(
             level: p.level + (isMain(key, alt.uci) ? 0 : 1),
             ord: [...p.ord, branchNo++],
             parent: idx,
+            imp: branchImp(key, alt.uci),
           });
         }
         uci = conts[0].uci;
@@ -173,6 +198,7 @@ export function buildLinePlan(
       const mv = tree.nodes.get(key)?.moves.find((m) => m.uci === uci);
       if (!mv) break;
       steps.push({ key, uci });
+      if (important.has(cutKey(key, uci))) lineImp = true;
       if (mv.comment) comments++;
       const known = owner.get(mv.child);
       if (known) {
@@ -187,7 +213,7 @@ export function buildLinePlan(
     const firstMove = tree.nodes.get(steps[0].key)?.moves.find((m) => m.uci === steps[0].uci);
     const chMin = Math.min(...(firstMove?.chapters.filter((c) => active.has(c)) ?? []));
     const chapter = Number.isFinite(chMin) ? chMin : 0;
-    lines.push({ id: p.uci === undefined ? 'main' : cutKey(p.from, p.uci), level: p.level, start: p.path, steps, parent: p.parent, transposeTo, comments, chapter });
+    lines.push({ id: p.uci === undefined ? 'main' : cutKey(p.from, p.uci), level: p.level, start: p.path, steps, parent: p.parent, transposeTo, comments, chapter, ...(lineImp ? { important: true } : {}) });
   }
 
   const byId = new Map(lines.map((l, i) => [l.id, i]));

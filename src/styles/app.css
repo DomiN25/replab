@@ -641,6 +641,10 @@ cg-board square.flash-ok { background-color: rgba(46, 204, 140, 0.55); animation
 .mark-ico.on.imp svg { fill: currentColor; }
 .mark-ico.on.sharp { color: var(--acc); background: var(--acc-soft); border-color: color-mix(in srgb, var(--acc) 45%, transparent); }
 .mark-ico.on.sharp svg { fill: currentColor; }
+.branch-acts { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; }
+.mark-ico.small { width: 32px; height: 32px; }
+.mark-ico.small svg { width: 15px; height: 15px; }
+.var-chip.imp { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--star) 60%, transparent); }
 .train-marks { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
 .study-origin { margin: 8px 0 0; font-size: 13.5px; }
 .study-origin p { margin: 4px 0; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }

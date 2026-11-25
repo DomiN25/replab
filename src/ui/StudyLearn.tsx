@@ -687,6 +687,11 @@ export function LearnCard({
       {/* Linien-Info klein am Ende – wo genau man ist, muss nicht ständig im Blick sein (Details im Plan) */}
       <div className="learn-meta">
         <span className={`tag lvl lvl${Math.min(line.level, 3)}`}>{levelName(line.level)}</span>
+        {line.important && (
+          <span className="lb imp" title="Wichtiger Ast (im Lesen-Modus markiert) – kommt zuerst">
+            <Icon name="star" /> Wichtig
+          </span>
+        )}
         <span className="learn-of">
           Linie {idx + 1}/{total}
         </span>

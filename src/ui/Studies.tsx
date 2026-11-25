@@ -457,6 +457,23 @@ function StudyEditor({ id }: { id: string }) {
     update({ cuts: has ? st.cuts.filter((x) => x !== k) : [...st.cuts, k], choices });
   };
   const choose = (uci: string) => update({ choices: { ...st.choices, [node.key]: uci } });
+  const impSet = new Set(st.important ?? []);
+  /** Ast (Zug `uci` in Stellung `key`) als wichtig markieren/aufheben – wird zuerst gelernt, bei der Übernahme „Wichtig“ */
+  const toggleImpAt = (key: string, uci: string) => {
+    const k = cutKey(key, uci);
+    const cur = st.important ?? [];
+    update({ important: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] });
+  };
+  /** Den gerade gespielten Zug (Ast ab hier) abschneiden: zurück zur Stellung davor */
+  const cutCurrent = () => {
+    if (!lastStep) return;
+    const k = cutKey(lastStep.key, lastStep.uci);
+    const choices = { ...st.choices };
+    if (choices[lastStep.key] === lastStep.uci) delete choices[lastStep.key];
+    update({ cuts: [...st.cuts, k], choices, important: (st.important ?? []).filter((x) => x !== k) });
+    setPath(path.slice(0, -1));
+    toast('Ast abgeschnitten – er wird weder gelernt noch übernommen.', 'info', { label: 'Rückgängig', run: () => update({ cuts: st.cuts.filter((x) => x !== k) }) });
+  };
   const target = repertoires.find((r) => r.id === targetId);
   // Nicht alle Fortsetzungen zeichnen (bei 12 Gegnerzügen unlesbar): gewählter Zug + die häufigsten (meiste Kapitel)
   const learnShape = (): DrawShape[] => {
@@ -487,6 +504,13 @@ function StudyEditor({ id }: { id: string }) {
     // Lernstand aus den Studien-Abfragen in die neuen Repertoire-Karten übernehmen (vorhandener bleibt unangetastet)
     const adopt = adoptable(st.cards, plan.entries.map((e) => ({ posKey: e.posKey, uci: e.uci })));
     const adopted = adopt.length ? await repo.adoptStudySrs(target.id, adopt) : 0;
+    // Wichtige Äste der Studie → im Repertoire „Wichtig“ (Stellung nach dem Zug; gilt dort für die Linie darunter)
+    for (const k of st.important ?? []) {
+      if (st.cuts.includes(k)) continue;
+      const sp = k.lastIndexOf(' ');
+      const child = tree.nodes.get(k.slice(0, sp))?.moves.find((m) => m.uci === k.slice(sp + 1))?.child;
+      if (child && plan.entries.some((e) => e.posKey === child || e.posKey === k.slice(0, sp))) await repo.updateMark(target.id, child, { critical: true });
+    }
     const entries = plan.stats.newEntries + plan.stats.replaced;
     update({ added: [...(st.added ?? []), { repertoireId: target.id, at: Date.now(), entries }] });
     await reloadRepertoires();
@@ -563,7 +587,7 @@ function StudyEditor({ id }: { id: string }) {
         {nextMoves.map((m, i) => (
           <button
             key={m.uci}
-            className={`var-chip ${m.status} ${i === 0 ? 'main' : ''} ${seenSet.has(m.child) ? 'seen' : ''}`}
+            className={`var-chip ${m.status} ${i === 0 ? 'main' : ''} ${seenSet.has(m.child) ? 'seen' : ''} ${impSet.has(cutKey(node.key, m.uci)) ? 'imp' : ''}`}
             onClick={() => go(m.uci)}
             title={m.comment}
           >
@@ -572,6 +596,25 @@ function StudyEditor({ id }: { id: string }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+  const curImp = !!lastStep && impSet.has(cutKey(lastStep.key, lastStep.uci));
+  const branchActs = lastStep && lastMove && (
+    <div className="branch-acts" data-testid="branch-acts">
+      <span className="hint">Ast ab {sanLabel(tree.nodes.get(lastStep.key)!.fen, lastMove.san)}:</span>
+      <button
+        className={`mark-ico ${curImp ? 'on imp' : ''}`}
+        aria-pressed={curImp}
+        aria-label="Ast wichtig"
+        title={curImp ? 'Wichtiger Ast (antippen zum Entfernen)' : 'Als wichtig markieren – wird zuerst gelernt und bei der Übernahme als „Wichtig“ markiert'}
+        onClick={() => toggleImpAt(lastStep.key, lastStep.uci)}
+        data-testid="branch-imp"
+      >
+        <Icon name="star" />
+      </button>
+      <button className="mark-ico" aria-label="Ast abschneiden" title="Ast ab diesem Zug abschneiden (nicht lernen, nicht übernehmen)" onClick={cutCurrent} data-testid="branch-cut">
+        <Icon name="scissors" />
+      </button>
     </div>
   );
 
@@ -684,6 +727,7 @@ function StudyEditor({ id }: { id: string }) {
                     {m.status === 'chosen' && <span className="tag ok">wird übernommen</span>}
                     {m.status === 'alt' && <span className="tag">nicht gewählt</span>}
                     {m.status === 'cut' && <span className="tag gap">entfernt</span>}
+                    {impSet.has(cutKey(node.key, m.uci)) && m.status !== 'cut' && <span className="lb imp"><Icon name="star" /> wichtig</span>}
                     {m.inRep && <span className="tag rep">im Repertoire</span>}
                     <small>
                       {m.chapters.length > 1 ? `${m.chapters.length} Kapitel` : tree.chapters[m.chapters[0]]?.name}
@@ -695,6 +739,17 @@ function StudyEditor({ id }: { id: string }) {
                 <span className="smove-acts">
                   {view.mine && m.status === 'alt' && (
                     <button className="btn small" onClick={() => choose(m.uci)}>Wählen</button>
+                  )}
+                  {m.status !== 'cut' && (
+                    <button
+                      className={`mark-ico small ${impSet.has(cutKey(node.key, m.uci)) ? 'on imp' : ''}`}
+                      aria-pressed={impSet.has(cutKey(node.key, m.uci))}
+                      onClick={() => toggleImpAt(node.key, m.uci)}
+                      title="Ast als wichtig markieren – wird zuerst gelernt"
+                      aria-label={`${m.san} wichtig`}
+                    >
+                      <Icon name="star" />
+                    </button>
                   )}
                   <button
                     className="btn small ghost"
@@ -824,6 +879,7 @@ function StudyEditor({ id }: { id: string }) {
             ) : (
               <>
                 {controls}
+                {branchActs}
                 {commentBlock ?? <p className="hint study-nocomment">Kein Kommentar zu diesem Zug.</p>}
               </>
             )}
@@ -845,7 +901,10 @@ function StudyEditor({ id }: { id: string }) {
             ) : learning && learn ? (
               <LearnControls learn={learn} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} />
             ) : (
-              controls
+              <>
+                {controls}
+                {branchActs}
+              </>
             )}
           </section>
           <section className="col-panel">

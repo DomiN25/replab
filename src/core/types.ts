@@ -123,6 +123,8 @@ export interface Study {
   choices: Record<string, string>;
   /** entfernte Züge `${posKey} ${uci}` (Ast ab dort) */
   cuts: string[];
+  /** als wichtig markierte Züge `${posKey} ${uci}` (Ast ab dort) – werden zuerst gelernt und bei der Übernahme als „Wichtig“ markiert */
+  important?: string[];
   /** abgewählte Kapitel (Index im PGN) */
   skipChapters: number[];
   added?: { repertoireId: string; at: number; entries: number }[];
